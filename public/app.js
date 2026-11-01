@@ -311,7 +311,7 @@ const navs = [
 function shell() {
   document.title = "APG — Goods & accounts";
   $("#app").innerHTML =
-    `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="dashboard"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><div class="workspace-label"><span class="workspace-monogram">A</span><div><b>Goods & accounts</b><small>D. I. Khan workspace</small></div>${icon("chevron")}</div><nav><div class="nav-label">OPERATIONS</div>${navs
+    `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="dashboard"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><nav><div class="nav-label">OPERATIONS</div>${navs
       .slice(0, 6)
       .filter(([v]) => canView(v))
       .map(

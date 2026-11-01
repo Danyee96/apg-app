@@ -428,6 +428,12 @@ const navs = [
   ["profile", "users", "My profile"],
   ["archive", "report", "Imported backup"],
 ];
+function initialView() {
+  const requested = new URLSearchParams(location.search).get("view");
+  return navs.some(([view]) => view === requested) && canView(requested)
+    ? requested
+    : "navigation";
+}
 function shell() {
   document.title = "APG — Goods & accounts";
   $("#app").innerHTML =
@@ -2248,7 +2254,7 @@ async function submitForm(form, submitter) {
       session = await api("session");
       await refreshLookups();
       shell();
-      await navigate("navigation");
+      await navigate(initialView());
       break;
     case "global-search":
       if (
@@ -2772,7 +2778,7 @@ document.addEventListener("keydown", (e) => {
     if (!session.user) return auth();
     await refreshLookups();
     shell();
-    await navigate("navigation");
+    await navigate(initialView());
   } catch (e) {
     startupError(e.message);
   }

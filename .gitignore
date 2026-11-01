@@ -1,0 +1,14 @@
+# Private business data and generated backups
+storage/*.sqlite*
+storage/backup-*
+*.sqlite
+*.sqlite3
+*.db
+releases/
+
+# Local secrets and machine files
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store

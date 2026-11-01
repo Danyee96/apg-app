@@ -1,0 +1,24 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,username TEXT NOT NULL COLLATE NOCASE UNIQUE,password TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY,name TEXT NOT NULL,group_code TEXT NOT NULL,group_name TEXT,customer INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'A',address TEXT,area TEXT,contact TEXT,phone TEXT,phone2 TEXT,mobile TEXT,mobile2 TEXT,email TEXT,cnic TEXT,urdu_name TEXT,urdu_address TEXT,opening_dr INTEGER NOT NULL DEFAULT 0,opening_cr INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,version INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS stations(id INTEGER PRIMARY KEY,name TEXT NOT NULL,address TEXT,status TEXT NOT NULL DEFAULT 'A');
+CREATE TABLE IF NOT EXISTS shipments(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL CHECK(kind IN ('incoming','booking')),reference TEXT NOT NULL,dated TEXT NOT NULL,station_id INTEGER REFERENCES stations(id),truck TEXT,driver TEXT,driver_mobile TEXT,driver_cnic TEXT,challan TEXT,truck_amount INTEGER NOT NULL DEFAULT 0,commission INTEGER NOT NULL DEFAULT 0,remarks TEXT,legacy_id INTEGER UNIQUE,created_by TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY AUTOINCREMENT,shipment_id INTEGER NOT NULL REFERENCES shipments(id),account_id TEXT REFERENCES accounts(id),bilty TEXT NOT NULL,party_from TEXT,party_to TEXT,city TEXT,contact TEXT,qty INTEGER,detail TEXT,bilty_amount INTEGER NOT NULL DEFAULT 0,godown INTEGER NOT NULL DEFAULT 0,loading INTEGER NOT NULL DEFAULT 0,suzuki INTEGER NOT NULL DEFAULT 0,rent INTEGER NOT NULL DEFAULT 0,local_charge INTEGER NOT NULL DEFAULT 0,advance INTEGER NOT NULL DEFAULT 0,total INTEGER NOT NULL DEFAULT 0,remarks TEXT,status TEXT NOT NULL DEFAULT 'pending',legacy_id INTEGER UNIQUE);
+CREATE TABLE IF NOT EXISTS deliveries(id INTEGER PRIMARY KEY AUTOINCREMENT,reference TEXT NOT NULL UNIQUE,dated TEXT NOT NULL,receiver TEXT NOT NULL,mobile TEXT,cnic TEXT,remarks TEXT,legacy_id INTEGER UNIQUE,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS delivery_items(id INTEGER PRIMARY KEY,delivery_id INTEGER NOT NULL REFERENCES deliveries(id),item_id INTEGER NOT NULL UNIQUE REFERENCES items(id),discount INTEGER NOT NULL DEFAULT 0,bilty_received INTEGER NOT NULL DEFAULT 0,service_received INTEGER NOT NULL DEFAULT 0,legacy_id INTEGER UNIQUE);
+CREATE TABLE IF NOT EXISTS vouchers(id INTEGER PRIMARY KEY AUTOINCREMENT,reference TEXT NOT NULL UNIQUE,kind TEXT NOT NULL CHECK(kind IN ('RV','PV','JV')),dated TEXT NOT NULL,memo TEXT NOT NULL,created_by TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS voucher_lines(id INTEGER PRIMARY KEY,voucher_id INTEGER NOT NULL REFERENCES vouchers(id),account_id TEXT NOT NULL REFERENCES accounts(id),debit INTEGER NOT NULL DEFAULT 0 CHECK(debit>=0),credit INTEGER NOT NULL DEFAULT 0 CHECK(credit>=0),CHECK((debit>0 AND credit=0) OR (credit>0 AND debit=0)));
+CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,actor TEXT NOT NULL,action TEXT NOT NULL,entity TEXT NOT NULL,entity_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_items_status ON items(status,shipment_id);
+CREATE INDEX IF NOT EXISTS idx_items_account ON items(account_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_kind_date ON shipments(kind,dated DESC,id DESC);
+CREATE INDEX IF NOT EXISTS idx_delivery_date ON deliveries(dated DESC,id DESC);
+CREATE INDEX IF NOT EXISTS idx_lines_account ON voucher_lines(account_id,voucher_id);
+CREATE INDEX IF NOT EXISTS idx_items_shipment ON items(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_date ON shipments(dated DESC,id DESC);
+CREATE INDEX IF NOT EXISTS idx_delivery_items_delivery ON delivery_items(delivery_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS historical_ledger(source_rowid INTEGER PRIMARY KEY,account_id TEXT,dated TEXT,kind TEXT,reference TEXT,memo TEXT,debit INTEGER NOT NULL,credit INTEGER NOT NULL,sequence INTEGER);
+CREATE INDEX IF NOT EXISTS idx_historical_ledger_account_date ON historical_ledger(account_id,dated,sequence,source_rowid);

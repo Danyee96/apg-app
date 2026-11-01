@@ -1,0 +1,127 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../bootstrap.php';
+header('X-Content-Type-Options: nosniff');
+ini_set('session.use_strict_mode','1');session_name('APGSESSION');session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off','path'=>'/']);session_start();
+$_SESSION['csrf']??=bin2hex(random_bytes(24));
+try {
+ $action=$_GET['action']??'session';$method=$_SERVER['REQUEST_METHOD'];
+ if($method==='POST'){
+  if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Your session changed. Refresh and try again.',403);
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
+  $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
+ }elseif($method!=='GET')fail('Method not allowed.',405);
+ $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
+ if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$_SESSION['username']??null,'csrf'=>$_SESSION['csrf'],'backup_date'=>'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
+ if($action==='setup'&&$method==='POST'){
+  if($hasUser)fail('An administrator already exists.',409);
+  if(!in_array($_SERVER['REMOTE_ADDR'],['127.0.0.1','::1'],true))fail('Create the administrator on the local computer before uploading this app.',403);
+  $username=text($p,'username',40,true);$password=text($p,'password',128,true);if(strlen($password)<10)fail('Use a password with at least 10 characters.');
+  transaction(function()use($username,$password){if(one('SELECT id FROM users LIMIT 1'))fail('An administrator already exists.',409);run('INSERT INTO users(username,password) VALUES(?,?)',[$username,password_hash($password,PASSWORD_DEFAULT)]);});
+  session_regenerate_id(true);$_SESSION['username']=$username;audit('created','user',$username);response(['ok'=>true]);
+ }
+ if($action==='login'&&$method==='POST'){
+  run('CREATE TABLE IF NOT EXISTS auth_attempts(ip TEXT,created_at INTEGER)');$ip=$_SERVER['REMOTE_ADDR'];$cut=time()-600;run('DELETE FROM auth_attempts WHERE created_at<?',[$cut]);
+  if((int)one('SELECT count(*) n FROM auth_attempts WHERE ip=?',[$ip])['n']>=10)fail('Too many attempts. Try again in 10 minutes.',429);
+  $u=one('SELECT * FROM users WHERE username=?',[text($p,'username',40,true)]);if(!$u||!password_verify(text($p,'password',128,true),$u['password'])){run('INSERT INTO auth_attempts VALUES(?,?)',[$ip,time()]);fail('Username or password is incorrect.',401);}
+  session_regenerate_id(true);$_SESSION['username']=$u['username'];run('DELETE FROM auth_attempts WHERE ip=?',[$ip]);response(['ok'=>true]);
+ }
+ if(!isset($_SESSION['username']))fail('Please sign in.',401);
+ if($action==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();response(['ok'=>true]);}
+ if($action==='dashboard'&&$method==='GET'){
+  $asof=text($_GET,'date',10)?:'2026-10-31';day(['dated'=>$asof]);
+  response(['date'=>$asof,'customers'=>(int)one('SELECT count(*) n FROM accounts WHERE customer=1')['n'],'incoming'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='incoming' AND dated=?",[$asof])['n'],'bookings'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='booking' AND dated=?",[$asof])['n'],'deliveries'=>(int)one('SELECT count(*) n FROM deliveries WHERE dated=?',[$asof])['n'],'pending'=>(int)one("SELECT count(*) n FROM items i JOIN shipments s ON s.id=i.shipment_id WHERE i.status='pending' AND s.kind='incoming'")['n'],'recent'=>query("SELECT s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count FROM shipments s LEFT JOIN stations st ON st.id=s.station_id ORDER BY s.dated DESC,s.id DESC LIMIT 6"),'stations'=>query("SELECT st.name,count(i.id) count FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE i.status='pending' AND s.kind='incoming' GROUP BY st.id ORDER BY count DESC"),'activity'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 5')]);
+ }
+ if($action==='lookups'&&$method==='GET')response(['stations'=>query('SELECT * FROM stations ORDER BY name'),'accounts'=>query('SELECT id,name,customer,group_code,status,mobile,phone,address,area FROM accounts ORDER BY name COLLATE NOCASE'),'areas'=>query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area")]);
+ if($action==='customers'&&$method==='GET'){
+  $where=' WHERE a.customer=1';$args=[];if(!empty($_GET['search'])){$where.=" AND (a.name LIKE ? ESCAPE '\' OR a.id LIKE ? ESCAPE '\' OR a.mobile LIKE ? ESCAPE '\' OR a.phone LIKE ? ESCAPE '\' OR a.address LIKE ? ESCAPE '\')";$args=array_fill(0,5,pattern());}
+  if(!empty($_GET['group'])){$where.=' AND a.group_code=?';$args[]=text($_GET,'group',3);}
+  response(paged('accounts a',$where,$args,'a.*','a.name COLLATE NOCASE,a.id'));
+ }
+ if($action==='customer'&&$method==='GET'){$r=one('SELECT * FROM accounts WHERE id=? AND customer=1',[text($_GET,'id',40,true)]);if(!$r)fail('Customer not found.',404);response($r);}
+ if($action==='save_customer'&&$method==='POST'){
+  $id=text($p,'id',40);$name=text($p,'name',100,true);$group=text($p,'group_code',3,true);if(!in_array($group,['115','116','117','118'],true))fail('Choose a customer group.');
+  $status=text($p,'status',1)?:'A';if(!in_array($status,['A','I'],true))fail('Invalid status.');$email=text($p,'email',100);if($email&&!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Enter a valid email address.');
+  $fields=['name','status','address','area','contact','phone','phone2','mobile','mobile2','email','cnic','urdu_name','urdu_address'];$values=[];foreach($fields as $f)$values[]=match($f){'name'=>$name,'status'=>$status,'email'=>$email,default=>text($p,$f,$f==='urdu_address'?500:200)};
+  $result=transaction(function()use($id,$group,$p,$fields,$values){
+   if($id){$old=one('SELECT * FROM accounts WHERE id=? AND customer=1',[$id]);if(!$old)throw new InvalidArgumentException('Customer not found.');if((int)($p['version']??0)!==(int)$old['version'])throw new RuntimeException('This customer was edited elsewhere. Reopen the record before saving.',409);if($old['group_code']!==$group)throw new InvalidArgumentException('An existing customer’s account group cannot be changed.');run('UPDATE accounts SET '.implode(',',array_map(fn($f)=>$f.'=?',$fields)).',version=version+1 WHERE id=?',[...$values,$id]);audit('updated','customer',$id);return $id;}
+   $next=(int)one('SELECT max(CAST(substr(id,instr(substr(id,3),\'-\')+3) AS INTEGER)) n FROM accounts WHERE group_code=?',[$group])['n']+1;
+   do{$id='1-'.$group.'-'.str_pad((string)$next++,3,'0',STR_PAD_LEFT);}while(one('SELECT id FROM accounts WHERE id=?',[$id]));
+   run('INSERT INTO accounts(id,group_code,group_name,customer,'.implode(',',$fields).') VALUES('.implode(',',array_fill(0,4+count($fields),'?')).')',[$id,$group,'CUSTOMERS-'.$group,1,...$values]);audit('created','customer',$id);return $id;
+  });response(['id'=>$result]);
+ }
+ if($action==='shipments'&&$method==='GET'){
+  $kind=text($_GET,'kind',10)?:'incoming';if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');$where=' WHERE s.kind=?';$args=[$kind];
+  if(!empty($_GET['search'])){$where.=" AND (s.reference LIKE ? ESCAPE '\' OR s.truck LIKE ? ESCAPE '\' OR s.driver LIKE ? ESCAPE '\' OR EXISTS(SELECT 1 FROM items x WHERE x.shipment_id=s.id AND (x.bilty LIKE ? ESCAPE '\' OR x.party_to LIKE ? ESCAPE '\')))";$args=[...$args,...array_fill(0,5,pattern())];}
+  $where.=rangeWhere('s.dated',$args);response(paged('shipments s LEFT JOIN stations st ON st.id=s.station_id',$where,$args,'s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count,(SELECT sum(total) FROM items i WHERE i.shipment_id=s.id) total','s.dated DESC,s.id DESC'));
+ }
+ if($action==='shipment'&&$method==='GET'){$id=(int)($_GET['id']??0);$s=one('SELECT s.*,st.name station FROM shipments s LEFT JOIN stations st ON st.id=s.station_id WHERE s.id=?',[$id]);if(!$s)fail('Shipment not found.',404);$s['items']=query('SELECT i.*,a.name customer FROM items i LEFT JOIN accounts a ON a.id=i.account_id WHERE shipment_id=? ORDER BY i.id',[$id]);response($s);}
+ if($action==='save_shipment'&&$method==='POST'){
+  $kind=text($p,'kind',10,true);if(!in_array($kind,['incoming','booking'],true))fail('Choose a valid shipment type.');$dated=day($p);$station=(int)($p['station_id']??0);if(!one("SELECT id FROM stations WHERE id=? AND status='A'",[$station]))fail('Choose a station.');
+  $truck=text($p,'truck',30,true);$driver=text($p,'driver',100);$lines=$p['items']??[];if(!is_array($lines)||count($lines)<1||count($lines)>100)fail('Add between 1 and 100 bilties.');
+  $clean=[];$seen=[];foreach($lines as $l){if(!is_array($l))fail('Invalid bilty.');$bilty=text($l,'bilty',40,true);if(isset($seen[$bilty]))fail('Bilty numbers must be unique within this shipment.');$seen[$bilty]=true;$account=text($l,'account_id',40,true);if(!one("SELECT id FROM accounts WHERE id=? AND customer=1 AND status='A'",[$account]))fail('Choose an active customer for each bilty.');$qty=filter_var($l['qty']??null,FILTER_VALIDATE_INT);if($qty===false||$qty<1||$qty>999999)fail('Quantity must be a whole number greater than zero.');
+   $v=['account_id'=>$account,'bilty'=>$bilty,'party_from'=>text($l,'party_from',100),'party_to'=>text($l,'party_to',100,true),'city'=>text($l,'city',80),'contact'=>text($l,'contact',40),'qty'=>$qty,'detail'=>text($l,'detail',250),'remarks'=>text($l,'remarks',250)];foreach(['bilty_amount','godown','loading','suzuki','rent','local_charge','advance'] as $f)$v[$f]=money($l,$f);
+   $v['total']=$kind==='incoming'?$v['bilty_amount']+$v['godown']:$v['rent']+$v['loading']+$v['bilty_amount']+$v['local_charge'];if($v['advance']>$v['total'])fail('Advance cannot exceed the bilty total.');if($kind==='incoming'&&($v['rent']||$v['local_charge']))fail('Rent and local charges belong to bookings.');$clean[]=$v;
+  }
+  $result=transaction(function()use($p,$kind,$dated,$station,$truck,$driver,$clean){run('INSERT INTO shipments(kind,reference,dated,station_id,truck,driver,driver_mobile,driver_cnic,challan,truck_amount,commission,remarks,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[$kind,'pending',$dated,$station,$truck,$driver,text($p,'driver_mobile',30),text($p,'driver_cnic',30),text($p,'challan',40),money($p,'truck_amount'),money($p,'commission'),text($p,'remarks',500),$_SESSION['username']]);$id=(int)db()->lastInsertId();$ref=($kind==='incoming'?'IN-':'BK-').str_pad((string)$id,6,'0',STR_PAD_LEFT);run('UPDATE shipments SET reference=? WHERE id=?',[$ref,$id]);foreach($clean as $line){$keys=array_keys($line);run('INSERT INTO items(shipment_id,'.implode(',',$keys).') VALUES('.implode(',',array_fill(0,count($keys)+1,'?')).')',[$id,...array_values($line)]);}audit('created',$kind,$id);return ['id'=>$id,'reference'=>$ref];});response($result,201);
+ }
+ if($action==='bilties'&&$method==='GET'){
+  $where=' WHERE 1=1';$args=[];$status=text($_GET,'status',20);if(in_array($status,['pending','delivered'],true)){$where.=' AND i.status=?';$args[]=$status;}
+  if(!empty($_GET['kind'])){$where.=' AND s.kind=?';$args[]=text($_GET,'kind',10);}
+  if(!empty($_GET['station_id'])){$where.=' AND s.station_id=?';$args[]=(int)$_GET['station_id'];}
+  if(!empty($_GET['account_id'])){$where.=' AND i.account_id=?';$args[]=text($_GET,'account_id',40);}
+  if(!empty($_GET['search'])){$where.=" AND (i.bilty LIKE ? ESCAPE '\' OR a.name LIKE ? ESCAPE '\' OR i.party_to LIKE ? ESCAPE '\' OR i.contact LIKE ? ESCAPE '\')";$args=[...$args,...array_fill(0,4,pattern())];}
+  $where.=rangeWhere('s.dated',$args);response(paged('items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN accounts a ON a.id=i.account_id LEFT JOIN stations st ON st.id=s.station_id',$where,$args,'i.*,s.reference,s.dated,s.kind,st.name station,a.name customer','s.dated DESC,i.id DESC'));
+ }
+ if($action==='deliveries'&&$method==='GET'){$args=[];$where=' WHERE 1=1';if(!empty($_GET['search'])){$where.=" AND (d.reference LIKE ? ESCAPE '\' OR d.receiver LIKE ? ESCAPE '\' OR d.mobile LIKE ? ESCAPE '\')";$args=array_fill(0,3,pattern());}$where.=rangeWhere('d.dated',$args);response(paged('deliveries d',$where,$args,'d.*,(SELECT count(*) FROM delivery_items di WHERE di.delivery_id=d.id) item_count,(SELECT sum(bilty_received+service_received) FROM delivery_items di WHERE di.delivery_id=d.id) collected','d.dated DESC,d.id DESC'));}
+ if($action==='delivery'&&$method==='GET'){$id=(int)($_GET['id']??0);$d=one('SELECT * FROM deliveries WHERE id=?',[$id]);if(!$d)fail('Delivery not found.',404);$d['items']=query('SELECT i.*,di.discount,di.bilty_received,di.service_received,a.name customer FROM delivery_items di JOIN items i ON i.id=di.item_id LEFT JOIN accounts a ON a.id=i.account_id WHERE di.delivery_id=?',[$id]);response($d);}
+ if($action==='save_delivery'&&$method==='POST'){
+  $dated=day($p);$receiver=text($p,'receiver',100,true);$lines=$p['items']??[];if(!is_array($lines)||count($lines)<1||count($lines)>100)fail('Select between 1 and 100 pending bilties.');$ids=[];$clean=[];
+  foreach($lines as $l){$id=filter_var($l['id']??0,FILTER_VALIDATE_INT);if(!$id||isset($ids[$id]))fail('Select each bilty once.');$ids[$id]=true;$clean[]=['id'=>$id,'discount'=>money($l,'discount'),'bilty_received'=>money($l,'bilty_received'),'service_received'=>money($l,'service_received')];}
+  $result=transaction(function()use($p,$dated,$receiver,$clean){foreach($clean as $l){$item=one("SELECT i.*,s.kind,s.dated FROM items i JOIN shipments s ON s.id=i.shipment_id WHERE i.id=? AND i.status='pending' AND s.kind='incoming'",[$l['id']]);if(!$item||one('SELECT id FROM delivery_items WHERE item_id=?',[$l['id']]))throw new RuntimeException('A selected bilty is no longer pending. Refresh the list.',409);if($dated<$item['dated'])throw new InvalidArgumentException('Delivery date cannot be earlier than the arrival date.');$remaining=max(0,(int)$item['total']-(int)$item['advance']);if($l['discount']+$l['bilty_received']>$remaining)throw new InvalidArgumentException('Bilty cash plus discount cannot exceed the remaining bilty amount.');if($l['service_received']>max(0,(int)$item['loading']+(int)$item['suzuki']))throw new InvalidArgumentException('Service cash cannot exceed loading plus Suzuki charges.');}
+   run('INSERT INTO deliveries(reference,dated,receiver,mobile,cnic,remarks) VALUES(?,?,?,?,?,?)',['pending-'.bin2hex(random_bytes(8)),$dated,$receiver,text($p,'mobile',30),text($p,'cnic',30),text($p,'remarks',500)]);$id=(int)db()->lastInsertId();$ref='DL-'.str_pad((string)$id,6,'0',STR_PAD_LEFT);run('UPDATE deliveries SET reference=? WHERE id=?',[$ref,$id]);foreach($clean as $l){run('INSERT INTO delivery_items(delivery_id,item_id,discount,bilty_received,service_received) VALUES(?,?,?,?,?)',[$id,$l['id'],$l['discount'],$l['bilty_received'],$l['service_received']]);run("UPDATE items SET status='delivered' WHERE id=?",[$l['id']]);}audit('created','delivery',$id);return ['id'=>$id,'reference'=>$ref];});response($result,201);
+ }
+ if($action==='vouchers'&&$method==='GET'){$args=[];$w=' WHERE 1=1';if(!empty($_GET['search'])){$w.=" AND (v.reference LIKE ? ESCAPE '\' OR v.memo LIKE ? ESCAPE '\')";$args=[pattern(),pattern()];}$w.=rangeWhere('v.dated',$args);response(paged('vouchers v',$w,$args,'v.*,(SELECT sum(debit) FROM voucher_lines l WHERE l.voucher_id=v.id) amount','v.dated DESC,v.id DESC'));}
+ if($action==='voucher'&&$method==='GET'){$v=one('SELECT * FROM vouchers WHERE id=?',[(int)($_GET['id']??0)]);if(!$v)fail('Voucher not found.',404);$v['lines']=query('SELECT l.*,a.name account FROM voucher_lines l JOIN accounts a ON a.id=l.account_id WHERE voucher_id=?',[$v['id']]);response($v);}
+ if($action==='save_voucher'&&$method==='POST'){
+  $kind=text($p,'kind',2,true);if(!in_array($kind,['RV','PV','JV'],true))fail('Invalid voucher type.');$dated=day($p);$memo=text($p,'memo',500,true);$lines=$p['lines']??[];if(!is_array($lines)||count($lines)<2||count($lines)>50)fail('A voucher needs between 2 and 50 account lines.');$debit=0;$credit=0;$clean=[];
+  foreach($lines as $l){$a=text($l,'account_id',40,true);if(!one("SELECT id FROM accounts WHERE id=? AND status='A'",[$a]))fail('Select an active account.');$dr=money($l,'debit');$cr=money($l,'credit');if(($dr>0)==($cr>0))fail('Each line needs either a debit or a credit.');$debit+=$dr;$credit+=$cr;$clean[]=[$a,$dr,$cr];}if($debit!==$credit||$debit===0)fail('Debits and credits must balance.');
+  if($kind!=='JV'){$cash=array_filter($clean,fn($l)=>str_starts_with($l[0],'1-101-')||str_starts_with($l[0],'1-106-'));if(!$cash)fail('Receipt and payment vouchers need a cash or bank account.');$net=array_sum(array_column($cash,1))-array_sum(array_column($cash,2));if(($kind==='RV'&&$net<=0)||($kind==='PV'&&$net>=0))fail('The cash/bank direction does not match the voucher type.');}
+  $r=transaction(function()use($kind,$dated,$memo,$clean){run('INSERT INTO vouchers(reference,kind,dated,memo,created_by) VALUES(?,?,?,?,?)',['pending-'.bin2hex(random_bytes(8)),$kind,$dated,$memo,$_SESSION['username']]);$id=(int)db()->lastInsertId();$ref=$kind.'-'.str_pad((string)$id,6,'0',STR_PAD_LEFT);run('UPDATE vouchers SET reference=? WHERE id=?',[$ref,$id]);foreach($clean as $l)run('INSERT INTO voucher_lines(voucher_id,account_id,debit,credit) VALUES(?,?,?,?)',[$id,...$l]);audit('posted','voucher',$id);return ['id'=>$id,'reference'=>$ref];});response($r,201);
+ }
+ if($action==='ledger'&&$method==='GET'){
+  $account=one('SELECT * FROM accounts WHERE id=?',[text($_GET,'account_id',40,true)]);if(!$account)fail('Account not found.',404);
+  $historyStart=one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28';
+  $from=day(['dated'=>$_GET['from']??$historyStart]);$to=day(['dated'=>$_GET['to']??date('Y-m-d')]);if($from>$to)fail('Start date must be before end date.');
+  $until=(new DateTimeImmutable($to))->modify('+1 day')->format('Y-m-d');
+  $entries="SELECT dated,kind,reference,memo,debit,credit,COALESCE(sequence,source_rowid) seq,source_rowid row_id,'Original' source,0 source_order FROM historical_ledger WHERE account_id=? UNION ALL SELECT v.dated,v.kind,v.reference,v.memo,l.debit,l.credit,l.id seq,l.id row_id,'New app' source,1 source_order FROM voucher_lines l JOIN vouchers v ON v.id=l.voucher_id WHERE l.account_id=?";
+  $ids=[$account['id'],$account['id']];
+  $stats=one('WITH entries AS ('.$entries.') SELECT count(*) all_time_count,min(dated) first_date,max(dated) last_date,coalesce(sum(CASE WHEN dated<? THEN debit-credit ELSE 0 END),0) prior_net,coalesce(sum(CASE WHEN dated>=? AND dated<? THEN debit ELSE 0 END),0) debit,coalesce(sum(CASE WHEN dated>=? AND dated<? THEN credit ELSE 0 END),0) credit,sum(CASE WHEN dated>=? AND dated<? THEN 1 ELSE 0 END) period_count FROM entries',[...$ids,$from,$from,$until,$from,$until,$from,$until]);
+  $opening=(int)$account['opening_dr']-(int)$account['opening_cr']+(int)$stats['prior_net'];$total=(int)$stats['period_count'];$page=max(0,min(max(0,(int)ceil($total/30)-1),(int)($_GET['page']??0)));
+  $rows=query('WITH entries AS ('.$entries.'), period AS (SELECT * FROM entries WHERE dated>=? AND dated<?), running AS (SELECT *,?+SUM(debit-credit) OVER(ORDER BY dated,source_order,seq,row_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) balance FROM period) SELECT * FROM running ORDER BY dated,source_order,seq,row_id LIMIT 30 OFFSET '.($page*30),[...$ids,$from,$until,$opening]);
+  response(['account'=>$account,'from'=>$from,'to'=>$to,'history_start'=>$historyStart,'first_date'=>$stats['first_date'],'last_date'=>$stats['last_date'],'all_time_count'=>(int)$stats['all_time_count'],'opening'=>$opening,'closing'=>$opening+(int)$stats['debit']-(int)$stats['credit'],'debit'=>(int)$stats['debit'],'credit'=>(int)$stats['credit'],'rows'=>$rows,'total'=>$total,'page'=>$page,'page_size'=>30,'notice'=>'Original ledger entries are stored in this application database alongside new vouchers. Historical balances still need reconciliation. Goods and delivery entries do not post accounting vouchers automatically.']);
+ }
+ if($action==='imported_tables'&&$method==='GET'){
+  $tables=query("SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'legacy_*' ORDER BY name");
+  foreach($tables as &$t){$t['count']=(int)one('SELECT count(*) n FROM "'.$t['name'].'"')['n'];$t['label']=substr($t['name'],7);}unset($t);
+  response(['tables'=>$tables,'ledger_rows'=>(int)one('SELECT count(*) n FROM historical_ledger')['n'],'incomplete_account_rows'=>(int)one('SELECT count(*) n FROM historical_ledger WHERE account_id IS NULL')['n'],'undated_ledger_rows'=>(int)one('SELECT count(*) n FROM historical_ledger WHERE dated IS NULL')['n'],'source_archive'=>one("SELECT value FROM meta WHERE key='source_archive'")['value']??'']);
+ }
+ if($action==='imported_rows'&&$method==='GET'){
+  $table=text($_GET,'table',60,true);if(!preg_match('/^legacy_[A-Z_]+$/D',$table)||!one("SELECT name FROM sqlite_master WHERE type='table' AND name=?",[$table]))fail('Choose an imported table.');
+  $cols=query('PRAGMA table_info("'.$table.'")');$where='';$params=[];
+  if(!empty($_GET['search'])){$where=' WHERE '.implode(' OR ',array_map(fn($c)=>"CAST(\"".$c['name']."\" AS TEXT) LIKE ? ESCAPE '!'",$cols));$term='%'.str_replace(['!','%','_'],['!!','!%','!_'],mb_substr((string)$_GET['search'],0,120)).'%';$params=array_fill(0,count($cols),$term);}
+  $r=paged('"'.$table.'"',$where,$params,'rowid _source_row,*','rowid');$r['columns']=array_column($cols,'name');response($r);
+ }
+ if($action==='account_groups'&&$method==='GET')response(query('SELECT MLCODE,MCODE,MTITLE FROM legacy_MAIN ORDER BY MLCODE,MCODE'));
+ if($action==='save_account'&&$method==='POST'){
+  $name=text($p,'name',100,true);$group=text($p,'group',12,true);$parts=explode('-',$group);if(count($parts)!==2)fail('Choose an account group.');
+  $statement=db()->prepare('SELECT * FROM legacy_MAIN WHERE MLCODE=? AND MCODE=?');$statement->execute($parts);$groupRow=$statement->fetch();if(!$groupRow)fail('Choose an existing account group.');
+  $dr=money($p,'opening_dr');$cr=money($p,'opening_cr');if($dr&&$cr)fail('Enter an opening balance on one side only.');
+  $id=transaction(function()use($p,$name,$parts,$groupRow,$dr,$cr){$prefix=$parts[0].'-'.$parts[1].'-';$next=(int)one('SELECT max(CAST(substr(id,?) AS INTEGER)) n FROM accounts WHERE group_code=?',[strlen($prefix)+1,$parts[1]])['n']+1;do{$id=$prefix.str_pad((string)$next++,3,'0',STR_PAD_LEFT);}while(one('SELECT id FROM accounts WHERE id=?',[$id]));run('INSERT INTO accounts(id,name,group_code,group_name,customer,address,mobile,opening_dr,opening_cr) VALUES(?,?,?,?,?,?,?,?,?)',[$id,$name,$parts[1],$groupRow['MTITLE'],str_starts_with($groupRow['MTITLE'],'CUSTOMERS')?1:0,text($p,'address',200),text($p,'mobile',40),$dr,$cr]);audit('created','account',$id);return $id;});response(['id'=>$id],201);
+ }
+ if($action==='stations'&&$method==='GET')response(query('SELECT * FROM stations ORDER BY name'));
+ if($action==='save_station'&&$method==='POST'){$name=text($p,'name',100,true);$id=(int)($p['id']??0);transaction(function()use($p,$name,$id){if($id){if(!one('SELECT id FROM stations WHERE id=?',[$id]))throw new InvalidArgumentException('Station not found.');run('UPDATE stations SET name=?,address=? WHERE id=?',[$name,text($p,'address',300),$id]);}else{run('INSERT INTO stations(name,address) VALUES(?,?)',[$name,text($p,'address',300)]);$id=(int)db()->lastInsertId();}audit('saved','station',$id);});response(['ok'=>true]);}
+ if($action==='backup'&&$method==='POST'){global $storage;$file=$storage.'/backup-'.date('Ymd-His').'-'.bin2hex(random_bytes(3)).'.sqlite';$escaped=str_replace("'","''",$file);db()->exec("VACUUM INTO '".$escaped."'");audit('created','backup',basename($file));response(['filename'=>basename($file),'message'=>'Backup saved in the private storage folder.']);}
+ if($action==='settings'&&$method==='GET')response(['user'=>$_SESSION['username'],'backup_date'=>'2026-10-31','meta'=>query('SELECT * FROM meta'),'audit'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 20')]);
+ fail('This action was not found.',404);
+}catch(JsonException){fail('Invalid JSON request.',400);}catch(InvalidArgumentException $e){fail($e->getMessage());}catch(RuntimeException $e){if($e->getCode()===409)fail($e->getMessage(),409);error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}catch(Throwable $e){error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}

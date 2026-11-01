@@ -1,0 +1,149 @@
+{
+  "archive": "AZAD31-10-2026-025932.rar",
+  "backup_date": "2026-10-31",
+  "verified_at_utc": "2026-11-01T14:19:57.210511+00:00",
+  "tables": [
+    {
+      "source_table": "ACPERIODS",
+      "stored_table": "legacy_ACPERIODS",
+      "rows": 1,
+      "sha256_rows": "c898d6c606817a6d9a7658fafbc6b1bd4389f376925bd011d9e5b9774b4942f3"
+    },
+    {
+      "source_table": "AREAS",
+      "stored_table": "legacy_AREAS",
+      "rows": 14,
+      "sha256_rows": "db92e9f9d625c89331d7ef8014b4d54d4b443cf595999dea74430cfaea19c286"
+    },
+    {
+      "source_table": "BAL",
+      "stored_table": "legacy_BAL",
+      "rows": 7,
+      "sha256_rows": "2d4001cb37c6c69fc04f48bbf842940c1ec33a497831062b64b07376d6c7ca86"
+    },
+    {
+      "source_table": "DM",
+      "stored_table": "legacy_DM",
+      "rows": 2,
+      "sha256_rows": "35abf29d94ee6e97deda1d9b34fc8a8c37bd60ed1c9327097352740e7d80a515"
+    },
+    {
+      "source_table": "GLLEVEL",
+      "stored_table": "legacy_GLLEVEL",
+      "rows": 5,
+      "sha256_rows": "b22fee2b0f62481997955d9e7f4b805c1c9101e1b2ca2956072f303dafff7db4"
+    },
+    {
+      "source_table": "IND",
+      "stored_table": "legacy_IND",
+      "rows": 255428,
+      "sha256_rows": "ce31fa6196aec44cd1a8b2d8a413e37032f3816a7b864d7679832c9b24b4d718"
+    },
+    {
+      "source_table": "INH",
+      "stored_table": "legacy_INH",
+      "rows": 45342,
+      "sha256_rows": "2aeba629f74cb0a5a2cb05bd7dadce7497b8028006a72dd911afe75b5b58761d"
+    },
+    {
+      "source_table": "INOTH",
+      "stored_table": "legacy_INOTH",
+      "rows": 45323,
+      "sha256_rows": "efac73a9586f5cdcee3aaa6f16866a4f8eaae28452f302bd0ec451f21ceac323"
+    },
+    {
+      "source_table": "ITEMCAT",
+      "stored_table": "legacy_ITEMCAT",
+      "rows": 1,
+      "sha256_rows": "9f86648c66a1674f772b6eaa7d3d98acef487e367f08a90f52855c2d39365b9b"
+    },
+    {
+      "source_table": "ITEMS",
+      "stored_table": "legacy_ITEMS",
+      "rows": 3,
+      "sha256_rows": "fdb3b6aa445c182c2e9d3ea726410a64a65986146888e56f4da89cab8a2836fc"
+    },
+    {
+      "source_table": "LOCATION",
+      "stored_table": "legacy_LOCATION",
+      "rows": 2,
+      "sha256_rows": "11cef61b50231a51e8f95bc30bda63fc5fd4231c8356aa075c4f5481afd4a6ef"
+    },
+    {
+      "source_table": "MAIN",
+      "stored_table": "legacy_MAIN",
+      "rows": 29,
+      "sha256_rows": "6eee7345e159ccfa0f89c3d5f4df40eb43f5daf2f18105bbdf9d259b1b3d1428"
+    },
+    {
+      "source_table": "PROPINFO",
+      "stored_table": "legacy_PROPINFO",
+      "rows": 1,
+      "sha256_rows": "1444c3b4db3bf84c3edf6c16c557309c1b1aa590c5a4e457b146c5a09e7f4053"
+    },
+    {
+      "source_table": "SM",
+      "stored_table": "legacy_SM",
+      "rows": 1,
+      "sha256_rows": "b2e0fb0892b4c892cc2404c027ca22de32ccdb970f04cf9f7b5f5ee5874b3134"
+    },
+    {
+      "source_table": "SMS_LOG",
+      "stored_table": "legacy_SMS_LOG",
+      "rows": 0,
+      "sha256_rows": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_table": "STATION",
+      "stored_table": "legacy_STATION",
+      "rows": 7,
+      "sha256_rows": "0cd159e5310c572878a6ed61118f2fca5f1d500a6b400266897442a4c2d7a286"
+    },
+    {
+      "source_table": "STOCK",
+      "stored_table": "legacy_STOCK",
+      "rows": 0,
+      "sha256_rows": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_table": "TRUCK",
+      "stored_table": "legacy_TRUCK",
+      "rows": 1,
+      "sha256_rows": "7eb1a96a015cebf97c6195e569ce7d650b1dd00317f783af9fc17205cbf6e2bf"
+    },
+    {
+      "source_table": "VRD",
+      "stored_table": "legacy_VRD",
+      "rows": 705476,
+      "sha256_rows": "86bfdcc53d6db9859cb9e7e9418e77228d626a945caeba6acf3866e1367892cf"
+    },
+    {
+      "source_table": "VRH",
+      "stored_table": "legacy_VRH",
+      "rows": 70291,
+      "sha256_rows": "5935489152820e60fae66540ea52b2c575891ad9ecc4ed4a9b349e9777e3e868"
+    },
+    {
+      "source_table": "WORKING",
+      "stored_table": "legacy_WORKING",
+      "rows": 1221,
+      "sha256_rows": "0e75cf730eae7d13856e2c7a0bf3403e2a47960f33dc04630913384b0d532800"
+    }
+  ],
+  "original_rows": 1123155,
+  "historical_ledger_rows": 705476,
+  "history_start": "2017-10-28",
+  "history_end": "2026-10-31",
+  "unmatched_ledger_rows": 167,
+  "preserved_operational_counts": {
+    "users": 1,
+    "accounts": 1221,
+    "shipments": 4962,
+    "items": 131692,
+    "deliveries": 40494,
+    "vouchers": 0,
+    "voucher_lines": 0
+  },
+  "database": "app.sqlite",
+  "verification": "All 21 source tables match cell-for-cell row hashes; SQLite integrity and foreign-key checks passed."
+}

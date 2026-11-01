@@ -1638,6 +1638,14 @@ function slipFooter() {
   }).format(new Date());
   return `<footer class="slip-footer">${slipText("Printed by", displayName())}${slipText("Printed on", printed + " PKT")}<p>Please retain this slip.</p><b>Thank you.</b><span>AZAD PAKISTAN GOODS</span></footer>`;
 }
+function originalBiltyTotal(i, kind) {
+  return kind === "booking"
+    ? Number(i.rent || 0) +
+        Number(i.loading || 0) +
+        Number(i.bilty_amount || 0) +
+        Number(i.local_charge || 0)
+    : Number(i.bilty_amount || 0) + Number(i.godown || 0);
+}
 function buildThermalRecord(context) {
   const d = context.data;
   let title = "",
@@ -1675,7 +1683,7 @@ function buildThermalRecord(context) {
     content += slipSection(
       "Recorded charges",
       keys.map((k) => slipMoney(labels[k], d[k])).join("") +
-        slipMoney("Bilty total", d.total, true) +
+        slipMoney("Bilty total", originalBiltyTotal(d, d.kind), true) +
         slipMoney("Advance", d.advance),
     );
     content +=
@@ -1691,13 +1699,18 @@ function buildThermalRecord(context) {
     content = slipSection(
       "Transport",
       slipText("Station", d.station) +
+        slipText(
+          "Destination address",
+          d.kind === "booking" ? d.station_address : "",
+        ) +
         slipText("Truck", d.truck) +
         slipText("Challan", d.challan) +
         slipText("Driver", d.driver) +
         slipText("Driver mobile", d.driver_mobile) +
         slipText("Driver CNIC", d.driver_cnic) +
-        slipMoney("Truck amount", d.truck_amount) +
-        (d.kind === "booking" ? slipMoney("Commission", d.commission) : ""),
+        (d.kind === "incoming"
+          ? slipMoney("Truck amount", d.truck_amount)
+          : ""),
     );
     content += d.items
       .map((i, n) =>
@@ -1707,9 +1720,18 @@ function buildThermalRecord(context) {
             slipText("From", i.party_from) +
             slipText("To", i.party_to) +
             slipText("Goods", i.detail) +
+            slipText("Contact", i.contact) +
+            slipText("City", i.city) +
             slipText("Quantity", i.qty) +
             slipText("Status", i.status) +
-            slipMoney("Bilty total", i.total) +
+            (d.kind === "booking"
+              ? slipMoney("Rent", i.rent) +
+                slipMoney("Loading", i.loading) +
+                slipMoney("Bilty amount", i.bilty_amount) +
+                slipMoney("Local charges", i.local_charge)
+              : slipMoney("Bilty amount", i.bilty_amount) +
+                slipMoney("Godown", i.godown)) +
+            slipMoney("Bilty total", originalBiltyTotal(i, d.kind)) +
             slipMoney("Advance", i.advance),
         ),
       )
@@ -1724,68 +1746,109 @@ function buildThermalRecord(context) {
           ) +
           slipMoney(
             "Bilty totals",
-            d.items.reduce((s, i) => s + Number(i.total || 0), 0),
+            d.items.reduce((s, i) => s + originalBiltyTotal(i, d.kind), 0),
             true,
           ) +
           slipMoney(
             "Advances",
             d.items.reduce((s, i) => s + Number(i.advance || 0), 0),
-          ),
+          ) +
+          (d.kind === "incoming"
+            ? slipMoney(
+                "Bilty amounts",
+                d.items.reduce((s, i) => s + Number(i.bilty_amount || 0), 0),
+              ) +
+              slipMoney(
+                "Truck balance",
+                d.items.reduce((s, i) => s + Number(i.bilty_amount || 0), 0) -
+                  Number(d.truck_amount || 0),
+              ) +
+              slipNote("Truck balance = bilty amounts less truck amount.")
+            : ""),
       ) +
       slipText("Remarks", d.remarks) +
       slipNote("Goods records do not automatically post accounting vouchers.");
   } else if (context.kind === "delivery") {
-    title = "Delivery receipt";
-    reference = d.reference;
+    const rows = d.print_items ?? d.items;
+    const h = d.print_header || {
+      reference: d.reference,
+      dated: d.dated,
+      receiver: d.receiver,
+      mobile: d.mobile,
+      cnic: d.cnic,
+    };
+    const cashSlip = context.variant === "cash";
+    title = cashSlip ? "Cash received slip" : "Delivery receipt";
+    reference = h.reference || d.reference;
+    date = h.dated;
+    const sum = (key) => rows.reduce((n, i) => n + Number(i[key] || 0), 0);
+    const totalBilty = rows.reduce(
+      (n, i) => n + originalBiltyTotal(i, "incoming"),
+      0,
+    );
     content = slipSection(
       "Received by",
-      slipText("Receiver", d.receiver) +
-        slipText("Mobile", d.mobile) +
-        slipText("CNIC", d.cnic),
+      slipText("Receiver", h.receiver) +
+        slipText(
+          "Received date",
+          h.received_date ? fmtdate(h.received_date) : "",
+        ) +
+        slipText("Mobile", h.mobile) +
+        slipText("CNIC", h.cnic),
     );
-    content += d.items
-      .map((i, n) =>
-        slipEntry(
+    content += rows
+      .map((i, n) => {
+        const bilty = originalBiltyTotal(i, "incoming"),
+          services = Number(i.loading || 0) + Number(i.suzuki || 0);
+        return slipEntry(
           `${n + 1}. Bilty ${i.bilty || "—"}`,
           slipText("Customer", i.customer || i.account_id) +
             slipText("Party to", i.party_to) +
             slipText("Quantity", i.qty) +
-            slipMoney("Discount", i.discount) +
-            slipMoney("Bilty cash", i.bilty_received) +
-            slipMoney("Service cash", i.service_received),
-        ),
-      )
+            slipMoney("Bilty total", bilty) +
+            (cashSlip
+              ? slipMoney("Services total", services) +
+                slipMoney("Total", bilty + services, true) +
+                slipMoney("Discount", i.discount) +
+                slipMoney("Bilty cash", i.bilty_received) +
+                slipMoney("Services cash", i.service_received)
+              : slipMoney("Loading", i.loading) +
+                slipMoney("Suzuki kiraya", i.suzuki)),
+        );
+      })
       .join("");
-    content +=
-      slipSection(
-        "Collection summary",
-        slipMoney(
-          "Discounts",
-          d.items.reduce((s, i) => s + Number(i.discount || 0), 0),
-        ) +
-          slipMoney(
-            "Bilty cash",
-            d.items.reduce((s, i) => s + Number(i.bilty_received || 0), 0),
-          ) +
-          slipMoney(
-            "Service cash",
-            d.items.reduce((s, i) => s + Number(i.service_received || 0), 0),
-          ) +
-          slipMoney(
-            "Cash received",
-            d.items.reduce(
-              (s, i) =>
-                s +
-                Number(i.bilty_received || 0) +
-                Number(i.service_received || 0),
-              0,
+    content += cashSlip
+      ? slipSection(
+          "Cash summary",
+          slipMoney("Bilty totals", totalBilty) +
+            slipMoney("Services totals", sum("loading") + sum("suzuki")) +
+            slipMoney(
+              "Total charges",
+              totalBilty + sum("loading") + sum("suzuki"),
+            ) +
+            slipMoney("Discounts", sum("discount")) +
+            slipMoney("Bilty cash", sum("bilty_received")) +
+            slipMoney("Services cash", sum("service_received")) +
+            slipMoney(
+              "Cash received",
+              sum("bilty_received") + sum("service_received"),
+              true,
             ),
-            true,
-          ),
-      ) +
+        )
+      : slipSection(
+          "Receipt totals",
+          slipMoney("Bilty total", totalBilty, true) +
+            slipMoney("Loading", sum("loading")) +
+            slipMoney("Suzuki kiraya", sum("suzuki")),
+        );
+    if (!rows.length)
+      content += slipNote(
+        "No printable lines are available for this original receipt.",
+      );
+    content +=
       slipText("Remarks", d.remarks) +
       slipNote(
-        "Goods handover only. This receipt does not create an accounting voucher.",
+        "Goods handover only. This slip does not create an accounting voucher.",
       );
   } else if (context.kind === "voucher") {
     title =
@@ -1927,6 +1990,7 @@ function buildThermalRecord(context) {
   }
   return {
     title,
+    context: structuredClone(context),
     html: `<article class="thermal-slip">${slipHeader(title, reference, date)}<main class="slip-body">${content}</main>${slipFooter()}</article>`,
   };
 }
@@ -2045,7 +2109,7 @@ function openThermalPreview(source) {
   const context = visiblePrintContext(source);
   thermalSnapshot = buildThermalRecord(context);
   const dialog = $("#print-preview");
-  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">READY FOR THE ROLL</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div><p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
+  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">READY FOR THE ROLL</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Slip values<select id="thermal-values"><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
   $("#thermal-width").value = thermalWidth();
   if (!dialog.open) dialog.showModal();
   updateThermalPage();
@@ -2062,6 +2126,16 @@ $("#print-preview").addEventListener("cancel", (e) => {
   closeThermalPreview();
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "thermal-values") {
+    thermalSnapshot = buildThermalRecord({
+      ...thermalSnapshot.context,
+      variant: e.target.value,
+    });
+    $("#thermal-preview-sheet").innerHTML = thermalSnapshot.html;
+    $("#print-preview .modal-head p").textContent =
+      thermalSnapshot.title + " · Original report values";
+    updateThermalPage();
+  }
   if (e.target.id === "thermal-width") updateThermalPage();
 });
 window.addEventListener("beforeprint", () => {

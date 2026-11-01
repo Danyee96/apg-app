@@ -72,7 +72,7 @@ try {
   if(!empty($_GET['search'])){$where.=" AND (s.reference LIKE ? ESCAPE '\' OR s.truck LIKE ? ESCAPE '\' OR s.driver LIKE ? ESCAPE '\' OR EXISTS(SELECT 1 FROM items x WHERE x.shipment_id=s.id AND (x.bilty LIKE ? ESCAPE '\' OR x.party_to LIKE ? ESCAPE '\')))";$args=[...$args,...array_fill(0,5,pattern())];}
   $where.=rangeWhere('s.dated',$args);response(paged('shipments s LEFT JOIN stations st ON st.id=s.station_id',$where,$args,'s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count,(SELECT sum(total) FROM items i WHERE i.shipment_id=s.id) total','s.dated DESC,s.id DESC'));
  }
- if($action==='shipment'&&$method==='GET'){$id=(int)($_GET['id']??0);$s=one('SELECT s.*,st.name station FROM shipments s LEFT JOIN stations st ON st.id=s.station_id WHERE s.id=?',[$id]);if(!$s)fail('Shipment not found.',404);$s['items']=query('SELECT i.*,a.name customer FROM items i LEFT JOIN accounts a ON a.id=i.account_id WHERE shipment_id=? ORDER BY i.id',[$id]);response($s);}
+ if($action==='shipment'&&$method==='GET'){$id=(int)($_GET['id']??0);$s=one('SELECT s.*,st.name station,st.address station_address FROM shipments s LEFT JOIN stations st ON st.id=s.station_id WHERE s.id=?',[$id]);if(!$s)fail('Shipment not found.',404);$s['items']=query('SELECT i.*,a.name customer FROM items i LEFT JOIN accounts a ON a.id=i.account_id WHERE shipment_id=? ORDER BY i.id',[$id]);response($s);}
  if($action==='save_shipment'&&$method==='POST'){
   $kind=text($p,'kind',10,true);if(!in_array($kind,['incoming','booking'],true))fail('Choose a valid shipment type.');$dated=day($p);$station=(int)($p['station_id']??0);if(!one("SELECT id FROM stations WHERE id=? AND status='A'",[$station]))fail('Choose a station.');
   $truck=text($p,'truck',30,true);$driver=text($p,'driver',100);$lines=$p['items']??[];if(!is_array($lines)||count($lines)<1||count($lines)>100)fail('Add between 1 and 100 bilties.');
@@ -91,7 +91,16 @@ try {
   $where.=rangeWhere('s.dated',$args);response(paged('items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN accounts a ON a.id=i.account_id LEFT JOIN stations st ON st.id=s.station_id',$where,$args,'i.*,s.reference,s.dated,s.kind,st.name station,a.name customer','s.dated DESC,i.id DESC'));
  }
  if($action==='deliveries'&&$method==='GET'){$args=[];$where=' WHERE 1=1';if(!empty($_GET['search'])){$where.=" AND (d.reference LIKE ? ESCAPE '\' OR d.receiver LIKE ? ESCAPE '\' OR d.mobile LIKE ? ESCAPE '\')";$args=array_fill(0,3,pattern());}$where.=rangeWhere('d.dated',$args);response(paged('deliveries d',$where,$args,'d.*,(SELECT count(*) FROM delivery_items di WHERE di.delivery_id=d.id) item_count,(SELECT sum(bilty_received+service_received) FROM delivery_items di WHERE di.delivery_id=d.id) collected','d.dated DESC,d.id DESC'));}
- if($action==='delivery'&&$method==='GET'){$id=(int)($_GET['id']??0);$d=one('SELECT * FROM deliveries WHERE id=?',[$id]);if(!$d)fail('Delivery not found.',404);$d['items']=query('SELECT i.*,di.discount,di.bilty_received,di.service_received,a.name customer FROM delivery_items di JOIN items i ON i.id=di.item_id LEFT JOIN accounts a ON a.id=i.account_id WHERE di.delivery_id=?',[$id]);response($d);}
+ if($action==='delivery'&&$method==='GET'){$id=(int)($_GET['id']??0);$d=one('SELECT * FROM deliveries WHERE id=?',[$id]);if(!$d)fail('Delivery not found.',404);$d['items']=query('SELECT i.*,di.discount,di.bilty_received,di.service_received,a.name customer FROM delivery_items di JOIN items i ON i.id=di.item_id LEFT JOIN accounts a ON a.id=i.account_id WHERE di.delivery_id=?',[$id]);
+  if($d['legacy_id']!==null){
+   $h=one("SELECT DOCNO,DATED,REC_DATE1,REC_NAME1,REC_CNIC1,REC_MOBILE1 FROM legacy_INH WHERE INHNO=? AND INTYPE='GD'",[$d['legacy_id']]);
+   if($h){
+    $d['print_header']=['reference'=>$h['DOCNO'],'dated'=>$h['DATED'],'received_date'=>$h['REC_DATE1'],'receiver'=>$h['REC_NAME1'],'cnic'=>$h['REC_CNIC1'],'mobile'=>$h['REC_MOBILE1']];
+    $source=query("SELECT l.INDNO,l.BILLTYNO,l.PARTY_TO,l.QTY,l.BILLTY_AMT,l.GODOWN_CHG,l.LOADING_AMT,l.SUZUKI_KIRAYA,l.REC_BAMT,l.REC_SAMT,l.DISC_AMT,w.WTITLE customer FROM legacy_IND l JOIN legacy_WORKING w ON l.PLCODE=w.WLCODE AND l.PMCODE=w.WMCODE AND l.PWCODE=w.WCODE WHERE l.INHNO=? ORDER BY l.INDNO",[$d['legacy_id']]);
+    $d['print_items']=array_map(function($r){$line=['bilty'=>(string)$r['BILLTYNO'],'party_to'=>$r['PARTY_TO'],'qty'=>$r['QTY'],'customer'=>$r['customer'],'source_id'=>$r['INDNO']];foreach(['bilty_amount'=>'BILLTY_AMT','godown'=>'GODOWN_CHG','loading'=>'LOADING_AMT','suzuki'=>'SUZUKI_KIRAYA','bilty_received'=>'REC_BAMT','service_received'=>'REC_SAMT','discount'=>'DISC_AMT'] as $key=>$column)$line[$key]=(int)round((float)($r[$column]??0)*100);return $line;},$source);
+   }
+  }
+  response($d);}
  if($action==='save_delivery'&&$method==='POST'){
   $dated=day($p);$receiver=text($p,'receiver',100,true);$lines=$p['items']??[];if(!is_array($lines)||count($lines)<1||count($lines)>100)fail('Select between 1 and 100 pending bilties.');$ids=[];$clean=[];
   foreach($lines as $l){$id=filter_var($l['id']??0,FILTER_VALIDATE_INT);if(!$id||isset($ids[$id]))fail('Select each bilty once.');$ids[$id]=true;$clean[]=['id'=>$id,'discount'=>money($l,'discount'),'bilty_received'=>money($l,'bilty_received'),'service_received'=>money($l,'service_received')];}

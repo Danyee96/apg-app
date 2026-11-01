@@ -86,3 +86,9 @@ Choose **80 mm** (72 mm print area) or **58 mm** (48 mm print area), then **Prin
 Ledger/report and paginated register slips explicitly identify the current-page record range. Their period totals still cover all matching records, as labelled. Goods and delivery slips preserve existing financial rules; printing creates no business records or accounting postings. Ordinary browser printing also uses the thermal layout and excludes editable forms. Photos, passwords and form fields are not part of the slip layouts.
 
 `tests/printing.py` starts a disposable database/server and runs browser/PDF checks. With Playwright and a Chromium browser available, set `PLAYWRIGHT_MODULE` to your Playwright module path and, if needed, `CHROME_PATH` to the browser executable, then run `python3 tests/printing.py`. The test generates PDFs without submitting physical print jobs and verifies the 58/80 mm page widths. Set `APG_PRINT_OUTPUT` to a private temporary directory if you want to retain its PDF/screenshot artifacts; by default they are cleaned up with the test database. Physical hardware output has not been tested.
+
+## Original-system print values
+
+Goods print formulas and delivery field sources have now been traced to the retained original Oracle report files. Delivery print preview offers **Receipt slip · charges** (original R150) and **Cash summary · received** (R157). Historical receipts read the actual original delivery snapshot, rather than assuming its loading/Suzuki charges equal those on arrival. Incoming/booking print totals use the original component formulas instead of nullable imported totals. This is a read-only print correction; stored business transactions and ledger postings are unchanged.
+
+See [LEGACY-PRINT-RULES.md](LEGACY-PRINT-RULES.md) for verified mappings, evidence hashes and remaining old-font rendering limits. Run `python3 tests/legacy_print.py` for independent source-data comparisons.

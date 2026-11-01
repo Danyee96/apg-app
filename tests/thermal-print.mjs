@@ -35,6 +35,43 @@ try {
   results.push(
     "delivery print opens dedicated preview rather than printing desktop modal",
   );
+  assert.equal(await page.locator("#thermal-values").inputValue(), "receipt");
+  const deliveryContext = await page.evaluate(() => recordPrintContext.data);
+  const deliveryRows = deliveryContext.print_items ?? deliveryContext.items;
+  const centsSum = (key) =>
+    deliveryRows.reduce((n, row) => n + Number(row[key] || 0), 0);
+  const amount = (value) =>
+    "Rs " +
+    (value / 100).toLocaleString("en-PK", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  const receiptTotals = await page
+    .locator("#thermal-preview-sheet .slip-section")
+    .last()
+    .innerText();
+  assert.ok(
+    receiptTotals.includes(
+      amount(centsSum("bilty_amount") + centsSum("godown")),
+    ),
+  );
+  assert.ok(receiptTotals.includes(amount(centsSum("loading"))));
+  assert.ok(receiptTotals.includes(amount(centsSum("suzuki"))));
+  await page.locator("#thermal-values").selectOption("cash");
+  const cashTotals = await page
+    .locator("#thermal-preview-sheet .slip-section")
+    .last()
+    .innerText();
+  assert.ok(
+    cashTotals.includes(
+      amount(centsSum("bilty_received") + centsSum("service_received")),
+    ),
+  );
+  assert.match(cashTotals, /Discounts/);
+  await page.locator("#thermal-values").selectOption("receipt");
+  results.push(
+    "original charge receipt and cash-summary values remain separate",
+  );
   const pdfs = [];
   async function validate(kind, width) {
     await page.locator("#thermal-width").selectOption(width);
@@ -65,6 +102,10 @@ try {
       kind + " " + width + "mm: no overflow, only narrow slip printed",
     );
   }
+  await page.locator("#thermal-values").selectOption("cash");
+  await validate("delivery-cash", "58");
+  await validate("delivery-cash", "80");
+  await page.locator("#thermal-values").selectOption("receipt");
   await page.screenshot({ path: output + "/preview-80.png", fullPage: true });
   await validate("delivery", "58");
   await page.screenshot({ path: output + "/preview-58.png", fullPage: true });

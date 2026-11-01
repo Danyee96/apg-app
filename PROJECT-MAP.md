@@ -2,6 +2,10 @@
 
 Initial inventory reviewed 1 November 2026; see the upgrade notes below for subsequent changes. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
 
+## Original print-value reconciliation
+
+Original PTech report binaries were located in the retained archive. F002's Print Rec Slip invokes R150; R157 supplies a separate cash summary. The delivery API now exposes read-only historical print snapshots through the same source joins, and the thermal preview separates charge receipts from cash summaries. Incoming/booking print totals follow R071/R156 formulas instead of missing imported totals. No business records are rewritten. See `LEGACY-PRINT-RULES.md` for evidence, formulas, source-data discrepancies and the remaining original Urdu-font limitation.
+
 ## Thermal printing
 
 Printing uses dedicated escaped receipt snapshots, a separate `print-preview` dialog and a `thermal-print` root. Existing dialog/page print actions all route through the thermal preview. `beforeprint` also prepares narrow output for native browser printing. The browser remembers only the paper-width preference, not receipt data.

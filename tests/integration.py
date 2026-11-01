@@ -83,7 +83,7 @@ def check(base_url, database, password):
     print(json.dumps({'passed':len(checks),'checks':checks},indent=2))
 
 
-def main():
+def main(checker=check):
     root=pathlib.Path(__file__).resolve().parents[1]
     source=root/'storage/app.sqlite'
     if not source.is_file():
@@ -97,6 +97,7 @@ def main():
         password=secrets.token_urlsafe(24)
         hashed=subprocess.run(['php','-r','echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);'],input=password,text=True,capture_output=True,check=True).stdout
         target.execute('DELETE FROM users')
+        target.execute("DELETE FROM meta WHERE key='user_access_version'")
         target.execute('INSERT INTO users(username,password) VALUES(?,?)',('integration-review',hashed))
         target.commit();target.close()
         with socket.socket() as listener:
@@ -112,7 +113,7 @@ def main():
                         with urllib.request.urlopen(base_url+'action=session',timeout=1):break
                     except (OSError,urllib.error.URLError):time.sleep(.1)
                 else:raise RuntimeError('Temporary PHP server did not become ready.')
-                check(base_url,database,password)
+                checker(base_url,database,password)
                 verify=sqlite3.connect(database)
                 assert verify.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
                 assert not verify.execute('PRAGMA foreign_key_check').fetchall()

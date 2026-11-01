@@ -60,3 +60,15 @@ This release keeps PHP/SQLite and the existing data format. No database migratio
 ### Verification
 
 Run `python3 tests/integration.py` with PHP and the private database available. It creates a consistent temporary database copy, substitutes an isolated test login, starts a temporary local PHP server, exercises financial totals, ledger postings, access controls, search, pagination and deployment errors, then removes the copy. It does not change the working database. A browser is not needed for this test.
+
+## Users, roles and profiles
+
+Your original account remains the protected **Super admin**, with the same username and password. Open **My profile** to add a photo, full name, job title, email, phone and bio, or change your password. Photos are cropped and re-encoded as 256px JPEGs, stored privately inside the database; PHP GD is required for photo changes.
+
+Open **Users & permissions → Add user** to create staff logins. Manager, Accountant, Operations, Viewer and Custom are starting presets; the individually checked permissions determine actual access. Eighteen controls cover dashboard summaries, incoming goods, bookings, deliveries, customers, vouchers, ledgers, account creation, financial reports, settings/audit, stations, backups and imported data. Creation permissions also grant their required viewing permissions. Only the super admin can create users, change access, deactivate accounts or reset another user's password. The protected super admin cannot be disabled, demoted or reset through user management.
+
+Permissions are enforced in the API on every request. Restricted dashboards and lookup responses avoid disclosing unassigned business data. Permission revocation applies immediately; deactivation and password resets invalidate existing sessions. Users can edit their own profile and change their password with the current password, but cannot alter their own role or permissions. Access and profile changes are audited. Usernames remain stable so audit identities do not drift. Concurrent user-management edits use version checks.
+
+On the first request after deployment, an idempotent transaction adds the profile/access columns to the existing `users` table and marks the original account as super admin. It preserves its password hash and supports its existing session. **Keep the live database; do not upload a replacement.** Deploy `access.php` alongside `bootstrap.php` and the `public/` files. A consistent private server backup should be retained before deployment. The upload packager includes the new access module.
+
+Run `python3 tests/access.py` for isolated user-lifecycle and authorization checks, in addition to `python3 tests/integration.py` for accounting/report regressions. Both use disposable database copies and local HTTP servers; neither changes the working database.

@@ -8,6 +8,7 @@ with tempfile.TemporaryDirectory(prefix='apg-package-') as tmp:
  for f in (B/'public').iterdir():
   if f.is_file():shutil.copy2(f,public/f.name)
  shutil.copy2(B/'bootstrap.php',root/'bootstrap.php')
+ shutil.copy2(B/'access.php',root/'access.php')
  shutil.copy2(B/'storage/.htaccess',store/'.htaccess')
  source=sqlite3.connect('file:'+str(B/'storage/app.sqlite')+'?mode=ro',uri=True)
  target=sqlite3.connect(store/'app.sqlite');source.backup(target)
@@ -27,7 +28,7 @@ This package contains the working PHP app, your existing administrator login (ha
 
 LAYOUT (preserve these relative paths):
   public_html/index.php, api.php, app.js, style.css, .htaccess
-  bootstrap.php
+  bootstrap.php, access.php
   storage/app.sqlite, data-manifest.json, .htaccess
 
 Place public_html contents in the website document root. Place bootstrap.php and storage beside that root, one directory ABOVE it. Only public_html is public. Do not put storage or the database inside public_html. If the host uses a different web-root name, the API's ../bootstrap.php path must still reach bootstrap.php. APG_STORAGE can override the private storage directory.

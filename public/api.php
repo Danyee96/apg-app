@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../bootstrap.php';
+require __DIR__.'/../access.php';
 header('X-Content-Type-Options: nosniff');
 ini_set('session.use_strict_mode','1');session_name('APGSESSION');session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off','path'=>'/']);session_start();
 $_SESSION['csrf']??=bin2hex(random_bytes(24));
@@ -11,23 +12,27 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
+ migrate_access();
+ $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
- if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$_SESSION['username']??null,'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
+ if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
  if($action==='setup'&&$method==='POST'){
   if($hasUser)fail('An administrator already exists.',409);
   if(!in_array($_SERVER['REMOTE_ADDR'],['127.0.0.1','::1'],true))fail('Create the administrator on the local computer before uploading this app.',403);
-  $username=text($p,'username',40,true);$password=text($p,'password',128,true);if(strlen($password)<10)fail('Use a password with at least 10 characters.');
-  transaction(function()use($username,$password){if(one('SELECT id FROM users LIMIT 1'))fail('An administrator already exists.',409);run('INSERT INTO users(username,password) VALUES(?,?)',[$username,password_hash($password,PASSWORD_DEFAULT)]);});
-  session_regenerate_id(true);$_SESSION['username']=$username;audit('created','user',$username);response(['ok'=>true]);
+  $username=text($p,'username',40,true);$password=new_password($p);
+  transaction(function()use($username,$password){if(one('SELECT id FROM users LIMIT 1'))fail('An administrator already exists.',409);run("INSERT INTO users(username,password,full_name,role) VALUES(?,?,?,'super_admin')",[$username,password_hash($password,PASSWORD_DEFAULT),$username]);});
+  sign_in_user(one('SELECT * FROM users WHERE username=?',[$username]));audit('created','user',$username);response(['ok'=>true]);
  }
  if($action==='login'&&$method==='POST'){
   run('CREATE TABLE IF NOT EXISTS auth_attempts(ip TEXT,created_at INTEGER)');$ip=$_SERVER['REMOTE_ADDR'];$cut=time()-600;run('DELETE FROM auth_attempts WHERE created_at<?',[$cut]);
   if((int)one('SELECT count(*) n FROM auth_attempts WHERE ip=?',[$ip])['n']>=10)fail('Too many attempts. Try again in 10 minutes.',429);
-  $u=one('SELECT * FROM users WHERE username=?',[text($p,'username',40,true)]);if(!$u||!password_verify(text($p,'password',128,true),$u['password'])){run('INSERT INTO auth_attempts VALUES(?,?)',[$ip,time()]);fail('Username or password is incorrect.',401);}
-  session_regenerate_id(true);$_SESSION['username']=$u['username'];run('DELETE FROM auth_attempts WHERE ip=?',[$ip]);response(['ok'=>true]);
+  $u=one('SELECT * FROM users WHERE username=?',[text($p,'username',40,true)]);if(!$u||!(int)$u['active']||!password_verify(text($p,'password',128,true),$u['password'])){run('INSERT INTO auth_attempts VALUES(?,?)',[$ip,time()]);fail('Username or password is incorrect.',401);}
+  sign_in_user($u);run('UPDATE users SET last_login=CURRENT_TIMESTAMP WHERE id=?',[$u['id']]);run('DELETE FROM auth_attempts WHERE ip=?',[$ip]);response(['ok'=>true]);
  }
- if(!isset($_SESSION['username']))fail('Please sign in.',401);
  if($action==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();response(['ok'=>true]);}
+ if(!$current)fail('Please sign in.',401);
+ access_routes($action,$method,$p??[],$current);
+ authorize_action($action,$method,$p??[],$current);
  if($action==='dashboard'&&$method==='GET'){
   $asof=text($_GET,'date',10)?:date('Y-m-d');day(['dated'=>$asof]);
   $start=(new DateTimeImmutable($asof))->modify('-6 days');$trend=[];
@@ -36,7 +41,15 @@ try {
 
   response(['trend'=>$trend,'date'=>$asof,'customers'=>(int)one('SELECT count(*) n FROM accounts WHERE customer=1')['n'],'incoming'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='incoming' AND dated=?",[$asof])['n'],'bookings'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='booking' AND dated=?",[$asof])['n'],'deliveries'=>(int)one('SELECT count(*) n FROM deliveries WHERE dated=?',[$asof])['n'],'pending'=>(int)one("SELECT count(*) n FROM items i JOIN shipments s ON s.id=i.shipment_id WHERE i.status='pending' AND s.kind='incoming'")['n'],'recent'=>query("SELECT s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count FROM shipments s LEFT JOIN stations st ON st.id=s.station_id ORDER BY s.dated DESC,s.id DESC LIMIT 6"),'stations'=>query("SELECT st.name,count(i.id) count FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE i.status='pending' AND s.kind='incoming' GROUP BY st.id ORDER BY count DESC"),'activity'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 5')]);
  }
- if($action==='lookups'&&$method==='GET')response(['stations'=>query('SELECT * FROM stations ORDER BY name'),'accounts'=>query('SELECT id,name,customer,group_code,status,mobile,phone,address,area FROM accounts ORDER BY name COLLATE NOCASE'),'areas'=>query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area")]);
+ if($action==='lookups'&&$method==='GET'){
+  $finance=can_access($current,'ledger.view')||can_access($current,'vouchers.view');
+  $customers=can_access($current,'customers.view');
+  $goods=can_access($current,'incoming.create')||can_access($current,'booking.create')||can_access($current,'deliveries.create');
+  $select=$customers||can_access($current,'ledger.view')?'id,name,customer,group_code,status,mobile,phone,address,area':"id,name,customer,group_code,status,'' mobile,'' phone,'' address,'' area";
+  $stationAccess=can_access($current,'overview.view')||can_access($current,'incoming.view')||can_access($current,'booking.view')||can_access($current,'deliveries.view')||can_access($current,'settings.view');
+  response(['stations'=>$stationAccess?query('SELECT * FROM stations ORDER BY name'):[],'accounts'=>($finance||$customers||$goods)?query('SELECT '.$select.' FROM accounts'.($finance?'':' WHERE customer=1').' ORDER BY name COLLATE NOCASE'):[],'areas'=>$customers?query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area"):[]]);
+ }
+
  if($action==='customers'&&$method==='GET'){
   $where=' WHERE a.customer=1';$args=[];if(!empty($_GET['search'])){$where.=" AND (a.name LIKE ? ESCAPE '\' OR a.id LIKE ? ESCAPE '\' OR a.mobile LIKE ? ESCAPE '\' OR a.phone LIKE ? ESCAPE '\' OR a.address LIKE ? ESCAPE '\')";$args=array_fill(0,5,pattern());}
   if(!empty($_GET['group'])){$where.=' AND a.group_code=?';$args[]=text($_GET,'group',3);}

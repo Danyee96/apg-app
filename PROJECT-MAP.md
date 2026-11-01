@@ -2,6 +2,16 @@
 
 Initial inventory reviewed 1 November 2026; see the upgrade notes below for subsequent changes. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
 
+## User access upgrade
+
+The existing login is retained as the protected super admin. `access.php` now owns the idempotent users-table migration, permission catalog and dependencies, role presets, account/session resolution, profile image validation, profile/password routes, and super-admin-only user management. The API invokes its authorization checks before business endpoints. All new user/profile/photo data stays in the existing private SQLite database.
+
+Users & permissions adds user creation, individual permission editing, role presets, activation/deactivation and password resets. My profile adds photo/details editing and self-service password changes. User creation and access changes cannot be delegated to ordinary roles. The super admin cannot be disabled, demoted or reset using user management. The 18 business permissions support per-module read/create/manage access; role names are presets, with the stored individual permission list authoritative.
+
+Every request checks current permissions, active status and a session version. Password resets and deactivation invalidate sessions; profile edits leave access unchanged. Shared lookups are narrowed, cross-kind shipment/bilty reads are restricted, and users without overview access receive a task-only home page. Photo uploads are decoded and re-encoded as 256px JPEGs in the database; they are not executable files or public uploads. All profile and access changes are audited.
+
+`tests/access.py` exercises privilege boundaries, legacy sessions and migration compatibility, photo validation, deactivation, session invalidation, password changes, protected-super-admin rules and stale edits through a disposable HTTP server. Browser verification covers super-admin profiles, staff creation/custom permissions, role presets, mobile layouts, restricted navigation and deactivation. Original accounting regression coverage remains in `tests/integration.py`.
+
 ## November 2026 upgrade
 
 The current UI uses a new teal-and-ink design with a live daily dashboard, actual seven-day shipment series, delivery queue, keyboard task/customer search, responsive navigation, redesigned login and entry screens, unsaved-modal protection, and improved error recovery. Hidden mobile navigation is inert, its open state manages keyboard focus, and reduced-motion preferences are respected.

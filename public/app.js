@@ -149,6 +149,150 @@ function accountLabel(id) {
   let a = lookups.accounts.find((a) => a.id === id);
   return a ? a.id + " · " + a.name : "";
 }
+const can = (permission) =>
+  !permission ||
+  session?.profile?.role === "super_admin" ||
+  (session?.permissions || []).includes(permission);
+const isSuper = () => session?.profile?.role === "super_admin";
+const roleLabel = (role) =>
+  ({
+    super_admin: "Super admin",
+    manager: "Manager",
+    accountant: "Accountant",
+    operations: "Operations",
+    viewer: "Viewer",
+    custom: "Custom",
+  })[role] || role;
+const displayName = () => session?.profile?.full_name || session?.user || "";
+function avatarMarkup(user, large = false) {
+  return `<span class="avatar ${large ? "avatar-large" : ""}">${user?.avatar ? `<img src="${esc(user.avatar)}" alt="${esc(user.full_name || user.username || "Profile")}" width="${large ? 96 : 36}" height="${large ? 96 : 36}">` : esc((user?.full_name || user?.username || "?").slice(0, 2).toUpperCase())}</span>`;
+}
+function canView(view) {
+  const map = {
+    overview: "overview.view",
+    incoming: "incoming.view",
+    booking: "booking.view",
+    deliveries: "deliveries.view",
+    customers: "customers.view",
+    accounts: "vouchers.view",
+    ledger: "ledger.view",
+    "financial-reports": "ledger.view",
+    "financial-detail": "reports.view",
+    settings: "settings.view",
+    archive: "archive.view",
+  };
+  if (view === "users") return isSuper();
+  if (view === "reports")
+    return [
+      "incoming.view",
+      "booking.view",
+      "deliveries.view",
+      "customers.view",
+      "ledger.view",
+    ].some(can);
+  if (view === "bilties") return can("incoming.view") || can("booking.view");
+  return can(map[view]);
+}
+function dashboardAllowed(key) {
+  const map = {
+    receipt: "vouchers.create",
+    payment: "vouchers.create",
+    journal: "vouchers.create",
+    customers116: "customers.view",
+    customers117: "customers.view",
+    booking: "booking.create",
+    "booking-inquiry": "booking.view",
+    incoming: "incoming.create",
+    delivery: "deliveries.create",
+    "delivery-inquiry": "incoming.view",
+    ledger: "ledger.view",
+    "ledger-detail": "ledger.view",
+    "new-account": "accounts.create",
+  };
+  return key === "inquiry2" ? canView("bilties") : can(map[key]);
+}
+function actionAllowed(action, el) {
+  const map = {
+    "dashboard-overview": "overview.view",
+    "new-customer": "customers.manage",
+    customer: "customers.view",
+    "new-incoming": "incoming.create",
+    "new-booking": "booking.create",
+    "delivery-new": "deliveries.create",
+    "record-delivery": "deliveries.create",
+    "new-voucher": "vouchers.create",
+    "choose-ledger": "ledger.view",
+    "customer-ledger": "ledger.view",
+    "report-ledger": "ledger.view",
+    "new-account": "accounts.create",
+    "new-station": "stations.manage",
+    station: "stations.manage",
+    backup: "backups.create",
+    "imported-data": "archive.view",
+    "report-pending": "incoming.view",
+    "financial-dashboard": "ledger.view",
+    "financial-ledger": "ledger.view",
+    "new-user": "super",
+    "edit-user": "super",
+  };
+  if (map[action] === "super") return isSuper();
+  if (action === "financial-report")
+    return can(
+      ["ledger", "activity", "cashbook", "bankbook", "chart"].includes(
+        el?.dataset.report,
+      )
+        ? "ledger.view"
+        : "reports.view",
+    );
+  if (action.startsWith("report-") && canView(action.slice(7)) === false)
+    return false;
+  return can(map[action]);
+}
+function applyPermissions(root = document) {
+  $$("[data-action],[data-view],[data-dashboard]", root).forEach((el) => {
+    const allowed = el.dataset.view
+      ? canView(el.dataset.view)
+      : el.dataset.dashboard
+        ? dashboardAllowed(el.dataset.dashboard)
+        : actionAllowed(el.dataset.action, el);
+    el.hidden = !allowed;
+  });
+  const search = $("#global-search", root);
+  if (search) search.hidden = !canView("bilties");
+}
+function availableGroups() {
+  return dashboardGroups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter(([key]) => dashboardAllowed(key)),
+    }))
+    .filter((g) => g.items.length);
+}
+function restrictedDashboard() {
+  return (
+    head(
+      `Welcome, ${esc(displayName())}.`,
+      "Your workspace, with the tools assigned to you.",
+      btn("My profile", "my-profile", false, "users"),
+    ) +
+    `<section class="access-welcome"><span class="section-kicker">YOUR WORKSPACE</span><h2>Everything you need.<br>Just the access you need.</h2><p>You’re signed in as ${esc(roleLabel(session.profile.role))}. Your super admin manages your access.</p></section><div class="dashboard-grid accessible-views">${navs
+      .filter(
+        ([v]) => !["dashboard", "profile", "users"].includes(v) && canView(v),
+      )
+      .map(
+        ([v, i, title]) =>
+          `<button class="dashboard-tile" data-view="${v}"><span class="tile-icon">${icon(i)}</span><span class="tile-copy"><b>${esc(title)}</b><small>Open your workspace</small></span>${icon("arrow")}</button>`,
+      )
+      .join("")}</div>${availableGroups()
+      .map(
+        (g) =>
+          `<section class="dashboard-section"><div class="dashboard-section-head"><h2>${g.title}</h2><p>${g.hint}</p></div><div class="dashboard-grid">${g.items.map(([key, title, desc, ic, color]) => `<button class="dashboard-tile ${color}" data-dashboard="${key}"><span class="tile-icon">${icon(ic)}</span><span class="tile-copy"><b>${title}</b><small>${desc}</small></span>${icon("arrow")}</button>`).join("")}</div></section>`,
+      )
+      .join(
+        "",
+      )}${!availableGroups().length ? '<div class="note-box">Your account is ready. Ask your super admin to assign the tools you need.</div>' : ""}`
+  );
+}
 const navs = [
   ["dashboard", "grid", "Dashboard"],
   ["overview", "grid", "Overview"],
@@ -160,25 +304,31 @@ const navs = [
   ["reports", "report", "Reports"],
   ["financial-reports", "wallet", "Financial Reports"],
   ["settings", "settings", "Workspace settings"],
+  ["users", "shield", "Users & permissions"],
+  ["profile", "users", "My profile"],
+  ["archive", "report", "Imported backup"],
 ];
 function shell() {
   document.title = "APG — Goods & accounts";
   $("#app").innerHTML =
     `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="dashboard"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><div class="workspace-label"><span class="workspace-monogram">A</span><div><b>Goods & accounts</b><small>D. I. Khan workspace</small></div>${icon("chevron")}</div><nav><div class="nav-label">OPERATIONS</div>${navs
       .slice(0, 6)
+      .filter(([v]) => canView(v))
       .map(
         ([v, i, l]) =>
           `<button class="nav-link" data-view="${v}">${icon(i)}<span>${l}</span>${v === "dashboard" ? "<small>HOME</small>" : ""}</button>`,
       )
       .join("")}<div class="nav-label">FINANCE & WORKSPACE</div>${navs
       .slice(6)
+      .filter(([v]) => canView(v))
       .map(
         ([v, i, l]) =>
           `<button class="nav-link" data-view="${v}">${icon(i)}<span>${l}</span></button>`,
       )
       .join(
         "",
-      )}</nav><div class="sidebar-bottom"><button class="sidebar-help" data-action="command">${icon("search")}<span>Find a task</span><kbd>⌘ K</kbd></button><div class="user"><span class="avatar">${esc(session.user.slice(0, 2).toUpperCase())}</span><div><b>${esc(session.user)}</b><small>Administrator</small></div><button class="icon-btn" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></div></aside><div class="shell"><header class="topbar"><div class="buttons"><button class="icon-btn mobile-menu" data-action="menu" aria-controls="navigation" aria-expanded="false" aria-label="Open navigation">${icon("menu")}</button><div class="breadcrumbs"><span>Workspace</span>${icon("chevron")}<strong id="crumb">Dashboard</strong></div></div><div class="top-actions"><form id="global-search" class="search-global">${icon("search")}<input name="q" aria-label="Find a bilty" placeholder="Search a bilty, party or customer…"><button type="submit" aria-label="Search">${icon("arrow")}</button></form><button class="icon-btn command-trigger" data-action="command" title="Find a task (Ctrl or Command K)" aria-label="Find a task">${icon("grid")}</button><div class="date-chip">${icon("calendar")}<span>${fmtdate(today())}</span></div></div></header><main class="main" id="main" tabindex="-1"></main><footer class="app-footer"><span><span class="dot"></span> Azad Pakistan Goods</span><span>Goods in motion. Business in order.</span></footer></div>`;
+      )}</nav><div class="sidebar-bottom"><button class="sidebar-help" data-action="command">${icon("search")}<span>Find a task</span><kbd>⌘ K</kbd></button><div class="user">${avatarMarkup(session.profile)}<button class="user-identity" data-view="profile"><b>${esc(displayName())}</b><small>${esc(roleLabel(session.profile.role))}</small></button><button class="icon-btn" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></div></aside><div class="shell"><header class="topbar"><div class="buttons"><button class="icon-btn mobile-menu" data-action="menu" aria-controls="navigation" aria-expanded="false" aria-label="Open navigation">${icon("menu")}</button><div class="breadcrumbs"><span>Workspace</span>${icon("chevron")}<strong id="crumb">Dashboard</strong></div></div><div class="top-actions"><form id="global-search" class="search-global">${icon("search")}<input name="q" aria-label="Find a bilty" placeholder="Search a bilty, party or customer…"><button type="submit" aria-label="Search">${icon("arrow")}</button></form><button class="icon-btn command-trigger" data-action="command" title="Find a task (Ctrl or Command K)" aria-label="Find a task">${icon("grid")}</button><div class="date-chip">${icon("calendar")}<span>${fmtdate(today())}</span></div></div></header><main class="main" id="main" tabindex="-1"></main><footer class="app-footer"><span><span class="dot"></span> Azad Pakistan Goods</span><span>Goods in motion. Business in order.</span></footer></div>`;
+  applyPermissions();
 }
 function toggleMenu(open) {
   const wasOpen = document.body.classList.contains("nav-open");
@@ -221,6 +371,10 @@ function empty(text = "No records found. Try a different search.") {
   return `<div class="empty">${icon("box")}<div>${text}</div></div>`;
 }
 async function navigate(view, reset = true) {
+  if (!canView(view)) {
+    toast("Your account does not have access to this screen.");
+    return false;
+  }
   if (
     currentForm &&
     !confirm("Leave this entry? Unsaved changes will be lost.")
@@ -298,6 +452,12 @@ async function render() {
       case "ledger":
         html = await ledger();
         break;
+      case "users":
+        html = await usersPage();
+        break;
+      case "profile":
+        html = await profilePage();
+        break;
       case "settings":
         html = await settings();
         break;
@@ -310,7 +470,10 @@ async function render() {
       default:
         html = reports();
     }
-    if (id === requestID && $("#main")) $("#main").innerHTML = html;
+    if (id === requestID && $("#main")) {
+      $("#main").innerHTML = html;
+      applyPermissions($("#main"));
+    }
   } catch (e) {
     if (id === requestID && $("#main"))
       $("#main").innerHTML =
@@ -827,7 +990,7 @@ async function settings() {
   let d = await api("settings");
   return (
     head("Workspace settings", "Your stations, backups and recent changes.") +
-    `<div class="form-layout"><section class="panel"><div class="panel-head"><h2>Stations</h2>${btn("Add station", "new-station", false, "plus")}</div><div class="table-scroll"><table><thead><tr><th>Station</th><th>Address</th><th></th></tr></thead><tbody>${lookups.stations.map((s) => `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.address || "—")}</td><td><button class="icon-btn" data-action="station" data-id="${s.id}" aria-label="Edit station">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Recent activity</h2></div><div class="panel-body">${d.audit.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)} ${esc(a.entity_id)}<small>${fmttime(a.created_at)}</small></div>`).join("") || '<p class="note">No changes recorded yet.</p>'}</div></section><div><section class="panel"><div class="panel-head"><h2>Backup your workspace</h2></div><div class="panel-body"><p class="note">Save a separate copy of your current customer details, new entries and vouchers to the private storage folder.</p>${btn("Create backup", "backup", true, "download")}<div style="margin-top:14px">${btn("Browse imported backup", "imported-data", false, "report")}</div><p class="note" style="margin-top:18px">Original data snapshot<br><strong>${fmtdate(session.backup_date)}</strong></p></div></section><div class="note-box warning" style="margin-top:20px">Review workspace: role-based access and financial reconciliation still need completion before live accounting use.</div></div></div>`
+    `<div class="form-layout"><section class="panel"><div class="panel-head"><h2>Stations</h2>${btn("Add station", "new-station", false, "plus")}</div><div class="table-scroll"><table><thead><tr><th>Station</th><th>Address</th><th></th></tr></thead><tbody>${lookups.stations.map((s) => `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.address || "—")}</td><td><button class="icon-btn" data-action="station" data-id="${s.id}" aria-label="Edit station">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Recent activity</h2></div><div class="panel-body">${d.audit.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)} ${esc(a.entity_id)}<small>${fmttime(a.created_at)}</small></div>`).join("") || '<p class="note">No changes recorded yet.</p>'}</div></section><div><section class="panel"><div class="panel-head"><h2>Backup your workspace</h2></div><div class="panel-body"><p class="note">Save a separate copy of your current customer details, new entries and vouchers to the private storage folder.</p>${btn("Create backup", "backup", true, "download")}<div style="margin-top:14px">${btn("Browse imported backup", "imported-data", false, "report")}</div><p class="note" style="margin-top:18px">Original data snapshot<br><strong>${fmtdate(session.backup_date)}</strong></p></div></section><div class="note-box warning" style="margin-top:20px">Financial balances still require reconciliation before live accounting use. Access to each workspace is managed by your super admin.</div></div></div>`
   );
 }
 async function importedData() {
@@ -889,8 +1052,9 @@ function requestCloseModal() {
 }
 function modal(title, subtitle, body, footer = "") {
   let d = $("#modal");
-  d.classList.remove("bilty-dialog", "command-dialog");
+  d.classList.remove("bilty-dialog", "command-dialog", "user-dialog");
   d.innerHTML = `<div class="modal-head"><div><h2 id="modal-title">${title}</h2><p>${subtitle}</p></div><div class="buttons"><button class="icon-btn" data-action="close-modal" aria-label="Close">${icon("close")}</button></div></div><div class="modal-body"><div class="receipt-heading">Azad Pakistan Goods</div>${body}</div>${footer ? `<div class="modal-footer">${footer}</div>` : ""}`;
+  applyPermissions(d);
   if (!d.open) d.showModal();
   modalSnapshot = modalValues();
 }
@@ -927,6 +1091,13 @@ async function customerForm(id) {
       "beforeend",
       `<input type="hidden" name="group_code" value="${r.group_code}">`,
     );
+    modalSnapshot = modalValues();
+  }
+  if (!can("customers.manage")) {
+    $$("#customer-form input,#customer-form select").forEach(
+      (el) => (el.disabled = true),
+    );
+    $('#customer-form [type="submit"]').hidden = true;
     modalSnapshot = modalValues();
   }
 }
@@ -1449,6 +1620,7 @@ const dashboardGroups = [
   },
 ];
 async function dashboard() {
+  if (!can("overview.view")) return restrictedDashboard();
   const d = await api("dashboard", null, {
     date: state.date,
     __render: requestID,
@@ -1466,7 +1638,7 @@ async function dashboard() {
   const trendTotal = d.trend.reduce((n, r) => n + r.incoming + r.booking, 0);
   return (
     head(
-      `${greeting}, ${esc(session.user)}.`,
+      `${greeting}, ${esc(displayName())}.`,
       "Here’s what’s moving across your business.",
       `<label class="date-chip">${icon("calendar")}<input type="date" id="working-date" aria-label="Dashboard date" value="${state.date}"></label><button class="btn primary" data-dashboard="incoming">${icon("plus")}New incoming</button>`,
       "YOUR DAILY WORKSPACE",
@@ -1493,11 +1665,20 @@ async function dashboard() {
  <section class="panel pending-panel"><div class="panel-head"><div><span class="section-kicker">UP NEXT</span><h2>Delivery queue</h2><p>Pending goods by origin station</p></div><span class="count-badge">${num(d.pending)}</span></div><div class="panel-body">${d.stations.length ? d.stations.map((r, i) => `<div class="queue-station"><span class="station-symbol">${icon("pin")}</span><div><div class="station-label"><b>${esc(r.name || "Not recorded")}</b><span>${num(r.count)} bilties</span></div><div class="bar"><span style="width:${(r.count / Math.max(1, d.pending)) * 100}%"></span></div></div></div>`).join("") : '<div class="queue-clear">' + icon("check") + "<b>All caught up.</b><p>No incoming bilties are awaiting delivery.</p></div>"}<button class="btn queue-button" data-dashboard="delivery">Open delivery queue ${icon("arrow")}</button></div></section></div>
  <section class="panel recent-panel"><div class="panel-head"><div><span class="section-kicker">LATEST ACTIVITY</span><h2>Recent goods entries</h2><p>Your latest incoming shipments and bookings across all dates</p></div><button class="btn small" data-view="incoming">View incoming ${icon("arrow")}</button></div>${shipmentTable(d.recent, false)}</section>
  <div class="section-heading"><div><span class="section-kicker">LESS CLICKING. MORE DOING.</span><h2>Your everyday shortcuts</h2></div><button class="link" data-action="command">Find a task ${icon("search")}</button></div>
- ${dashboardGroups.map((g) => `<section class="dashboard-section"><div class="dashboard-section-head"><h2>${g.title}</h2><p>${g.hint}</p></div><div class="dashboard-grid">${g.items.map(([key, title, desc, ic, color]) => `<button type="button" class="dashboard-tile ${color}" data-dashboard="${key}"><span class="tile-icon">${icon(ic)}</span><span class="tile-copy"><b>${title}</b><small>${desc}</small></span><span class="tile-arrow">${icon("arrow")}</span></button>`).join("")}</div></section>`).join("")}<div class="data-note">${icon("shield")}<span>Original records preserved · Backup ${fmtdate(session.backup_date)}. Goods entries do not automatically post accounting vouchers.</span><span>${num(d.customers)} customers</span></div>`
+ ${availableGroups()
+   .map(
+     (g) =>
+       `<section class="dashboard-section"><div class="dashboard-section-head"><h2>${g.title}</h2><p>${g.hint}</p></div><div class="dashboard-grid">${g.items.map(([key, title, desc, ic, color]) => `<button type="button" class="dashboard-tile ${color}" data-dashboard="${key}"><span class="tile-icon">${icon(ic)}</span><span class="tile-copy"><b>${title}</b><small>${desc}</small></span><span class="tile-arrow">${icon("arrow")}</span></button>`).join("")}</div></section>`,
+   )
+   .join(
+     "",
+   )}<div class="data-note">${icon("shield")}<span>Original records preserved · Backup ${fmtdate(session.backup_date)}. Goods entries do not automatically post accounting vouchers.</span><span>${num(d.customers)} customers</span></div>`
   );
 }
 
 async function openDashboard(key) {
+  if (!dashboardAllowed(key))
+    return toast("This action is not available for your account.");
   if (
     currentForm &&
     !confirm("Leave this entry? Unsaved changes will be lost.")
@@ -1570,7 +1751,33 @@ async function accountForm() {
 }
 
 async function action(name, el) {
+  if (!actionAllowed(name, el))
+    return toast("This action is not available for your account.");
   switch (name) {
+    case "my-profile":
+      await navigate("profile");
+      break;
+    case "new-user":
+      await userForm();
+      break;
+    case "edit-user":
+      await userForm(el.dataset.id);
+      break;
+    case "choose-avatar":
+      document.getElementById(el.dataset.input)?.click();
+      break;
+    case "remove-avatar": {
+      const form = el.closest("form");
+      form.querySelector('[name="avatar"]').value = "";
+      form.querySelector(".photo-preview").innerHTML = avatarMarkup(
+        {
+          username:
+            form.querySelector('[name="full_name"]')?.value || displayName(),
+        },
+        true,
+      );
+      break;
+    }
     case "reload-app":
       location.reload();
       break;
@@ -1874,8 +2081,45 @@ document.addEventListener("change", (e) => {
   }
 });
 async function submitForm(form, submitter) {
+  if (form.dataset.photoLoading)
+    throw Error("Wait for your photo preview to finish loading.");
   let data = Object.fromEntries(new FormData(form));
   switch (form.getAttribute("id")) {
+    case "profile-form": {
+      await api("save_profile", data);
+      session = await api("session");
+      shell();
+      await navigate("profile");
+      toast("Your profile is updated.");
+      break;
+    }
+    case "password-form": {
+      if (data.new_password !== data.confirm_password)
+        throw Error("The new passwords do not match.");
+      await api("change_password", {
+        current_password: data.current_password,
+        new_password: data.new_password,
+      });
+      session = await api("session");
+      form.reset();
+      modalSnapshot = modalValues();
+      toast("Password changed. Other sessions have been signed out.");
+      break;
+    }
+    case "user-form": {
+      const permissions = $$('[name="permission"]:checked', form).map(
+        (el) => el.value,
+      );
+      delete data.permission;
+      await api("save_user", { ...data, permissions });
+      closeModal();
+      session = await api("session");
+      shell();
+      await navigate("users");
+      toast("User and permissions saved.");
+      break;
+    }
+
     case "auth-form":
       await api(session.setup ? "setup" : "login", data);
       session = await api("session");
@@ -2023,7 +2267,7 @@ document.addEventListener("submit", async (e) => {
   if (form.dataset.busy) return;
   form.dataset.busy = "1";
   buttons.forEach((b) => (b.disabled = true));
-  let err = $("#form-error", form);
+  let err = $("#form-error, [data-form-error]", form);
   if (err) err.hidden = true;
   try {
     await submitForm(form, e.submitter);
@@ -2103,6 +2347,193 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
+let userDirectory;
+function photoFields(user, id) {
+  return `<div class="profile-photo-editor"><div class="photo-preview">${avatarMarkup(user, true)}</div><div><b>Profile photo</b><p>JPEG, PNG or WebP. Your photo is cropped to a square.</p><div class="buttons"><button type="button" class="btn small" data-action="choose-avatar" data-input="${id}">${icon("plus")}Choose photo</button><input type="file" class="photo-upload" id="${id}" hidden accept="image/jpeg,image/png,image/webp"><button type="button" class="btn small" data-action="remove-avatar">Remove</button></div></div><input type="hidden" name="avatar" value="${esc(user.avatar || "")}"></div>`;
+}
+function personalFields(user) {
+  return `<div class="form-grid">${field("full_name", "Full name *", user.full_name || user.username || "", "text", 'required maxlength="100"', true)}${field("job_title", "Job title", user.job_title, "text", 'maxlength="80"')}${field("email", "Email", user.email, "email", 'maxlength="120"')}${field("phone", "Phone", user.phone, "tel", 'maxlength="40"')}${field("bio", "About / notes", user.bio, "text", 'maxlength="500"', true)}</div>`;
+}
+async function profilePage() {
+  const user = await api("profile");
+  return (
+    head("My profile", "The person behind your workspace.") +
+    `<div class="profile-layout"><aside class="panel profile-summary">${avatarMarkup(user, true)}<h2>${esc(user.full_name || user.username)}</h2><p>${esc(user.job_title || "APG workspace member")}</p><span class="tag ${user.role === "super_admin" ? "orange" : "green"}">${icon("shield")}${esc(roleLabel(user.role))}</span><div class="profile-facts"><div><span>Username</span><b>${esc(user.username)}</b></div><div><span>Account status</span><b>Active</b></div><div><span>Workspace</span><b>Azad Pakistan Goods</b></div></div><div class="note-box">${user.role === "super_admin" ? "You have full access. Your super admin account cannot be disabled or demoted." : "Your super admin manages your role and permissions. Profile changes do not change your access."}</div></aside><div class="profile-main"><section class="panel"><div class="panel-head"><div><span class="section-kicker">MAKE IT YOURS</span><h2>Personal details</h2><p>Your photo and details appear with your account.</p></div></div><form id="profile-form" class="panel-body">${photoFields(user, "profile-photo")}${personalFields(user)}<div class="error" id="form-error" role="alert" hidden></div><div class="form-actions"><span class="note">Username and access are managed separately.</span><button type="submit" class="btn primary">${icon("check")}Save profile</button></div></form></section><section class="panel password-panel"><div class="panel-head"><div><span class="section-kicker">ACCOUNT SECURITY</span><h2>Change password</h2><p>Other sessions are signed out when you change your password.</p></div></div><form id="password-form" class="panel-body"><div class="form-grid">${field("current_password", "Current password *", "", "password", 'required autocomplete="current-password" maxlength="128"', true)}${field("new_password", "New password *", "", "password", 'required autocomplete="new-password" minlength="10" maxlength="72"')}${field("confirm_password", "Confirm new password *", "", "password", 'required autocomplete="new-password" minlength="10" maxlength="72"')}</div><div class="error" id="password-form-error" data-form-error role="alert" hidden></div><div class="form-actions"><span class="note">Use at least 10 characters.</span><button class="btn" type="submit">${icon("shield")}Update password</button></div></form></section></div></div>`
+  );
+}
+async function usersPage() {
+  const d = await api("users", null, params());
+  userDirectory = d;
+  listData = d;
+  state.page = d.page;
+  return (
+    head(
+      "People & permissions",
+      "Give every person the right tools for their work.",
+      btn("Add user", "new-user", true, "plus"),
+      "YOUR TEAM, YOUR CONTROL",
+    ) +
+    `<section class="team-banner"><span class="team-banner-icon">${icon("shield")}</span><div><h2>A place for everyone.<br>The right access for each person.</h2><p>You control who can view, create and manage records. Your super admin access stays protected.</p></div><span class="tag">SUPER ADMIN WORKSPACE</span></section><div class="metrics team-metrics">${[
+      ["Total people", d.counts.total, "users"],
+      ["Active accounts", d.counts.active, "check"],
+      ["Inactive accounts", d.counts.inactive, "shield"],
+    ]
+      .map(
+        ([title, value, ic]) =>
+          `<div class="metric"><div class="metric-top"><span>${title}</span><span class="metric-icon">${icon(ic)}</span></div><strong>${num(value)}</strong><small>${title === "Inactive accounts" ? "Sign-in is disabled" : "Across your workspace"}</small></div>`,
+      )
+      .join(
+        "",
+      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
+  );
+}
+function permissionChecklist(selected) {
+  const catalog = userDirectory.catalog;
+  const groups = [...new Set(Object.values(catalog).map((item) => item[2]))];
+  return groups
+    .map(
+      (group) =>
+        `<section class="permission-group"><div class="permission-group-title"><h3>${esc(group)}</h3><span>${Object.values(catalog).filter((item) => item[2] === group).length} controls</span></div><div class="permission-grid">${Object.entries(
+          catalog,
+        )
+          .filter(([, value]) => value[2] === group)
+          .map(
+            ([key, [label, description]]) =>
+              `<label class="permission-choice"><input type="checkbox" name="permission" value="${esc(key)}" ${selected.includes(key) ? "checked" : ""}><span><b>${esc(label)}</b><small>${esc(description)}</small></span></label>`,
+          )
+          .join("")}</div></section>`,
+    )
+    .join("");
+}
+async function userForm(id) {
+  if (!userDirectory) userDirectory = await api("users");
+  const user = id
+    ? await api("user", null, { id })
+    : {
+        role: "operations",
+        active: 1,
+        permissions: userDirectory.roles.operations.permissions,
+      };
+  if (user.role === "super_admin") {
+    await navigate("profile");
+    return;
+  }
+  modal(
+    id ? "Manage team member" : "Add a team member",
+    id
+      ? "Update details, account status and individual permissions."
+      : "Create a login, then choose exactly what this person can access.",
+    `<form id="user-form"><input type="hidden" name="id" value="${user.id || ""}"><input type="hidden" name="version" value="${user.version || 1}"><div class="user-form-section">${photoFields(user, "user-photo")}${personalFields(user)}<hr class="divider"><div class="form-grid">${field("username", "Username *", user.username, "text", `required minlength="3" maxlength="40" autocomplete="off" ${id ? "readonly" : ""}`)}${selectField(
+      "active",
+      "Account status",
+      [
+        ["1", "Active · can sign in"],
+        ["0", "Inactive · sign-in disabled"],
+      ],
+      String(user.active),
+      true,
+    )}${field("password", id ? "Reset password (optional)" : "Initial password *", "", "password", `${id ? "" : "required"} minlength="10" maxlength="72" autocomplete="new-password"`, true)}</div><p class="note user-password-note">${id ? "Leave the password empty to keep it. Setting a new password signs out this user on every device." : "Use at least 10 characters. Share the login securely with this team member."}</p></div><section class="access-editor"><div class="access-editor-head"><div><span class="section-kicker">THE RIGHT TOOLS</span><h2>Role & permissions</h2><p>A role supplies a starting point. The selected permissions below are the actual access granted.</p></div><span class="count-badge" id="permission-count">${user.permissions.length}</span></div><div class="role-picker">${selectField(
+      "role",
+      "Role preset",
+      Object.entries(userDirectory.roles).map(([key, role]) => [
+        key,
+        role.label,
+      ]),
+      user.role,
+      true,
+    )}<div class="note-box">Creating records also grants their required viewing permissions. Unchecking a required view removes the dependent create permission.</div></div><div id="permission-checklist">${permissionChecklist(user.permissions)}</div></section><div class="error" id="form-error" role="alert" hidden></div><div class="form-actions user-form-footer"><span class="note">Only you can manage users and access.</span><div class="buttons">${btn("Cancel", "close-modal")}<button class="btn primary" type="submit">${icon("check")}${id ? "Save changes" : "Create user"}</button></div></div></form>`,
+  );
+  $("#modal").classList.add("user-dialog");
+}
+function updatePermissionChoices(changed) {
+  const boxes = $$('#user-form [name="permission"]');
+  const selected = new Set(
+    boxes.filter((box) => box.checked).map((box) => box.value),
+  );
+  const dependencies = userDirectory.dependencies;
+  let again;
+  do {
+    again = false;
+    for (const [key, required] of Object.entries(dependencies)) {
+      if (!selected.has(key)) continue;
+      for (const permission of required) {
+        if (selected.has(permission)) continue;
+        if (changed?.checked) {
+          selected.add(permission);
+        } else {
+          selected.delete(key);
+        }
+        again = true;
+      }
+    }
+  } while (again);
+  boxes.forEach((box) => (box.checked = selected.has(box.value)));
+  $("#permission-count").textContent = selected.size;
+}
+document.addEventListener("change", async (e) => {
+  const el = e.target;
+  if (el.matches('#user-form [name="role"]')) {
+    const preset = userDirectory.roles[el.value];
+    $$('#user-form [name="permission"]').forEach(
+      (box) => (box.checked = preset.permissions.includes(box.value)),
+    );
+    updatePermissionChoices({ checked: true });
+  }
+  if (el.matches('#user-form [name="permission"]')) updatePermissionChoices(el);
+  if (!el.matches(".photo-upload")) return;
+  const file = el.files[0];
+  if (!file) return;
+  const form = el.closest("form");
+  form.dataset.photoLoading = "1";
+  try {
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 8 * 1024 * 1024
+    )
+      throw Error("Choose a JPEG, PNG or WebP image smaller than 8 MB.");
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, 256, 256);
+      const size = Math.min(image.width, image.height);
+      ctx.drawImage(
+        image,
+        (image.width - size) / 2,
+        (image.height - size) / 2,
+        size,
+        size,
+        0,
+        0,
+        256,
+        256,
+      );
+      const avatar = canvas.toDataURL("image/jpeg", 0.85);
+      form.querySelector('[name="avatar"]').value = avatar;
+      form.querySelector(".photo-preview").innerHTML = avatarMarkup(
+        {
+          avatar,
+          username:
+            form.querySelector('[name="full_name"]')?.value || "Profile",
+        },
+        true,
+      );
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    delete form.dataset.photoLoading;
+    el.value = "";
+  }
+});
+
 function auth() {
   requestID++;
   closeModal();
@@ -2128,17 +2559,17 @@ function commandPalette() {
 }
 function renderCommands(value) {
   const q = value.trim().toLowerCase();
-  const tasks = dashboardGroups.flatMap((g) =>
+  const tasks = availableGroups().flatMap((g) =>
     g.items.map(([key, title, desc, ic]) => ({ key, title, desc, ic })),
   );
   const matches = tasks.filter((t) =>
     (t.title + " " + t.desc).toLowerCase().includes(q),
   );
-  const screens = navs.filter(([v, ic, title]) =>
-    title.toLowerCase().includes(q),
-  );
+  const screens = navs
+    .filter(([v]) => canView(v))
+    .filter(([v, ic, title]) => title.toLowerCase().includes(q));
   const customers =
-    q.length >= 2
+    q.length >= 2 && can("ledger.view")
       ? lookups.accounts
           .filter(
             (a) =>

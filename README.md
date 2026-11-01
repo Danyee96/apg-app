@@ -39,7 +39,7 @@ On later code updates, do not overwrite a live database with an older local copy
 
 ## Current scope
 
-This is a functional review app. Goods and deliveries do not yet create automatic accounting vouchers. Some Financial Reports cards are explicitly awaiting implementation. Historical balances still require reconciliation; older Urdu font text may require conversion. All 21 recovered tables and 705,476 original ledger entries remain in the database, including incomplete source records accessible through Workspace settings → Browse imported backup.
+This is a functional review app. Goods and deliveries do not yet create automatic accounting vouchers. Five Financial Reports cards are explicitly awaiting implementation. Historical balances still require reconciliation; older Urdu font text may require conversion. All 21 recovered tables and 705,476 original ledger entries remain in the database, including incomplete source records accessible through Workspace settings → Browse imported backup.
 
 ## Hostinger GitHub deployment
 
@@ -48,3 +48,15 @@ The recommended document root is `public/`. If Hostinger publishes the entire re
 GitHub intentionally does not contain the working database. For the first deployment, use Hostinger File Manager or SFTP to securely upload your current local `storage/app.sqlite` to the deployed `storage/` directory. If the repository is in `public_html/`, this is `public_html/storage/app.sqlite`; the root and storage access rules deny web access to it. Prefer private storage outside the document root when your hosting configuration allows it, using `APG_STORAGE` to point PHP to that directory. Ensure PHP can write to the database and its directory. Never commit the database to this public repository.
 
 After deployment, open the domain and sign in with the existing login. A 403 at the domain with a working `/public/` page indicates the wrong document root or missing root rewrite configuration. An API 500 after the page loads requires checking PHP error logs: a missing database, SQLite support or storage permissions are possible causes. Keep the existing live database on subsequent code deployments.
+
+## Workspace upgrade — November 2026
+
+The redesigned interface includes a daily dashboard with actual seven-day goods movement, a station delivery queue, task and customer-ledger search (`Ctrl+K` or `Command+K`), responsive navigation, improved entry forms and login, and safeguards for unsaved dialog changes. Dashboard dates now default to today in Asia/Karachi. Large lists keep their own horizontal scrolling on mobile.
+
+Financial Reports now includes calculated Trial Balance and Customer Balances, Day Book accounting lines, original/new Journal lines, and new-app Voucher lines. These support dates, search, pagination, account-ledger drill-down, current-page printing and CSV export. Totals cover all matching results. Historical balances still require reconciliation; undated and unassigned legacy entries cannot form complete dated account balances. The remaining five dedicated reports are marked awaiting implementation.
+
+This release keeps PHP/SQLite and the existing data format. No database migration, replacement upload or frontend build is needed. Deploy the latest code from `main` and preserve your existing `storage/app.sqlite`. Versioned asset URLs ensure browsers load the matching interface files. The application and database support current PHP hosting; a future Laravel/MySQL migration should be planned and verified separately.
+
+### Verification
+
+Run `python3 tests/integration.py` with PHP and the private database available. It creates a consistent temporary database copy, substitutes an isolated test login, starts a temporary local PHP server, exercises financial totals, ledger postings, access controls, search, pagination and deployment errors, then removes the copy. It does not change the working database. A browser is not needed for this test.

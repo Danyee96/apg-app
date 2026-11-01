@@ -12,7 +12,7 @@ try {
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
- if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$_SESSION['username']??null,'csrf'=>$_SESSION['csrf'],'backup_date'=>'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
+ if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$_SESSION['username']??null,'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
  if($action==='setup'&&$method==='POST'){
   if($hasUser)fail('An administrator already exists.',409);
   if(!in_array($_SERVER['REMOTE_ADDR'],['127.0.0.1','::1'],true))fail('Create the administrator on the local computer before uploading this app.',403);
@@ -29,8 +29,12 @@ try {
  if(!isset($_SESSION['username']))fail('Please sign in.',401);
  if($action==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();response(['ok'=>true]);}
  if($action==='dashboard'&&$method==='GET'){
-  $asof=text($_GET,'date',10)?:'2026-10-31';day(['dated'=>$asof]);
-  response(['date'=>$asof,'customers'=>(int)one('SELECT count(*) n FROM accounts WHERE customer=1')['n'],'incoming'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='incoming' AND dated=?",[$asof])['n'],'bookings'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='booking' AND dated=?",[$asof])['n'],'deliveries'=>(int)one('SELECT count(*) n FROM deliveries WHERE dated=?',[$asof])['n'],'pending'=>(int)one("SELECT count(*) n FROM items i JOIN shipments s ON s.id=i.shipment_id WHERE i.status='pending' AND s.kind='incoming'")['n'],'recent'=>query("SELECT s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count FROM shipments s LEFT JOIN stations st ON st.id=s.station_id ORDER BY s.dated DESC,s.id DESC LIMIT 6"),'stations'=>query("SELECT st.name,count(i.id) count FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE i.status='pending' AND s.kind='incoming' GROUP BY st.id ORDER BY count DESC"),'activity'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 5')]);
+  $asof=text($_GET,'date',10)?:date('Y-m-d');day(['dated'=>$asof]);
+  $start=(new DateTimeImmutable($asof))->modify('-6 days');$trend=[];
+  $counts=query("SELECT dated,kind,count(*) n FROM shipments WHERE dated>=? AND dated<=? GROUP BY dated,kind",[$start->format('Y-m-d'),$asof]);
+  for($i=0;$i<7;$i++){$dated=$start->modify('+'.$i.' days')->format('Y-m-d');$entry=['dated'=>$dated,'incoming'=>0,'booking'=>0];foreach($counts as $count){if($count['dated']===$dated)$entry[$count['kind']]=(int)$count['n'];}$trend[]=$entry;}
+
+  response(['trend'=>$trend,'date'=>$asof,'customers'=>(int)one('SELECT count(*) n FROM accounts WHERE customer=1')['n'],'incoming'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='incoming' AND dated=?",[$asof])['n'],'bookings'=>(int)one("SELECT count(*) n FROM shipments WHERE kind='booking' AND dated=?",[$asof])['n'],'deliveries'=>(int)one('SELECT count(*) n FROM deliveries WHERE dated=?',[$asof])['n'],'pending'=>(int)one("SELECT count(*) n FROM items i JOIN shipments s ON s.id=i.shipment_id WHERE i.status='pending' AND s.kind='incoming'")['n'],'recent'=>query("SELECT s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count FROM shipments s LEFT JOIN stations st ON st.id=s.station_id ORDER BY s.dated DESC,s.id DESC LIMIT 6"),'stations'=>query("SELECT st.name,count(i.id) count FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE i.status='pending' AND s.kind='incoming' GROUP BY st.id ORDER BY count DESC"),'activity'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 5')]);
  }
  if($action==='lookups'&&$method==='GET')response(['stations'=>query('SELECT * FROM stations ORDER BY name'),'accounts'=>query('SELECT id,name,customer,group_code,status,mobile,phone,address,area FROM accounts ORDER BY name COLLATE NOCASE'),'areas'=>query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area")]);
  if($action==='customers'&&$method==='GET'){
@@ -101,6 +105,28 @@ try {
   $rows=query('WITH entries AS ('.$entries.'), period AS (SELECT * FROM entries WHERE dated>=? AND dated<?), running AS (SELECT *,?+SUM(debit-credit) OVER(ORDER BY dated,source_order,seq,row_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) balance FROM period) SELECT * FROM running ORDER BY dated,source_order,seq,row_id LIMIT 30 OFFSET '.($page*30),[...$ids,$from,$until,$opening]);
   response(['account'=>$account,'from'=>$from,'to'=>$to,'history_start'=>$historyStart,'first_date'=>$stats['first_date'],'last_date'=>$stats['last_date'],'all_time_count'=>(int)$stats['all_time_count'],'opening'=>$opening,'closing'=>$opening+(int)$stats['debit']-(int)$stats['credit'],'debit'=>(int)$stats['debit'],'credit'=>(int)$stats['credit'],'rows'=>$rows,'total'=>$total,'page'=>$page,'page_size'=>30,'notice'=>'Original ledger entries are stored in this application database alongside new vouchers. Historical balances still need reconciliation. Goods and delivery entries do not post accounting vouchers automatically.']);
  }
+ if($action==='financial_report'&&$method==='GET'){
+  $report=text($_GET,'report',24,true);if(!in_array($report,['trial','balances','daybook','journal','vouchers'],true))fail('Choose an available report.');
+  $from=day(['dated'=>$_GET['from']??one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);$to=day(['dated'=>$_GET['to']??date('Y-m-d')]);if($from>$to)fail('Start date must be before end date.');
+  $until=(new DateTimeImmutable($to))->modify('+1 day')->format('Y-m-d');
+  $entries="SELECT account_id,dated,kind,reference,memo,debit,credit,source_rowid row_id,'Original' source FROM historical_ledger UNION ALL SELECT l.account_id,v.dated,v.kind,v.reference,v.memo,l.debit,l.credit,l.id row_id,'New app' source FROM voucher_lines l JOIN vouchers v ON v.id=l.voucher_id";
+  if(in_array($report,['trial','balances'],true)){
+   $where=$report==='balances'?' WHERE a.customer=1':' WHERE 1=1';$args=[$from,$from,$until,$from,$until,$until];
+   if(!empty($_GET['search'])){$where.=" AND (a.name LIKE ? ESCAPE '\\' OR a.id LIKE ? ESCAPE '\\')";$args[] = pattern();$args[] = pattern();}
+   $base='WITH entries AS ('.$entries.'), totals AS (SELECT account_id,SUM(CASE WHEN dated<? THEN debit-credit ELSE 0 END) prior_net,SUM(CASE WHEN dated>=? AND dated<? THEN debit ELSE 0 END) debit,SUM(CASE WHEN dated>=? AND dated<? THEN credit ELSE 0 END) credit FROM entries WHERE dated<? GROUP BY account_id), balances AS (SELECT a.id,a.name,a.group_code,a.customer,a.opening_dr-a.opening_cr+COALESCE(t.prior_net,0) opening,COALESCE(t.debit,0) debit,COALESCE(t.credit,0) credit,a.opening_dr-a.opening_cr+COALESCE(t.prior_net,0)+COALESCE(t.debit,0)-COALESCE(t.credit,0) closing FROM accounts a LEFT JOIN totals t ON t.account_id=a.id'.$where.') ';
+   $stats=one($base.'SELECT count(*) total,COALESCE(SUM(opening),0) opening,COALESCE(SUM(debit),0) debit,COALESCE(SUM(credit),0) credit,COALESCE(SUM(CASE WHEN closing>0 THEN closing ELSE 0 END),0) closing_dr,COALESCE(SUM(CASE WHEN closing<0 THEN -closing ELSE 0 END),0) closing_cr FROM balances',$args);
+   $page=max(0,min(max(0,(int)ceil((int)$stats['total']/30)-1),(int)($_GET['page']??0)));
+   $rows=query($base.'SELECT * FROM balances ORDER BY name COLLATE NOCASE,id LIMIT 30 OFFSET '.($page*30),$args);
+   response(['report'=>$report,'from'=>$from,'to'=>$to,'rows'=>$rows,'stats'=>$stats,'total'=>(int)$stats['total'],'page'=>$page,'page_size'=>30]);
+  }
+  $where=' WHERE e.dated>=? AND e.dated<?';$args=[$from,$until];if($report==='journal')$where.=" AND e.kind='JV'";if($report==='vouchers')$where.=" AND e.source='New app'";
+  if(!empty($_GET['search'])){$where.=" AND (e.reference LIKE ? ESCAPE '\\' OR e.memo LIKE ? ESCAPE '\\' OR a.name LIKE ? ESCAPE '\\' OR e.account_id LIKE ? ESCAPE '\\')";$args=[...$args,...array_fill(0,4,pattern())];}
+  $base='WITH entries AS ('.$entries.') ';$join=' FROM entries e LEFT JOIN accounts a ON a.id=e.account_id'.$where;
+  $stats=one($base.'SELECT count(*) total,COALESCE(SUM(e.debit),0) debit,COALESCE(SUM(e.credit),0) credit'.$join,$args);
+  $page=max(0,min(max(0,(int)ceil((int)$stats['total']/30)-1),(int)($_GET['page']??0)));
+  $rows=query($base.'SELECT e.*,a.name account'.$join.' ORDER BY e.dated DESC,e.source,e.row_id DESC LIMIT 30 OFFSET '.($page*30),$args);
+  response(['report'=>$report,'from'=>$from,'to'=>$to,'rows'=>$rows,'stats'=>$stats,'total'=>(int)$stats['total'],'page'=>$page,'page_size'=>30]);
+ }
  if($action==='imported_tables'&&$method==='GET'){
   $tables=query("SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'legacy_*' ORDER BY name");
   foreach($tables as &$t){$t['count']=(int)one('SELECT count(*) n FROM "'.$t['name'].'"')['n'];$t['label']=substr($t['name'],7);}unset($t);
@@ -122,6 +148,6 @@ try {
  if($action==='stations'&&$method==='GET')response(query('SELECT * FROM stations ORDER BY name'));
  if($action==='save_station'&&$method==='POST'){$name=text($p,'name',100,true);$id=(int)($p['id']??0);transaction(function()use($p,$name,$id){if($id){if(!one('SELECT id FROM stations WHERE id=?',[$id]))throw new InvalidArgumentException('Station not found.');run('UPDATE stations SET name=?,address=? WHERE id=?',[$name,text($p,'address',300),$id]);}else{run('INSERT INTO stations(name,address) VALUES(?,?)',[$name,text($p,'address',300)]);$id=(int)db()->lastInsertId();}audit('saved','station',$id);});response(['ok'=>true]);}
  if($action==='backup'&&$method==='POST'){global $storage;$file=$storage.'/backup-'.date('Ymd-His').'-'.bin2hex(random_bytes(3)).'.sqlite';$escaped=str_replace("'","''",$file);db()->exec("VACUUM INTO '".$escaped."'");audit('created','backup',basename($file));response(['filename'=>basename($file),'message'=>'Backup saved in the private storage folder.']);}
- if($action==='settings'&&$method==='GET')response(['user'=>$_SESSION['username'],'backup_date'=>'2026-10-31','meta'=>query('SELECT * FROM meta'),'audit'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 20')]);
+ if($action==='settings'&&$method==='GET')response(['user'=>$_SESSION['username'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','meta'=>query('SELECT * FROM meta'),'audit'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 20')]);
  fail('This action was not found.',404);
-}catch(JsonException){fail('Invalid JSON request.',400);}catch(InvalidArgumentException $e){fail($e->getMessage());}catch(RuntimeException $e){if($e->getCode()===409)fail($e->getMessage(),409);error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}catch(Throwable $e){error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}
+}catch(JsonException){fail('Invalid JSON request.',400);}catch(InvalidArgumentException $e){fail($e->getMessage());}catch(RuntimeException $e){if(in_array($e->getCode(),[409,503],true))fail($e->getMessage(),$e->getCode());error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}catch(Throwable $e){error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}

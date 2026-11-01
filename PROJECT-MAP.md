@@ -1,6 +1,18 @@
 # APG project map
 
-Reviewed 1 November 2026. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
+Initial inventory reviewed 1 November 2026; see the upgrade notes below for subsequent changes. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
+
+## November 2026 upgrade
+
+The current UI uses a new teal-and-ink design with a live daily dashboard, actual seven-day shipment series, delivery queue, keyboard task/customer search, responsive navigation, redesigned login and entry screens, unsaved-modal protection, and improved error recovery. Hidden mobile navigation is inert, its open state manages keyboard focus, and reduced-motion preferences are respected.
+
+Five report views were added: Trial Balance, Customer Balances, Day Book, Journal accounting lines, and new-app Voucher lines. They calculate from the existing historical ledger plus new vouchers and support dates, search, pagination and ledger drill-down. Ten of the 15 financial cards now have available views; five remain awaiting implementation. Historical reconciliation and automatic goods accounting remain outside this release.
+
+Today in Asia/Karachi is the dashboard default. Backup metadata is read from the database. Operational pagination clamps to existing pages; reversed date filters are rejected. Requests from superseded list renders cannot overwrite current result data, and expired-session rendering safely returns to login. Missing database files return an actionable 503 response. PHP and SQLite remain the runtime; no schema or working-record changes are needed.
+
+Verification includes real HTTP integration tests in `tests/integration.py`, the previous 38 API regression checks on a temporary copy, and browser workflows at desktop, 390px mobile and 768px tablet sizes. Browser checks included real HTTP login, task search, five report views, shipment creation, delivery, receipt vouchers, unsaved changes and session expiry, with no JavaScript errors or HTTP 5xx responses during normal workflows. Screenshots and synthetic test records were kept outside the repository.
+
+The inventory and findings below describe the initial review snapshot; counts may change with business use. References below to ten unfinished financial reports and hardcoded working dates describe that earlier version.
 
 ## Purpose and runtime
 

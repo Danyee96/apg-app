@@ -72,3 +72,7 @@ Permissions are enforced in the API on every request. Restricted dashboards and 
 On the first request after deployment, an idempotent transaction adds the profile/access columns to the existing `users` table and marks the original account as super admin. It preserves its password hash and supports its existing session. **Keep the live database; do not upload a replacement.** Deploy `access.php` alongside `bootstrap.php` and the `public/` files. A consistent private server backup should be retained before deployment. The upload packager includes the new access module.
 
 Run `python3 tests/access.py` for isolated user-lifecycle and authorization checks, in addition to `python3 tests/integration.py` for accounting/report regressions. Both use disposable database copies and local HTTP servers; neither changes the working database.
+
+## Personal navigation home
+
+Navigation now appears above Dashboard and opens first after sign-in. It brings all permitted workspace tabs and quick actions into one searchable directory. The welcome area uses the signed-in profile name/photo, role, the current date, and a morning/afternoon/evening greeting in Asia/Karachi. Press `/` on this page to focus its search. Dashboard remains available as its own tab, and existing role restrictions apply throughout.

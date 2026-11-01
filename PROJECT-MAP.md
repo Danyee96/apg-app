@@ -2,6 +2,10 @@
 
 Initial inventory reviewed 1 November 2026; see the upgrade notes below for subsequent changes. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
 
+## Navigation home
+
+The first screen after sign-in is now Navigation, positioned before Dashboard. It lists authorized operation, finance and workspace tabs plus quick actions, with local search and a `/` focus shortcut. Its welcome area reads the signed-in profile and uses Asia/Karachi for the greeting and date. This page does not fetch business-wide dashboard data, so restricted accounts can use it without overview access. Dashboard remains a separate screen.
+
 ## User access upgrade
 
 The existing login is retained as the protected super admin. `access.php` now owns the idempotent users-table migration, permission catalog and dependencies, role presets, account/session resolution, profile image validation, profile/password routes, and super-admin-only user management. The API invokes its authorization checks before business endpoints. All new user/profile/photo data stays in the existing private SQLite database.

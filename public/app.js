@@ -80,7 +80,7 @@ const tag = (text, color = "") =>
 let session,
   lookups = { accounts: [], stations: [], areas: [] },
   state = {
-    view: "dashboard",
+    view: "navigation",
     page: 0,
     search: "",
     group: "",
@@ -268,6 +268,125 @@ function availableGroups() {
     }))
     .filter((g) => g.items.length);
 }
+function personalGreeting() {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Karachi",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date()),
+  );
+  return hour < 12
+    ? "Good morning"
+    : hour < 17
+      ? "Good afternoon"
+      : "Good evening";
+}
+function navigationHub() {
+  const descriptions = {
+    dashboard:
+      "Your daily picture: goods movement, recent entries and delivery queues.",
+    overview:
+      "Review arrivals, deliveries and station activity for a chosen date.",
+    incoming: "Find incoming goods or record a new arrival.",
+    booking: "Manage outgoing shipments and their bilties.",
+    deliveries: "Review handovers, receivers and cash collected.",
+    customers: "Find customer accounts and contact details.",
+    accounts: "Review vouchers, receipts, payments and journals.",
+    reports: "Open goods registers, directories and account views.",
+    "financial-reports":
+      "Explore account activity, balances and accounting reports.",
+    settings: "Manage stations, backups and workspace activity.",
+    users: "Create staff accounts and set individual permissions.",
+    profile: "Update your photo, personal details and password.",
+    archive: "Browse the preserved original backup tables.",
+  };
+  const sections = [
+    [
+      "operations",
+      "Your working day",
+      "Goods, people and the day ahead.",
+      [
+        "dashboard",
+        "overview",
+        "incoming",
+        "booking",
+        "deliveries",
+        "customers",
+      ],
+    ],
+    [
+      "finance",
+      "Accounts & reporting",
+      "Your accounting tools, together.",
+      ["accounts", "reports", "financial-reports"],
+    ],
+    [
+      "workspace",
+      "Your workspace",
+      "People, preferences and original records.",
+      ["users", "settings", "profile", "archive"],
+    ],
+  ]
+    .map(([id, title, hint, views]) => ({
+      id,
+      title,
+      hint,
+      items: views
+        .map((v) => navs.find((n) => n[0] === v))
+        .filter((n) => n && canView(n[0])),
+    }))
+    .filter((section) => section.items.length);
+  const tasks = availableGroups().flatMap((g) => g.items);
+  const count =
+    sections.reduce((n, section) => n + section.items.length, 0) + tasks.length;
+  const longDate = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Karachi",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+  return (
+    head(
+      "Navigation",
+      "Every part of your workspace. One place to get started.",
+      btn("Find a task", "command", false, "search"),
+      "YOUR STARTING POINT",
+    ) +
+    `<section class="hub-welcome"><div class="hub-person">${avatarMarkup(session.profile, true)}<div><span class="hero-label"><span class="dot"></span> WELCOME TO YOUR WORKSPACE</span><h2>${personalGreeting()},<br><span>${esc(displayName())}.</span></h2><p>Ready when you are. Choose where you’d like to go.</p><div class="hub-person-meta"><span>${icon("shield")}${esc(roleLabel(session.profile.role))}</span><span>${icon("pin")}Azad Pakistan Goods</span></div></div></div><div class="hub-day"><span class="section-kicker">MAKE TODAY A GOOD DAY</span><div class="hub-day-icon">${icon("calendar")}</div><b>${esc(longDate)}</b><span>Pakistan Standard Time</span><button class="btn hero-primary" data-view="dashboard">Open dashboard ${icon("arrow")}</button></div></section><div class="hub-tools"><div class="hub-search">${icon("search")}<input id="hub-search" type="search" placeholder="Find a tab or task…" aria-label="Find a workspace tab or task" autocomplete="off"><kbd>/</kbd></div><span id="hub-result-count" role="status">${count} places & tasks</span></div><div id="hub-content">${sections.map((section) => `<section class="hub-section"><div class="section-heading"><div><span class="section-kicker">${section.id.toUpperCase()}</span><h2>${section.title}</h2><p>${section.hint}</p></div><span class="hub-section-count">${section.items.length} tabs</span></div><div class="hub-grid">${section.items.map(([view, ic, title], i) => `<button class="hub-card ${view === "dashboard" ? "hub-card-featured" : ""}" data-view="${view}" data-hub-search="${esc((title + " " + descriptions[view]).toLowerCase())}"><div class="hub-card-top"><span class="tile-icon">${icon(ic)}</span><span class="hub-card-index">${String(i + 1).padStart(2, "0")}</span></div><h3>${esc(title)}</h3><p>${esc(descriptions[view])}</p><span class="hub-card-open">Open ${icon("arrow")}</span></button>`).join("")}</div></section>`).join("")}${tasks.length ? `<section class="hub-section"><div class="section-heading"><div><span class="section-kicker">STRAIGHT TO IT</span><h2>Quick actions</h2><p>Skip the extra steps and get things done.</p></div></div><div class="dashboard-grid">${tasks.map(([key, title, desc, ic, color]) => `<button class="dashboard-tile ${color}" data-dashboard="${key}" data-hub-search="${esc((title + " " + desc).toLowerCase())}"><span class="tile-icon">${icon(ic)}</span><span class="tile-copy"><b>${esc(title)}</b><small>${esc(desc)}</small></span><span class="tile-arrow">${icon("arrow")}</span></button>`).join("")}</div></section>` : ""}</div><div id="hub-no-results" class="empty" hidden>${icon("search")}<h3>No matching tabs or tasks.</h3><p>Try “delivery”, “customer”, “profile” or another task.</p></div><div class="data-note">${icon("shield")}<span>This page shows the tools available to your account. Your super admin manages access.</span></div>`
+  );
+}
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "hub-search") return;
+  const q = e.target.value.trim().toLowerCase();
+  let count = 0;
+  $$("#hub-content [data-hub-search]").forEach((card) => {
+    card.hidden = !card.dataset.hubSearch.includes(q);
+    if (!card.hidden) count++;
+  });
+  $$(".hub-section").forEach(
+    (section) =>
+      (section.hidden = !$$("[data-hub-search]", section).some(
+        (card) => !card.hidden,
+      )),
+  );
+  $("#hub-no-results").hidden = count > 0;
+  $("#hub-result-count").textContent =
+    count + " " + (q ? "matches" : "places & tasks");
+});
+document.addEventListener("keydown", (e) => {
+  if (
+    e.key === "/" &&
+    $("#hub-search") &&
+    !$("#modal").open &&
+    !e.target.closest('input,textarea,select,[contenteditable="true"]')
+  ) {
+    e.preventDefault();
+    $("#hub-search").focus();
+  }
+});
+
 function restrictedDashboard() {
   return (
     head(
@@ -294,6 +413,7 @@ function restrictedDashboard() {
   );
 }
 const navs = [
+  ["navigation", "grid", "Navigation"],
   ["dashboard", "grid", "Dashboard"],
   ["overview", "grid", "Overview"],
   ["incoming", "incoming", "Incoming goods"],
@@ -311,15 +431,15 @@ const navs = [
 function shell() {
   document.title = "APG — Goods & accounts";
   $("#app").innerHTML =
-    `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="dashboard"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><nav><div class="nav-label">OPERATIONS</div>${navs
-      .slice(0, 6)
+    `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="navigation"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><nav><div class="nav-label">OPERATIONS</div>${navs
+      .slice(0, 7)
       .filter(([v]) => canView(v))
       .map(
         ([v, i, l]) =>
-          `<button class="nav-link" data-view="${v}">${icon(i)}<span>${l}</span>${v === "dashboard" ? "<small>HOME</small>" : ""}</button>`,
+          `<button class="nav-link" data-view="${v}">${icon(i)}<span>${l}</span>${v === "navigation" ? "<small>HOME</small>" : ""}</button>`,
       )
       .join("")}<div class="nav-label">FINANCE & WORKSPACE</div>${navs
-      .slice(6)
+      .slice(7)
       .filter(([v]) => canView(v))
       .map(
         ([v, i, l]) =>
@@ -421,6 +541,9 @@ async function render() {
   try {
     let html;
     switch (state.view) {
+      case "navigation":
+        html = navigationHub();
+        break;
       case "dashboard":
         html = await dashboard();
         break;
@@ -1661,7 +1784,7 @@ async function dashboard() {
        `<div class="metric"><div class="metric-top"><span>${title}</span><span class="metric-icon ${color}">${icon(ic)}</span></div><strong>${num(value)}</strong><small>${description}</small></div>`,
    )
    .join("")}</div>
- <div class="dashboard-workgrid"><section class="panel movement-panel"><div class="panel-head"><div><span class="section-kicker">THE BIG PICTURE</span><h2>Goods movement</h2><p>Shipments in the 7 days ending ${fmtdate(d.date)}</p></div><div class="chart-legend"><span><i></i>Incoming</span><span><i></i>Booking</span></div></div><div class="chart-summary"><strong>${num(trendTotal)}</strong><span>shipments recorded</span></div><div class="movement-chart" role="img" aria-label="${esc(d.trend.map((r) => fmtdate(r.dated) + ": " + r.incoming + " incoming, " + r.booking + " bookings").join("; "))}">${d.trend.map((r) => `<div class="chart-column"><div class="chart-track"><div class="chart-stack" style="height:${((r.incoming + r.booking) / max) * 100}%" title="${esc(fmtdate(r.dated))}: ${r.incoming} incoming, ${r.booking} bookings"><span class="chart-booking" style="flex:${r.booking}"></span><span class="chart-incoming" style="flex:${r.incoming}"></span></div></div><span>${fmtdate(r.dated).slice(0, 6)}</span></div>`).join("")}</div></section>
+ <div class="dashboard-workgrid"><section class="panel movement-panel"><div class="panel-head"><div><span class="section-kicker">THE BIG PICTURE</span><h2>Goods movement</h2><p>Shipments in the 7 days ending ${fmtdate(d.date)}</p></div><div class="chart-legend"><span><i></i>Incoming</span><span><i></i>Booking</span></div></div><div class="chart-summary"><strong>${num(trendTotal)}</strong><span>shipments recorded</span></div><div class="movement-chart" role="img" aria-label="${esc(d.trend.map((r) => fmtdate(r.dated) + ": " + r.incoming + " incoming, " + r.booking + " bookings").join("; "))}">${d.trend.map((r) => `<div class="chart-column"><div class="chart-track"><div class="chart-stack" style="height:${((r.incoming + r.booking) / max) * 100}%" title="${esc(fmtdate(r.dated))}: ${r.incoming} incoming, ${r.booking} bookings"><span class="chart-booking" style="flex:${r.booking}"></span><span class="chart-incoming" style="flex:${r.incoming}"></span></div></div><span>${fmtdate(r.dated).slice(0, 7)}</span></div>`).join("")}</div></section>
  <section class="panel pending-panel"><div class="panel-head"><div><span class="section-kicker">UP NEXT</span><h2>Delivery queue</h2><p>Pending goods by origin station</p></div><span class="count-badge">${num(d.pending)}</span></div><div class="panel-body">${d.stations.length ? d.stations.map((r, i) => `<div class="queue-station"><span class="station-symbol">${icon("pin")}</span><div><div class="station-label"><b>${esc(r.name || "Not recorded")}</b><span>${num(r.count)} bilties</span></div><div class="bar"><span style="width:${(r.count / Math.max(1, d.pending)) * 100}%"></span></div></div></div>`).join("") : '<div class="queue-clear">' + icon("check") + "<b>All caught up.</b><p>No incoming bilties are awaiting delivery.</p></div>"}<button class="btn queue-button" data-dashboard="delivery">Open delivery queue ${icon("arrow")}</button></div></section></div>
  <section class="panel recent-panel"><div class="panel-head"><div><span class="section-kicker">LATEST ACTIVITY</span><h2>Recent goods entries</h2><p>Your latest incoming shipments and bookings across all dates</p></div><button class="btn small" data-view="incoming">View incoming ${icon("arrow")}</button></div>${shipmentTable(d.recent, false)}</section>
  <div class="section-heading"><div><span class="section-kicker">LESS CLICKING. MORE DOING.</span><h2>Your everyday shortcuts</h2></div><button class="link" data-action="command">Find a task ${icon("search")}</button></div>
@@ -2125,7 +2248,7 @@ async function submitForm(form, submitter) {
       session = await api("session");
       await refreshLookups();
       shell();
-      await navigate("dashboard");
+      await navigate("navigation");
       break;
     case "global-search":
       if (
@@ -2649,7 +2772,7 @@ document.addEventListener("keydown", (e) => {
     if (!session.user) return auth();
     await refreshLookups();
     shell();
-    await navigate("dashboard");
+    await navigate("navigation");
   } catch (e) {
     startupError(e.message);
   }

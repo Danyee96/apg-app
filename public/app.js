@@ -1031,6 +1031,10 @@ function openFinancialReport(key) {
       btn("Print", "print-dialog", false, "print") +
         btn("Close", "close-modal"),
     );
+    recordPrintContext = {
+      kind: "chart",
+      data: { accounts: structuredClone(lookups.accounts) },
+    };
     return;
   }
   modal(
@@ -1180,6 +1184,7 @@ function requestCloseModal() {
   closeModal();
 }
 function modal(title, subtitle, body, footer = "") {
+  recordPrintContext = null;
   let d = $("#modal");
   d.classList.remove("bilty-dialog", "command-dialog", "user-dialog");
   d.innerHTML = `<div class="modal-head"><div><h2 id="modal-title">${title}</h2><p>${subtitle}</p></div><div class="buttons"><button class="icon-btn" data-action="close-modal" aria-label="Close">${icon("close")}</button></div></div><div class="modal-body"><div class="receipt-heading">Azad Pakistan Goods</div>${body}</div>${footer ? `<div class="modal-footer">${footer}</div>` : ""}`;
@@ -1252,13 +1257,17 @@ async function showShipment(id) {
     btn("Print sheet", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
+  recordPrintContext = { kind: "shipment", data: structuredClone(s) };
 }
 function showBilty(id) {
   let i = listData.rows.find((r) => String(r.id) === String(id));
   if (!i) return;
   modal(
     "Bilty " + esc(i.bilty),
-    "Arrival " + esc(i.reference) + " · " + fmtdate(i.dated),
+    (i.kind === "booking" ? "Booking " : "Arrival ") +
+      esc(i.reference) +
+      " · " +
+      fmtdate(i.dated),
     detailCells([
       ["Customer", i.customer],
       ["Party from", i.party_from],
@@ -1282,6 +1291,7 @@ function showBilty(id) {
     btn("Print bilty", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
+  recordPrintContext = { kind: "bilty", data: structuredClone(i) };
 }
 async function showDelivery(id) {
   let d = await api("delivery", null, { id });
@@ -1298,6 +1308,7 @@ async function showDelivery(id) {
     btn("Print receipt", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
+  recordPrintContext = { kind: "delivery", data: structuredClone(d) };
 }
 function blankItem() {
   return {
@@ -1574,7 +1585,498 @@ async function showVoucher(id) {
     btn("Print voucher", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
+  recordPrintContext = { kind: "voucher", data: structuredClone(v) };
 }
+// Thermal printing uses a frozen, escaped record snapshot, never the desktop layout.
+let recordPrintContext = null;
+let thermalSnapshot = null;
+function thermalWidth() {
+  try {
+    return localStorage.getItem("apg.thermal.width") === "58" ? "58" : "80";
+  } catch {
+    return "80";
+  }
+}
+function slipText(label, value) {
+  if (value === null || value === undefined || value === "") return "";
+  return `<div class="slip-row"><span class="slip-label">${esc(label)}</span><strong dir="auto">${esc(value)}</strong></div>`;
+}
+function slipMoney(label, value, emphasis = false) {
+  return `<div class="slip-money-row ${emphasis ? "slip-total" : ""}"><span class="slip-label">${esc(label)}</span><strong class="slip-amount">${esc(cash(value))}</strong></div>`;
+}
+function slipBalance(label, value, emphasis = false) {
+  return `<div class="slip-money-row ${emphasis ? "slip-total" : ""}"><span class="slip-label">${esc(label)}</span><strong class="slip-amount">${esc(cash(Math.abs(value)))} ${Number(value) >= 0 ? "Dr" : "Cr"}</strong></div>`;
+}
+function slipSection(title, content) {
+  return `<section class="slip-section"><h3>${esc(title)}</h3>${content}</section>`;
+}
+function slipEntry(title, content) {
+  return `<section class="slip-entry"><h3>${esc(title)}</h3>${content}</section>`;
+}
+function slipNote(text) {
+  return `<p class="slip-note">${esc(text)}</p>`;
+}
+function slipPageScope(d) {
+  const first = d.rows.length ? d.page * d.page_size + 1 : 0,
+    last = Math.min((d.page + 1) * d.page_size, d.total);
+  return slipNote(
+    `CURRENT PAGE ONLY · ${first}–${last} of ${num(d.total)} records · Page ${d.page + 1}. Totals cover all matching records.`,
+  );
+}
+function slipHeader(title, reference, date) {
+  return `<header class="slip-header"><div class="slip-brand">APG<span>.</span></div><h1>AZAD PAKISTAN GOODS</h1><p>D. I. Khan · Goods & accounts</p><h2>${esc(title)}</h2>${date ? `<p>${esc(fmtdate(date))}</p>` : ""}${reference ? `<div class="slip-reference">${esc(reference)}</div>` : ""}</header>`;
+}
+function slipFooter() {
+  const printed = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Karachi",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+  return `<footer class="slip-footer">${slipText("Printed by", displayName())}${slipText("Printed on", printed + " PKT")}<p>Please retain this slip.</p><b>Thank you.</b><span>AZAD PAKISTAN GOODS</span></footer>`;
+}
+function buildThermalRecord(context) {
+  const d = context.data;
+  let title = "",
+    reference = "",
+    date = d.dated || "",
+    content = "";
+  if (context.kind === "bilty") {
+    title = d.kind === "booking" ? "Booking bilty" : "Incoming bilty";
+    reference = d.bilty || "Bilty";
+    content = slipSection(
+      "Goods & party",
+      slipText("Shipment", d.reference) +
+        slipText("Station", d.station) +
+        slipText("Customer", d.customer || d.account_id) +
+        slipText("From", d.party_from) +
+        slipText("To", d.party_to) +
+        slipText("Contact", d.contact) +
+        slipText("City", d.city) +
+        slipText("Quantity", d.qty) +
+        slipText("Goods", d.detail) +
+        slipText("Status", d.status),
+    );
+    const keys =
+      d.kind === "booking"
+        ? ["rent", "loading", "bilty_amount", "local_charge"]
+        : ["bilty_amount", "godown", "loading", "suzuki"];
+    const labels = {
+      rent: "Rent",
+      loading: "Loading",
+      bilty_amount: "Bilty amount",
+      local_charge: "Local charges",
+      godown: "Godown",
+      suzuki: "Suzuki kiraya",
+    };
+    content += slipSection(
+      "Recorded charges",
+      keys.map((k) => slipMoney(labels[k], d[k])).join("") +
+        slipMoney("Bilty total", d.total, true) +
+        slipMoney("Advance", d.advance),
+    );
+    content +=
+      slipText("Remarks", d.remarks) +
+      slipNote(
+        d.kind === "booking"
+          ? "Truck rent and commission are separate from the bilty total."
+          : "Bilty total includes bilty amount and godown. Loading and Suzuki charges are separate.",
+      );
+  } else if (context.kind === "shipment") {
+    title = d.kind === "booking" ? "Booking sheet" : "Incoming goods sheet";
+    reference = d.reference;
+    content = slipSection(
+      "Transport",
+      slipText("Station", d.station) +
+        slipText("Truck", d.truck) +
+        slipText("Challan", d.challan) +
+        slipText("Driver", d.driver) +
+        slipText("Driver mobile", d.driver_mobile) +
+        slipText("Driver CNIC", d.driver_cnic) +
+        slipMoney("Truck amount", d.truck_amount) +
+        (d.kind === "booking" ? slipMoney("Commission", d.commission) : ""),
+    );
+    content += d.items
+      .map((i, n) =>
+        slipEntry(
+          `${n + 1}. Bilty ${i.bilty || "—"}`,
+          slipText("Customer", i.customer || i.account_id || i.party_from) +
+            slipText("From", i.party_from) +
+            slipText("To", i.party_to) +
+            slipText("Goods", i.detail) +
+            slipText("Quantity", i.qty) +
+            slipText("Status", i.status) +
+            slipMoney("Bilty total", i.total) +
+            slipMoney("Advance", i.advance),
+        ),
+      )
+      .join("");
+    content +=
+      slipSection(
+        "Shipment summary",
+        slipText("Bilties", num(d.items.length)) +
+          slipText(
+            "Total quantity",
+            num(d.items.reduce((s, i) => s + Number(i.qty || 0), 0)),
+          ) +
+          slipMoney(
+            "Bilty totals",
+            d.items.reduce((s, i) => s + Number(i.total || 0), 0),
+            true,
+          ) +
+          slipMoney(
+            "Advances",
+            d.items.reduce((s, i) => s + Number(i.advance || 0), 0),
+          ),
+      ) +
+      slipText("Remarks", d.remarks) +
+      slipNote("Goods records do not automatically post accounting vouchers.");
+  } else if (context.kind === "delivery") {
+    title = "Delivery receipt";
+    reference = d.reference;
+    content = slipSection(
+      "Received by",
+      slipText("Receiver", d.receiver) +
+        slipText("Mobile", d.mobile) +
+        slipText("CNIC", d.cnic),
+    );
+    content += d.items
+      .map((i, n) =>
+        slipEntry(
+          `${n + 1}. Bilty ${i.bilty || "—"}`,
+          slipText("Customer", i.customer || i.account_id) +
+            slipText("Party to", i.party_to) +
+            slipText("Quantity", i.qty) +
+            slipMoney("Discount", i.discount) +
+            slipMoney("Bilty cash", i.bilty_received) +
+            slipMoney("Service cash", i.service_received),
+        ),
+      )
+      .join("");
+    content +=
+      slipSection(
+        "Collection summary",
+        slipMoney(
+          "Discounts",
+          d.items.reduce((s, i) => s + Number(i.discount || 0), 0),
+        ) +
+          slipMoney(
+            "Bilty cash",
+            d.items.reduce((s, i) => s + Number(i.bilty_received || 0), 0),
+          ) +
+          slipMoney(
+            "Service cash",
+            d.items.reduce((s, i) => s + Number(i.service_received || 0), 0),
+          ) +
+          slipMoney(
+            "Cash received",
+            d.items.reduce(
+              (s, i) =>
+                s +
+                Number(i.bilty_received || 0) +
+                Number(i.service_received || 0),
+              0,
+            ),
+            true,
+          ),
+      ) +
+      slipText("Remarks", d.remarks) +
+      slipNote(
+        "Goods handover only. This receipt does not create an accounting voucher.",
+      );
+  } else if (context.kind === "voucher") {
+    title =
+      { RV: "Receipt voucher", PV: "Payment voucher", JV: "Journal voucher" }[
+        d.kind
+      ] || "Accounting voucher";
+    reference = d.reference;
+    content =
+      slipText("Description", d.memo) +
+      d.lines
+        .map((l, n) =>
+          slipEntry(
+            `${n + 1}. ${l.account || l.account_id}`,
+            slipText("Account code", l.account_id) +
+              (l.debit ? slipMoney("Debit", l.debit) : "") +
+              (l.credit ? slipMoney("Credit", l.credit) : ""),
+          ),
+        )
+        .join("");
+    content += slipSection(
+      "Voucher totals",
+      slipMoney(
+        "Debits",
+        d.lines.reduce((s, l) => s + Number(l.debit || 0), 0),
+        true,
+      ) +
+        slipMoney(
+          "Credits",
+          d.lines.reduce((s, l) => s + Number(l.credit || 0), 0),
+          true,
+        ),
+    );
+  } else if (context.kind === "ledger") {
+    title = "Account ledger";
+    date = "";
+    reference = d.account.id;
+    content =
+      slipText("Account", d.account.name) +
+      slipText("From", fmtdate(d.from)) +
+      slipText("To", fmtdate(d.to)) +
+      slipPageScope(d) +
+      slipSection(
+        "Period totals · all records",
+        slipBalance("Opening", d.opening) +
+          slipMoney("Debits", d.debit) +
+          slipMoney("Credits", d.credit) +
+          slipBalance("Closing", d.closing, true),
+      );
+    content +=
+      d.rows
+        .map((r, n) =>
+          slipEntry(
+            `${d.page * d.page_size + n + 1}. ${r.reference || r.kind || "Entry"}`,
+            slipText("Date", fmtdate(r.dated)) +
+              slipText("Type", r.kind) +
+              slipText("Source", r.source) +
+              slipText("Description", r.memo) +
+              (r.debit ? slipMoney("Debit", r.debit) : "") +
+              (r.credit ? slipMoney("Credit", r.credit) : "") +
+              slipBalance("Balance", r.balance),
+          ),
+        )
+        .join("") +
+      slipNote(
+        "Historical balances require reconciliation. Goods and delivery entries do not post automatically.",
+      );
+  } else if (context.kind === "financial") {
+    title =
+      financialReportCards.find((r) => r[0] === d.report)?.[1] ||
+      "Financial report";
+    date = "";
+    const balances = ["trial", "balances"].includes(d.report);
+    content =
+      slipText("From", fmtdate(d.from)) +
+      slipText("To", fmtdate(d.to)) +
+      slipPageScope(d) +
+      slipSection(
+        "Totals · all matching records",
+        slipMoney("Debits", d.stats.debit) +
+          slipMoney("Credits", d.stats.credit) +
+          (balances
+            ? slipMoney("Closing debit", d.stats.closing_dr) +
+              slipMoney("Closing credit", d.stats.closing_cr)
+            : ""),
+      );
+    content +=
+      d.rows
+        .map((r, n) =>
+          slipEntry(
+            `${d.page * d.page_size + n + 1}. ${balances ? r.name : r.reference || r.kind || "Entry"}`,
+            balances
+              ? slipText("Account code", r.id) +
+                  slipText("Group", r.group_code) +
+                  slipBalance("Opening", r.opening) +
+                  slipMoney("Debit", r.debit) +
+                  slipMoney("Credit", r.credit) +
+                  slipBalance("Closing", r.closing)
+              : slipText("Date", fmtdate(r.dated)) +
+                  slipText("Source", r.source) +
+                  slipText("Type", r.kind) +
+                  slipText(
+                    "Account",
+                    r.account || r.account_id || "Incomplete account",
+                  ) +
+                  slipText("Account code", r.account_id) +
+                  slipText("Description", r.memo) +
+                  (r.debit ? slipMoney("Debit", r.debit) : "") +
+                  (r.credit ? slipMoney("Credit", r.credit) : ""),
+          ),
+        )
+        .join("") +
+      slipNote(
+        "Historical balances require reconciliation. Entries without dates or account codes cannot form complete dated account balances. Goods entries do not post automatically.",
+      ) +
+      (d.report === "vouchers" ? slipNote("New-app voucher lines only.") : "");
+  } else if (context.kind === "chart") {
+    title = "Chart of accounts";
+    date = "";
+    content =
+      slipText("Accounts", num(d.accounts.length)) +
+      d.accounts
+        .map((a, n) =>
+          slipEntry(
+            `${n + 1}. ${a.name}`,
+            slipText("Code", a.id) +
+              slipText("Group", a.group_code) +
+              slipText("Status", a.status === "A" ? "Active" : "Inactive"),
+          ),
+        )
+        .join("");
+  } else {
+    title = d.title || "Workspace record";
+    date = "";
+    content =
+      d.content ||
+      slipNote(
+        "Open a bilty, shipment, delivery, voucher or report to print a slip.",
+      );
+  }
+  return {
+    title,
+    html: `<article class="thermal-slip">${slipHeader(title, reference, date)}<main class="slip-body">${content}</main>${slipFooter()}</article>`,
+  };
+}
+function visiblePrintContext(source) {
+  if (source === "dialog" && recordPrintContext) return recordPrintContext;
+  if (source === "page" && state.view === "ledger" && listData?.account)
+    return { kind: "ledger", data: structuredClone(listData) };
+  if (source === "page" && state.view === "financial-detail" && listData?.stats)
+    return { kind: "financial", data: structuredClone(listData) };
+  const root = source === "dialog" ? $("#modal") : $("#main");
+  if (!session?.user || !root)
+    return {
+      kind: "generic",
+      data: {
+        title: "No printable record",
+        content: slipNote("Sign in and open a saved record to print a slip."),
+      },
+    };
+  const title = $("h1,h2", root)?.textContent || "Workspace record";
+  let content = "";
+  $$("table", root)
+    .filter((table) => !table.closest("form") && table.getClientRects().length)
+    .forEach((table) => {
+      const headers = $$("thead th", table).map((th) => th.textContent.trim());
+      content += $$("tbody tr", table)
+        .map((row, n) =>
+          slipEntry(
+            "Record " + (n + 1),
+            $$("td", row)
+              .map((td, i) => {
+                const clean = td.cloneNode(true);
+                $$(
+                  "button:not(.link),input,select,textarea,.avatar,img,svg",
+                  clean,
+                ).forEach((el) => el.remove());
+                $$("small", clean).forEach((el) =>
+                  el.prepend(document.createTextNode(" · ")),
+                );
+                return slipText(
+                  headers[i] || "Detail",
+                  clean.textContent.trim(),
+                );
+              })
+              .join(""),
+          ),
+        )
+        .join("");
+    });
+  if (
+    source === "page" &&
+    [
+      "incoming",
+      "booking",
+      "deliveries",
+      "customers",
+      "accounts",
+      "bilties",
+      "archive",
+      "users",
+    ].includes(state.view) &&
+    listData?.rows &&
+    content
+  )
+    content = slipPageScope(listData) + content;
+  return { kind: "generic", data: { title, content } };
+}
+function fitThermalAmounts(root) {
+  if (!root) return;
+  $$(".slip-amount", root).forEach((el) => {
+    if (!el.clientWidth) return;
+    el.style.fontSize = "";
+    el.style.whiteSpace = "";
+    el.style.overflowWrap = "";
+    if (el.scrollWidth > el.clientWidth) {
+      const size = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize =
+        Math.max(9, (size * el.clientWidth) / el.scrollWidth - 0.2) + "px";
+    }
+    if (el.scrollWidth > el.clientWidth) {
+      el.style.whiteSpace = "normal";
+      el.style.overflowWrap = "anywhere";
+    }
+  });
+}
+function updateThermalPage() {
+  const root = $("#thermal-print");
+  if (!root || !thermalSnapshot) return;
+  const width = $("#print-preview").open
+    ? $("#thermal-width")?.value || thermalWidth()
+    : thermalWidth();
+  const paper = width === "58" ? "58" : "80";
+  root.dataset.paper = paper;
+  const sheet = $("#thermal-preview-sheet");
+  if (sheet) sheet.dataset.paper = paper;
+  root.innerHTML = thermalSnapshot.html;
+  root.classList.add("thermal-measuring");
+  fitThermalAmounts(root);
+  fitThermalAmounts(sheet);
+  const height = Math.max(
+    70,
+    Math.min(500, Math.ceil((root.scrollHeight * 25.4) / 96) + 4),
+  );
+  root.classList.remove("thermal-measuring");
+  $("#thermal-page-style").textContent =
+    `@page { size: ${paper}mm ${height}mm; margin: 0; }`;
+  try {
+    localStorage.setItem("apg.thermal.width", paper);
+  } catch {}
+  if ($("#thermal-width-note"))
+    $("#thermal-width-note").textContent =
+      paper === "58"
+        ? "58 mm roll · 48 mm print area"
+        : "80 mm roll · 72 mm print area";
+}
+function openThermalPreview(source) {
+  const context = visiblePrintContext(source);
+  thermalSnapshot = buildThermalRecord(context);
+  const dialog = $("#print-preview");
+  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">READY FOR THE ROLL</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div><p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
+  $("#thermal-width").value = thermalWidth();
+  if (!dialog.open) dialog.showModal();
+  updateThermalPage();
+}
+function closeThermalPreview() {
+  const dialog = $("#print-preview");
+  if (dialog?.open) dialog.close();
+  thermalSnapshot = null;
+  if ($("#thermal-print")) $("#thermal-print").innerHTML = "";
+  $("#thermal-page-style").textContent = "";
+}
+$("#print-preview").addEventListener("cancel", (e) => {
+  e.preventDefault();
+  closeThermalPreview();
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "thermal-width") updateThermalPage();
+});
+window.addEventListener("beforeprint", () => {
+  document.body.classList.remove("print-dialog", "print-page");
+  if (!thermalSnapshot) {
+    thermalSnapshot = buildThermalRecord(
+      visiblePrintContext($("#modal").open ? "dialog" : "page"),
+    );
+  }
+  updateThermalPage();
+});
+window.addEventListener("afterprint", () => {
+  if (!$("#print-preview").open) closeThermalPreview();
+});
+
 function chooseLedger(mode = "") {
   state.ledgerMode = mode;
   modal(
@@ -1596,6 +2098,7 @@ function stationForm(id) {
   );
 }
 function closeModal() {
+  recordPrintContext = null;
   const d = $("#modal");
   if (d.open) d.close();
   biltyDraft = null;
@@ -2079,11 +2582,16 @@ async function action(name, el) {
       requestCloseModal();
       break;
     case "print-dialog":
-      document.body.classList.add("print-dialog");
-      window.print();
+      openThermalPreview("dialog");
       break;
     case "print-page":
-      document.body.classList.add("print-page");
+      openThermalPreview("page");
+      break;
+    case "thermal-close":
+      closeThermalPreview();
+      break;
+    case "thermal-confirm":
+      updateThermalPage();
       window.print();
       break;
     case "export":
@@ -2664,6 +3172,7 @@ document.addEventListener("change", async (e) => {
 });
 
 function auth() {
+  closeThermalPreview();
   requestID++;
   closeModal();
   const setup = session.setup;

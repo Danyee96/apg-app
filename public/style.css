@@ -4318,3 +4318,349 @@ dialog.command-dialog {
 .hub-person h2 {
   overflow-wrap: anywhere;
 }
+/* Dedicated narrow-roll receipts. Desktop tables never enter the print document. */
+#thermal-print {
+  display: none;
+}
+#print-preview {
+  width: min(760px, 96vw);
+  max-height: 94dvh;
+}
+#print-preview .modal-head {
+  z-index: 2;
+}
+#print-preview .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+.thermal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 19px 25px 0;
+}
+.thermal-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #486657;
+}
+.thermal-toolbar select {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 12px;
+  min-height: 42px;
+}
+.thermal-toolbar > span {
+  font-size: 10px;
+  color: #8a9f91;
+}
+.thermal-print-help {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #82988a;
+  padding: 12px 25px 18px;
+}
+.thermal-preview-stage {
+  background: #e9eeeb;
+  display: flex;
+  justify-content: center;
+  padding: 25px 16px 30px;
+  overflow-x: auto;
+  min-height: 250px;
+}
+#thermal-preview-sheet {
+  box-shadow: 0 8px 25px #163c2512;
+  height: fit-content;
+  flex-shrink: 0;
+}
+.thermal-slip {
+  --thermal-paper: 80mm;
+  --thermal-padding: 4mm;
+  --thermal-font: 9pt;
+  box-sizing: border-box;
+  width: var(--thermal-paper);
+  padding: var(--thermal-padding);
+  background: #fff;
+  color: #000;
+  font-family: "Courier New", ui-monospace, monospace;
+  font-size: var(--thermal-font);
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+#thermal-print[data-paper="58"] .thermal-slip,
+#thermal-preview-sheet[data-paper="58"] .thermal-slip {
+  --thermal-paper: 58mm;
+  --thermal-padding: 5mm;
+  --thermal-font: 8.5pt;
+}
+.thermal-slip * {
+  box-sizing: border-box;
+  color: #000;
+  box-shadow: none;
+  text-shadow: none;
+}
+.slip-header {
+  text-align: center;
+  break-inside: avoid;
+  padding-bottom: 2mm;
+}
+.slip-brand {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 29pt;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -2pt;
+  margin: 1mm 0 2mm;
+}
+.slip-brand span {
+  color: #000;
+}
+.slip-header h1 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.2pt;
+  margin: 0 0 1.5mm;
+}
+.slip-header h2 {
+  font-family: "Courier New", monospace;
+  font-size: 11pt;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin: 3mm 0 1mm;
+}
+.slip-header p {
+  font-size: 8pt;
+  line-height: 1.5;
+  margin: 0;
+}
+.slip-reference {
+  border: 1px dashed #000;
+  border-radius: 2mm;
+  text-align: center;
+  letter-spacing: 0.5pt;
+  font-size: 12pt;
+  font-weight: 700;
+  padding: 2.5mm 1mm;
+  margin: 3mm 0 1mm;
+  overflow-wrap: anywhere;
+}
+.slip-body {
+  padding: 0;
+  margin: 0;
+}
+.slip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.43fr) minmax(0, 0.57fr);
+  gap: 2mm;
+  padding: 1.2mm 0;
+  break-inside: avoid;
+  align-items: baseline;
+}
+.slip-label {
+  font-weight: 400;
+}
+.slip-row > strong {
+  font-weight: 600;
+  text-align: right;
+  min-width: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.slip-section {
+  border-top: 1px dashed #000;
+  padding-top: 2mm;
+  margin-top: 2.5mm;
+  break-inside: avoid;
+}
+.slip-section > h3,
+.slip-entry > h3 {
+  font-family: "Courier New", monospace;
+  font-size: 9pt;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin: 0 0 1.5mm;
+  overflow-wrap: anywhere;
+}
+.slip-entry {
+  padding: 2.5mm 0;
+  border-bottom: 1px dashed #000;
+  break-inside: avoid;
+}
+.slip-entry:last-of-type {
+  border-bottom: 0;
+}
+.slip-money-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1mm 2mm;
+  flex-wrap: wrap;
+  padding: 1.2mm 0;
+  break-inside: avoid;
+}
+.slip-money-row > .slip-label {
+  flex: 1 1 40%;
+}
+.slip-amount {
+  white-space: nowrap;
+  font-weight: 600;
+  margin-left: auto;
+  max-width: 100%;
+  font-size: inherit;
+}
+.slip-total {
+  border-top: 1px dashed #000;
+  padding-top: 2mm;
+  margin-top: 1.5mm;
+  font-weight: 700;
+}
+.slip-total > .slip-label {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.slip-total > .slip-amount {
+  font-weight: 700;
+  font-size: 10pt;
+}
+.slip-note {
+  font-family: "Courier New", monospace;
+  font-size: 8pt;
+  line-height: 1.5;
+  margin: 3mm 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.slip-footer {
+  border-top: 1px dashed #000;
+  margin-top: 3mm;
+  padding-top: 2mm;
+  break-inside: avoid;
+}
+.slip-footer .slip-row {
+  font-size: 7.5pt;
+  grid-template-columns: minmax(0, 0.34fr) minmax(0, 0.66fr);
+}
+.slip-footer > p {
+  text-align: center;
+  font-size: 8pt;
+  margin: 3mm 0 1mm;
+}
+.slip-footer > b {
+  display: block;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12pt;
+  margin: 1mm 0 2mm;
+}
+.slip-footer > span {
+  display: block;
+  text-align: center;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.8pt;
+  margin-bottom: 2mm;
+}
+#thermal-print.thermal-measuring {
+  display: block;
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  width: max-content;
+  pointer-events: none;
+}
+@media (max-width: 740px) {
+  .thermal-toolbar {
+    padding: 16px 18px 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .thermal-toolbar label {
+    font-size: 11px;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .thermal-toolbar select {
+    font-size: 16px;
+    max-width: 220px;
+  }
+  .thermal-print-help {
+    padding: 12px 18px 17px;
+    font-size: 10px;
+  }
+  .thermal-preview-stage {
+    padding: 20px 10px 25px;
+  }
+  #print-preview .modal-footer {
+    padding: 15px;
+    justify-content: space-between;
+  }
+}
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body > * {
+    display: none !important;
+  }
+  body > #thermal-print {
+    display: block !important;
+    position: static !important;
+    visibility: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: max-content !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body > #app,
+  body > #modal,
+  body > #print-preview,
+  body > #toast {
+    display: none !important;
+  }
+  .thermal-slip {
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .thermal-slip h1,
+  .thermal-slip h2,
+  .thermal-slip h3 {
+    break-after: avoid;
+  }
+  .thermal-slip a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+}

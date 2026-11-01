@@ -16,3 +16,6 @@ releases/
 # Python test artifacts
 __pycache__/
 *.py[cod]
+
+# Optional browser-test dependencies
+node_modules/

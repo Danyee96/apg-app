@@ -2,6 +2,14 @@
 
 Initial inventory reviewed 1 November 2026; see the upgrade notes below for subsequent changes. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
 
+## Thermal printing
+
+Printing uses dedicated escaped receipt snapshots, a separate `print-preview` dialog and a `thermal-print` root. Existing dialog/page print actions all route through the thermal preview. `beforeprint` also prepares narrow output for native browser printing. The browser remembers only the paper-width preference, not receipt data.
+
+Structured builders cover shipment sheets, incoming/booking bilties, delivery receipts, vouchers, ledgers, financial reports and the chart of accounts. A safe DOM fallback converts visible read-only register rows and labels their pagination scope; forms are excluded. Data and totals retain their existing meaning. The preview supports 58 mm paper with 48 mm usable area and 80 mm paper with 72 mm usable area, with dynamic page lengths capped at 500 mm and additional pages for long records. Large amounts are fitted to prevent horizontal clipping.
+
+`tests/printing.py` and `tests/thermal-print.mjs` exercise preview behavior, preserved source dialogs, paper preference, native printing, both financial report layouts, escaping, long/Urdu values, mobile layout and physical PDF widths. No printer jobs are submitted by these tests. Real printer/driver setup remains a device-side verification step. No database/schema migration is involved in this release.
+
 ## Navigation home
 
 The first screen after sign-in is now Navigation, positioned before Dashboard. It lists authorized operation, finance and workspace tabs plus quick actions, with local search and a `/` focus shortcut. Its welcome area reads the signed-in profile and uses Asia/Karachi for the greeting and date. This page does not fetch business-wide dashboard data, so restricted accounts can use it without overview access. Dashboard remains a separate screen.

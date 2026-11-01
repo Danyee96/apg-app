@@ -76,3 +76,13 @@ Run `python3 tests/access.py` for isolated user-lifecycle and authorization chec
 ## Personal navigation home
 
 Navigation now appears above Dashboard and opens first after sign-in. It brings all permitted workspace tabs and quick actions into one searchable directory. The welcome area uses the signed-in profile name/photo, role, the current date, and a morning/afternoon/evening greeting in Asia/Karachi. Press `/` on this page to focus its search. Dashboard remains available as its own tab, and existing role restrictions apply throughout.
+
+## Thermal slip printing
+
+All existing print buttons now open a thermal preview. Delivery receipts, incoming/booking bilties, shipment sheets, receipt/payment/journal vouchers, account ledgers, financial reports and the chart of accounts use black-and-white receipt layouts with stacked details, dashed separators and clear totals. Wide desktop tables are never sent to the printer.
+
+Choose **80 mm** (72 mm print area) or **58 mm** (48 mm print area), then **Print slip**. The paper choice is remembered in that browser. In the system print dialog select your thermal printer and matching paper width, use 100% scale and no margins, and disable browser headers/footers. The app cannot select a hardware printer or change its driver settings automatically. Long records flow onto additional slip pages, with generated page lengths capped at 500 mm. Paper width and usable area can still depend on the actual printer driver.
+
+Ledger/report and paginated register slips explicitly identify the current-page record range. Their period totals still cover all matching records, as labelled. Goods and delivery slips preserve existing financial rules; printing creates no business records or accounting postings. Ordinary browser printing also uses the thermal layout and excludes editable forms. Photos, passwords and form fields are not part of the slip layouts.
+
+`tests/printing.py` starts a disposable database/server and runs browser/PDF checks. With Playwright and a Chromium browser available, set `PLAYWRIGHT_MODULE` to your Playwright module path and, if needed, `CHROME_PATH` to the browser executable, then run `python3 tests/printing.py`. The test generates PDFs without submitting physical print jobs and verifies the 58/80 mm page widths. Set `APG_PRINT_OUTPUT` to a private temporary directory if you want to retain its PDF/screenshot artifacts; by default they are cleaned up with the test database. Physical hardware output has not been tested.

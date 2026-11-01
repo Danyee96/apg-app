@@ -40,3 +40,11 @@ On later code updates, do not overwrite a live database with an older local copy
 ## Current scope
 
 This is a functional review app. Goods and deliveries do not yet create automatic accounting vouchers. Some Financial Reports cards are explicitly awaiting implementation. Historical balances still require reconciliation; older Urdu font text may require conversion. All 21 recovered tables and 705,476 original ledger entries remain in the database, including incomplete source records accessible through Workspace settings → Browse imported backup.
+
+## Hostinger GitHub deployment
+
+The recommended document root is `public/`. If Hostinger publishes the entire repository into `public_html/`, the root `.htaccess` routes the domain to the public app and denies access to all other project paths. Redeploy the latest `main` commit after adding this file. PHP must support Apache-compatible rewrite rules, PDO SQLite, mbstring and sessions.
+
+GitHub intentionally does not contain the working database. For the first deployment, use Hostinger File Manager or SFTP to securely upload your current local `storage/app.sqlite` to the deployed `storage/` directory. If the repository is in `public_html/`, this is `public_html/storage/app.sqlite`; the root and storage access rules deny web access to it. Prefer private storage outside the document root when your hosting configuration allows it, using `APG_STORAGE` to point PHP to that directory. Ensure PHP can write to the database and its directory. Never commit the database to this public repository.
+
+After deployment, open the domain and sign in with the existing login. A 403 at the domain with a working `/public/` page indicates the wrong document root or missing root rewrite configuration. An API 500 after the page loads requires checking PHP error logs: a missing database, SQLite support or storage permissions are possible causes. Keep the existing live database on subsequent code deployments.

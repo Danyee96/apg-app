@@ -35,3 +35,7 @@ All tests that write records run against disposable database copies.
 - Legacy Urdu font conversion and physical printer/driver output still require separate verification.
 
 Passing the checks above establishes the tested behavior; it does not certify historical accounting balances or untested hardware.
+
+## Amount-warning policy update — 2 November 2026
+
+At the owner's request, advance above bilty total, bilty cash plus discount above the remaining amount, and service cash above loading/Suzuki charges now produce non-blocking warnings. The entered amounts are saved unchanged. Warnings appear while entering amounts and in the save response. Required fields, non-negative amount formatting, permissions, duplicate handover protection and balanced accounting vouchers remain enforced. This supersedes the earlier overpayment-rejection check described above.

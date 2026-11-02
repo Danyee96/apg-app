@@ -1413,7 +1413,7 @@ function openBilty(index = null) {
   modal(
     index === null ? "Add a bilty" : "Edit bilty " + esc(item.bilty),
     "Choose a customer, enter the goods, then save to your shipment list.",
-    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", 'Party to <span class="required">*</span>', "text", 'required maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
+    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", 'Party to <span class="required">*</span>', "text", 'required maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
   );
   $("#modal").classList.add("bilty-dialog");
   updateBiltyTotals();
@@ -1432,6 +1432,9 @@ function updateBiltyTotals() {
   if (!i) return;
   let total = itemTotal(i),
     advance = Math.round(Number(i.advance || 0) * 100);
+  const warning = $("#bilty-warning");
+  warning.hidden = advance <= total;
+  warning.textContent = "Advance is greater than the bilty total. You can still save these amounts.";
   $("#bilty-live-total").textContent = cash(total);
   $("#bilty-live-remaining").textContent = cash(total - advance);
   $("#bilty-live-remaining").classList.toggle(
@@ -1530,8 +1533,6 @@ function saveBilty(mode) {
     )
   )
     throw Error("This bilty number is already in the shipment.");
-  if (Math.round(Number(i.advance) * 100) > itemTotal(i))
-    throw Error("Advance cannot exceed the bilty total.");
   if (biltyDraft.index === null) currentForm.items.push(i);
   else currentForm.items[biltyDraft.index] = i;
   biltyDraft = null;
@@ -1549,8 +1550,24 @@ function recordDelivery() {
   modal(
     "Record delivery",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider">${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span></div><div class="note" style="margin-bottom:14px">Bilty total ${cash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; service cash cannot exceed those charges. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
+    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider">${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span></div><div class="note" style="margin-bottom:14px">Bilty total ${cash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
+}
+function updateDeliveryWarnings() {
+  const form = $("#delivery-form");
+  if (!form) return;
+  const data = Object.fromEntries(new FormData(form));
+  const warnings = [];
+  for (const r of selected.values()) {
+    const amount = (key) => Math.round(Number(data[key + "_" + r.id] || 0) * 100);
+    if (amount("discount") + amount("bilty_received") > Math.max(0, r.total - r.advance))
+      warnings.push("Bilty " + r.bilty + ": cash plus discount is greater than the remaining bilty amount.");
+    if (amount("service_received") > amount("loading") + amount("suzuki"))
+      warnings.push("Bilty " + r.bilty + ": service cash is greater than loading plus Suzuki charges.");
+  }
+  const box = $("#delivery-warning");
+  box.hidden = !warnings.length;
+  box.textContent = warnings.join(" ") + (warnings.length ? " You can still save these amounts." : "");
 }
 function voucherForm(kind = "RV") {
   modal(
@@ -2741,6 +2758,7 @@ document.addEventListener("input", (e) => {
     customerSuggestions();
   }
   if (e.target.closest("#bilty-form")) updateBiltyTotals();
+  if (e.target.closest("#delivery-form")) updateDeliveryWarnings();
   if (e.target.closest("#shipment-form") && currentForm?.step === 1) {
     captureShipment();
     $("#sum-qty").textContent = num(
@@ -2903,7 +2921,7 @@ async function submitForm(form, submitter) {
         let kind = currentForm.kind;
         currentForm = null;
         await navigate(kind);
-        toast(r.reference + " saved.");
+        toast(r.reference + " saved." + (r.warnings?.length ? " Warning: " + r.warnings.join(" ") : ""));
         await showShipment(r.id);
       }
       break;
@@ -2927,7 +2945,7 @@ async function submitForm(form, submitter) {
       selected.clear();
       closeModal();
       await navigate("deliveries");
-      toast(r.reference + " saved.");
+      toast(r.reference + " saved." + (r.warnings?.length ? " Warning: " + r.warnings.join(" ") : ""));
       await showDelivery(r.id);
       break;
     }

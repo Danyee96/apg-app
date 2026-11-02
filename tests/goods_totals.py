@@ -33,7 +33,18 @@ def check_goods(base,database,password):
     before=db.execute('SELECT count(*) FROM deliveries').fetchone()[0]
     call('save_delivery',data=excessive,status=422)
     assert db.execute('SELECT count(*) FROM deliveries').fetchone()[0]==before
+    # Handover can set charges absent from the arrival record, without dropping limits.
+    service_line={**delivery['items'][0],'loading':'200','suzuki':'300','service_received':'500.01'}
+    service_delivery={**delivery,'items':[service_line]}
+    original_charges=tuple(db.execute('SELECT loading,suzuki FROM items WHERE id=?',(item['id'],)).fetchone())
+    call('save_delivery',data=service_delivery,status=422)
+    assert tuple(db.execute('SELECT loading,suzuki FROM items WHERE id=?',(item['id'],)).fetchone())==original_charges
+    call('save_delivery',data={**delivery,'items':[{**service_line,'loading':'-1'}]},status=422)
+    delivery={**delivery,'items':[{**service_line,'service_received':'500'}]}
     created=call('save_delivery',data=delivery,status=201)
+    saved=call('delivery',{'id':created['id']})['items'][0]
+    assert (saved['loading'],saved['suzuki'],saved['service_received'])==(20000,30000,50000)
+    assert db.execute("SELECT count(*) FROM audit WHERE action='delivery_charges' AND entity_id=?",(str(item['id']),)).fetchone()[0]==1
     call('save_delivery',data=delivery,status=409)
     assert db.execute('SELECT total FROM items WHERE id=?',(item['id'],)).fetchone()[0]==0
     assert db.execute('SELECT count(*) FROM vouchers').fetchone()[0]==0

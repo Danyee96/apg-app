@@ -33,7 +33,7 @@ For imported deliveries the API now supplies a read-only `print_header` and `pri
 - `R071.rep` calculates each incoming bilty total from bilty amount plus godown, rather than the nullable stored `IND.TOTAL` field.
 - Its `CF_BALFORMULA` calculates **sum of bilty amounts minus truck amount**. Godown is not added to this truck balance.
 - `Forms/F133.fmx` binds Booking printing to `R156.rep`. Its total formula uses loading, rent, bilty amount and local charges. The original booking query selects destination address and individual charge fields; truck amount and commission are not part of that printed total.
-- The thermal builders now calculate incoming/booking print totals from these fields, including imported rows whose stored total was null/zero. This change is restricted to print presentation; stored totals and accounting postings are not migrated.
+- The thermal builders now calculate incoming/booking print totals from these fields, including imported rows whose stored total was null/zero. The initial correction was restricted to printing. The subsequent system check extended the same formulas to goods read APIs and delivery validation; original stored totals and accounting postings are not migrated.
 
 ## Findings and verification limits
 

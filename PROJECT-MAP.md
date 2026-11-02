@@ -2,6 +2,10 @@
 
 Initial inventory reviewed 1 November 2026; see the upgrade notes below for subsequent changes. This document records the implementation and local checks, rather than certifying historical accounting accuracy.
 
+## System check and shared goods totals
+
+The 2 November check found 113 pending incoming bilties whose missing imported totals could cause zero amounts on screen and reject valid delivery cash. `bootstrap.php` now centralizes the verified charge formulas in `goods_total()` and normalizes read responses with `goods_item()`. Shipment/bilty/delivery reads and shipment-register sums use the calculated total; delivery validation uses that same amount less advance. The original SQLite total is not rewritten and is exposed separately as `stored_total`. Regression coverage is in `tests/goods_totals.py`; findings and remaining limits are in `SYSTEM-CHECK.md`.
+
 ## Original print-value reconciliation
 
 Original PTech report binaries were located in the retained archive. F002's Print Rec Slip invokes R150; R157 supplies a separate cash summary. The delivery API now exposes read-only historical print snapshots through the same source joins, and the thermal preview separates charge receipts from cash summaries. Incoming/booking print totals follow R071/R156 formulas instead of missing imported totals. No business records are rewritten. See `LEGACY-PRINT-RULES.md` for evidence, formulas, source-data discrepancies and the remaining original Urdu-font limitation.

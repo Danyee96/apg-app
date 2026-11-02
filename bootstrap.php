@@ -16,3 +16,14 @@ function transaction(callable $fn): mixed {db()->exec('BEGIN IMMEDIATE');try{$r=
 function paged(string $from,string $where,array $params,string $select,string $order): array {$page=max(0,min(100000,(int)($_GET['page']??0)));$total=(int)one('SELECT COUNT(*) AS n FROM '.$from.$where,$params)['n'];$page=min($page,max(0,(int)ceil($total/30)-1));return ['rows'=>query('SELECT '.$select.' FROM '.$from.$where.' ORDER BY '.$order.' LIMIT 30 OFFSET '.($page*30),$params),'total'=>$total,'page'=>$page,'page_size'=>30];}
 function rangeWhere(string $column,array &$args): string {if(!empty($_GET['from'])&&!empty($_GET['to'])&&day($_GET,'from')>day($_GET,'to'))fail('Start date must be before end date.');$s='';foreach(['from'=>'>=','to'=>'<='] as $k=>$op){if(!empty($_GET[$k])){$d=day($_GET,$k);$s.=' AND '.$column.$op.'?';$args[]=$d;}}return $s;}
 function pattern(): string {return '%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],mb_substr((string)($_GET['search']??''),0,120)).'%';}
+
+// Original R071/R156 totals are derived from charges, not nullable imported TOTAL.
+function goods_total(array $item,string $kind): int {
+ $fields=$kind==='booking'?['rent','loading','bilty_amount','local_charge']:['bilty_amount','godown'];
+ return array_sum(array_map(fn($field)=>(int)($item[$field]??0),$fields));
+}
+function goods_item(array $item,string $kind): array {
+ $item['stored_total']=$item['total']??null;
+ $item['total']=goods_total($item,$kind);
+ return $item;
+}

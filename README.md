@@ -92,3 +92,7 @@ Ledger/report and paginated register slips explicitly identify the current-page 
 Goods print formulas and delivery field sources have now been traced to the retained original Oracle report files. Delivery print preview offers **Receipt slip · charges** (original R150) and **Cash summary · received** (R157). Historical receipts read the actual original delivery snapshot, rather than assuming its loading/Suzuki charges equal those on arrival. Incoming/booking print totals use the original component formulas instead of nullable imported totals. This is a read-only print correction; stored business transactions and ledger postings are unchanged.
 
 See [LEGACY-PRINT-RULES.md](LEGACY-PRINT-RULES.md) for verified mappings, evidence hashes and remaining old-font rendering limits. Run `python3 tests/legacy_print.py` for independent source-data comparisons.
+
+## System check and recovered totals
+
+The 2 November system check found and corrected a missing-total import issue affecting goods views and valid delivery collection limits. Read APIs and validation now calculate totals from the verified component charges while preserving the original SQLite value as `stored_total`. No historical values are rewritten. Run `python3 tests/goods_totals.py` for the regression case and see [SYSTEM-CHECK.md](SYSTEM-CHECK.md) for checked behavior and remaining functional/data limits.

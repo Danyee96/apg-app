@@ -695,7 +695,7 @@ async function overview() {
 }
 function shipmentTable(rows, withKind = true) {
   return rows.length
-    ? `<div class="table-scroll"><table><thead><tr><th>Reference</th><th>Date</th><th>Station / truck</th><th class="number">Bilties</th>${withKind ? '<th class="number">Recorded total</th>' : "<th>Type</th>"}<th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><button class="link" data-action="shipment" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.station || "Not recorded")}</strong><small>${esc(r.truck || "No truck recorded")}</small></td><td class="number">${num(r.item_count)}</td><td class="${withKind ? "number" : ""}">${withKind ? cash(r.total) : tag(r.kind === "incoming" ? "Incoming" : "Booking", r.kind === "incoming" ? "green" : "")}</td><td><button class="icon-btn" data-action="shipment" data-id="${r.id}" aria-label="Open shipment ${esc(r.reference)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
+    ? `<div class="table-scroll"><table><thead><tr><th>Reference</th><th>Date</th><th>Station / truck</th><th class="number">Bilties</th>${withKind ? '<th class="number">Bilty total</th>' : "<th>Type</th>"}<th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><button class="link" data-action="shipment" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.station || "Not recorded")}</strong><small>${esc(r.truck || "No truck recorded")}</small></td><td class="number">${num(r.item_count)}</td><td class="${withKind ? "number" : ""}">${withKind ? cash(r.total) : tag(r.kind === "incoming" ? "Incoming" : "Booking", r.kind === "incoming" ? "green" : "")}</td><td><button class="icon-btn" data-action="shipment" data-id="${r.id}" aria-label="Open shipment ${esc(r.reference)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
     : empty();
 }
 async function shipments() {
@@ -768,7 +768,7 @@ async function bilties() {
 }
 function biltyTable(rows, selectable = false) {
   return rows.length
-    ? `<div class="table-scroll"><table><thead><tr>${selectable ? "<th>Select</th>" : ""}<th>Bilty / date</th><th>Customer / party to</th><th>Station</th><th class="number">Qty</th><th class="number">Recorded total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr>${selectable ? `<td><input class="row-check" type="checkbox" aria-label="Select bilty ${esc(r.bilty)}" data-select="${r.id}" ${selected.has(r.id) ? "checked" : ""}></td>` : ""}<td><button class="link" data-action="bilty" data-id="${r.id}">${esc(r.bilty || "No number")}</button><small>${fmtdate(r.dated)}</small></td><td><strong>${esc(r.customer || r.party_from || "Not recorded")}</strong><small>To ${esc(r.party_to || "—")}</small></td><td>${esc(r.station || "—")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.total)}</td><td>${tag(r.status === "delivered" ? "Delivered" : "Pending", r.status === "delivered" ? "green" : "orange")}</td><td><button class="icon-btn" data-action="bilty" data-id="${r.id}" aria-label="Open bilty ${esc(r.bilty)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
+    ? `<div class="table-scroll"><table><thead><tr>${selectable ? "<th>Select</th>" : ""}<th>Bilty / date</th><th>Customer / party to</th><th>Station</th><th class="number">Qty</th><th class="number">Bilty total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr>${selectable ? `<td><input class="row-check" type="checkbox" aria-label="Select bilty ${esc(r.bilty)}" data-select="${r.id}" ${selected.has(r.id) ? "checked" : ""}></td>` : ""}<td><button class="link" data-action="bilty" data-id="${r.id}">${esc(r.bilty || "No number")}</button><small>${fmtdate(r.dated)}</small></td><td><strong>${esc(r.customer || r.party_from || "Not recorded")}</strong><small>To ${esc(r.party_to || "—")}</small></td><td>${esc(r.station || "—")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.total)}</td><td>${tag(r.status === "delivered" ? "Delivered" : "Pending", r.status === "delivered" ? "green" : "orange")}</td><td><button class="icon-btn" data-action="bilty" data-id="${r.id}" aria-label="Open bilty ${esc(r.bilty)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
     : empty();
 }
 async function deliveries() {
@@ -1284,7 +1284,7 @@ function showBilty(id) {
       ["Suzuki kiraya", cash(i.suzuki)],
       ["Rent", cash(i.rent)],
       ["Local charges", cash(i.local_charge)],
-      ["Recorded total", cash(i.total)],
+      ["Bilty total", cash(i.total)],
       ["Advance", cash(i.advance)],
       ["Remarks", i.remarks],
     ]),

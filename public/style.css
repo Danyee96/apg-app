@@ -4664,3 +4664,9 @@ dialog.command-dialog {
     text-decoration: none !important;
   }
 }
+
+.shipment-breakdown { margin-top: 26px; padding: 22px; border: 1px solid var(--line, #dce5e3); border-radius: 16px; background: #f5faf8; }
+.shipment-breakdown h2 { margin-bottom: 12px; }
+.shipment-breakdown .detail-grid { margin: 20px 0; }
+.shipment-detail-table { min-width: 1050px; }
+@media(max-width:600px) { .shipment-breakdown { padding: 16px; } }

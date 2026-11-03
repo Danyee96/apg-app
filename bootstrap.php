@@ -27,3 +27,8 @@ function goods_item(array $item,string $kind): array {
  $item['total']=goods_total($item,$kind);
  return $item;
 }
+
+function shipment_snapshot(int $id): array {
+ return ['header'=>one('SELECT * FROM shipments WHERE id=?',[$id]),'items'=>query('SELECT * FROM items WHERE shipment_id=? ORDER BY id',[$id])];
+}
+function shipment_version(array $snapshot): string {return hash('sha256',json_encode($snapshot,JSON_THROW_ON_ERROR));}

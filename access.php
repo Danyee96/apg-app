@@ -144,6 +144,7 @@ function authorize_action(string $action,string $method,array $p,array $user): v
  if($action==='lookups')return;
  if($action==='stations'){foreach(['overview.view','incoming.view','booking.view','deliveries.view','settings.view'] as $key){if(can_access($user,$key))return;}require_permission($user,'settings.view');return;}
  if(in_array($action,['shipments','save_shipment'],true)){
+  if($action==='save_shipment'&&!empty($p['id'])&&$user['role']!=='super_admin')fail('Only the super admin can edit saved shipments.',403);
   $kind=$method==='POST'?($p['kind']??''):($_GET['kind']??'incoming');if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');require_permission($user,$kind.'.'.($action==='save_shipment'?'create':'view'));return;
  }
  if($action==='shipment'){$record=one('SELECT kind FROM shipments WHERE id=?',[(int)($_GET['id']??0)]);if(!$record)fail('Shipment not found.',404);require_permission($user,$record['kind'].'.view');return;}

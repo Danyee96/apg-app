@@ -1283,6 +1283,7 @@ async function showShipment(id) {
     ]) +
       shipmentBreakdown(s.items, s.kind, s) +
       `<hr class="divider"><h2 style="margin-bottom:18px">Bilties (${s.items.length})</h2>` + shipmentDetailTable(s.items, s.kind),
+    (isSuper() ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
     btn("Print sheet", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
@@ -1375,6 +1376,21 @@ function newShipment(kind) {
   };
   shipmentForm();
 }
+async function editShipment(id) {
+  if (!isSuper()) throw Error("Only the super admin can edit saved entries.");
+  const s = await api("shipment", null, { id });
+  const header = { ...s };
+  delete header.items;
+  for (const key of ["truck_amount", "commission"]) header[key] = (Number(s[key] || 0) / 100).toFixed(2);
+  const items = s.items.map(row => {
+    const item = { ...blankItem(), ...row };
+    for (const key of ["bilty_amount", "godown", "loading", "suzuki", "rent", "local_charge", "advance"]) item[key] = (Number(row[key] || 0) / 100).toFixed(2);
+    return item;
+  });
+  closeModal();
+  currentForm = { id: s.id, version: s.version, kind: s.kind, step: 0, header, items };
+  shipmentForm();
+}
 function itemTotal(i, kind = currentForm.kind) {
   const cents = (v) => Math.round(Number(v || 0) * 100);
   return kind === "incoming"
@@ -1396,11 +1412,11 @@ function shipmentForm() {
     booking = f.kind === "booking";
   $("#main").innerHTML =
     head(
-      booking ? "New booking" : "Record incoming goods",
+      f.id ? "Edit " + (booking ? "booking" : "incoming goods") : booking ? "New booking" : "Record incoming goods",
       "A few clear steps. One place for all the details.",
       btn("Cancel", "cancel-shipment"),
     ) +
-    `<div class="steps">${["Shipment details", "Add bilties", "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${
+    `${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${
       f.step === 0
         ? `<div class="form-grid">${field("dated", 'Date <span class="required">*</span>', h.dated, "date", "required")}${selectField("station_id", booking ? "Destination station *" : "Origin station *", stationOptions(), h.station_id, true)}${field("truck", 'Truck number <span class="required">*</span>', h.truck, "text", 'required placeholder="e.g. ABC-123" maxlength="30"')}${field("challan", "Challan number", h.challan)}${field("driver", "Driver name", h.driver)}${field("driver_mobile", "Driver mobile", h.driver_mobile, "tel")}${field("driver_cnic", "Driver CNIC", h.driver_cnic)}${field("truck_amount", "Truck rent / amount (Rs)", h.truck_amount, "number", 'min="0" step="0.01"')}${booking ? field("commission", "Commission amount (Rs)", h.commission, "number", 'min="0" step="0.01"') : ""}${field("remarks", "Remarks", h.remarks, "text", 'maxlength="500"', true)}</div>`
         : f.step === 1
@@ -1454,6 +1470,7 @@ function readBiltyDraft() {
   if (!form) return null;
   const data = Object.fromEntries(new FormData(form));
   const item = blankItem();
+  if (biltyDraft?.index !== null && biltyDraft?.index !== undefined) item.id = currentForm.items[biltyDraft.index].id;
   for (const k of Object.keys(item))
     if (k in data) item[k] = String(data[k]).trim();
   return item;
@@ -2596,6 +2613,9 @@ async function action(name, el) {
     case "shipment":
       await showShipment(el.dataset.id);
       break;
+    case "edit-shipment":
+      await editShipment(el.dataset.id);
+      break;
     case "new-incoming":
       newShipment("incoming");
       break;
@@ -2626,6 +2646,7 @@ async function action(name, el) {
       closeBilty();
       break;
     case "remove-bilty":
+      if (currentForm.items[Number(el.dataset.index)]?.id) throw Error("Existing bilties cannot be removed. Edit their details instead.");
       if (confirm("Remove this bilty from the shipment?")) {
         currentForm.items.splice(Number(el.dataset.index), 1);
         shipmentForm();
@@ -2937,8 +2958,7 @@ async function submitForm(form, submitter) {
               throw Error(
                 "Choose a customer from the suggestions for every bilty.",
               );
-            if (Number(i.advance) * 100 > itemTotal(i))
-              throw Error("Advance cannot exceed the bilty total.");
+
           }
         }
         currentForm.step++;
@@ -2946,6 +2966,8 @@ async function submitForm(form, submitter) {
       } else {
         let r = await api("save_shipment", {
           ...currentForm.header,
+          id: currentForm.id,
+          version: currentForm.version,
           kind: currentForm.kind,
           items: currentForm.items,
         });

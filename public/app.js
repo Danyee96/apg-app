@@ -1278,11 +1278,12 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ["All charges total", cash(total + services)],
     ["Advance total", cash(sum("advance"))],
     ["Charges less advance", cash(total + services - sum("advance"))],
-    ["Truck rent / amount", cash(cents(header.truck_amount))],
+    [booking ? "Truck rent / amount" : "Truck delivery / amount", cash(cents(header.truck_amount))],
+    ...(!booking ? [["Labour Bonus", cash(cents(header.labour_bonus))], ["Munshi Bonus", cash(cents(header.munshi_bonus))]] : []),
     ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilties total less truck amount", cash(total - cents(header.truck_amount))]]),
   ];
   if (isOperations() && !booking) metrics = metrics.filter(([label])=>!["Godown charges total","Bilties total","All charges total","Charges less advance","Bilties total less truck amount"].includes(label));
-  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2><p class="note">Goods type / description: <strong>${esc(descriptions.join(" · ") || "Not recorded")}</strong></p>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Bilties total includes bilty and godown charges. All charges also includes loading and Suzuki."} Truck amount${booking ? " and commission are" : " is"} shown separately. These figures are charges, not cash collected.</p></section>`;
+  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2><p class="note">Goods type / description: <strong>${esc(descriptions.join(" · ") || "Not recorded")}</strong></p>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Bilties total includes bilty and godown charges. All charges also includes loading and Suzuki."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
 }
 function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);
@@ -1395,6 +1396,8 @@ function newShipment(kind) {
       driver: "",
       truck_amount: "0",
       commission: "0",
+      labour_bonus: "0",
+      munshi_bonus: "0",
     },
     items: [],
   };
@@ -1405,7 +1408,7 @@ async function editShipment(id) {
   if (!can(s.kind + ".edit") || (isOperations() && s.kind === "incoming")) throw Error("You do not have permission to edit this entry.");
   const header = { ...s };
   delete header.items;
-  for (const key of ["truck_amount", "commission"]) header[key] = (Number(s[key] || 0) / 100).toFixed(2);
+  for (const key of ["truck_amount", "commission", "labour_bonus", "munshi_bonus"]) header[key] = (Number(s[key] || 0) / 100).toFixed(2);
   const items = s.items.map(row => {
     const item = { ...blankItem(), ...row };
     for (const key of ["bilty_amount", "godown", "loading", "suzuki", "rent", "local_charge", "advance"]) item[key] = (Number(row[key] || 0) / 100).toFixed(2);
@@ -1447,7 +1450,7 @@ function shipmentForm() {
     ) +
     `${f.pendingId ? `<div class="note-box warning" style="margin-bottom:20px">Submitted by ${esc(f.submittedName)}. Review and correct all details before approving. This entry is not yet in the main system.</div>` : ""}${isOperations() && !booking ? `<div class="note-box" style="margin-bottom:20px">Review and submit for super admin approval. The arrival will enter the main system after approval.</div>` : ""}${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", isOperations() && !booking ? "Review & submit" : "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${f.step > 0 ? shipmentAmountWarnings() : ""}${
       f.step === 0
-        ? `<div class="form-grid">${field("dated", 'Date <span class="required">*</span>', h.dated, "date", "required")}${selectField("station_id", booking ? "Destination station *" : "Origin station *", stationOptions(), h.station_id, true)}${field("truck", 'Truck number <span class="required">*</span>', h.truck, "text", 'required placeholder="e.g. ABC-123" maxlength="30"')}${field("challan", "Challan number", h.challan)}${field("driver", "Driver name", h.driver)}${field("driver_mobile", "Driver mobile", h.driver_mobile, "tel")}${field("driver_cnic", "Driver CNIC", h.driver_cnic)}${field("truck_amount", "Truck rent / amount (Rs)", h.truck_amount, "number", 'min="0" step="0.01"')}${booking ? field("commission", "Commission amount (Rs)", h.commission, "number", 'min="0" step="0.01"') : ""}${field("remarks", "Remarks", h.remarks, "text", 'maxlength="500"', true)}</div>`
+        ? `<div class="form-grid">${field("dated", 'Date <span class="required">*</span>', h.dated, "date", "required")}${selectField("station_id", booking ? "Destination station *" : "Origin station *", stationOptions(), h.station_id, true)}${field("truck", 'Truck number <span class="required">*</span>', h.truck, "text", 'required placeholder="e.g. ABC-123" maxlength="30"')}${field("challan", "Challan number", h.challan)}${field("driver", "Driver name", h.driver)}${field("driver_mobile", "Driver mobile", h.driver_mobile, "tel")}${field("driver_cnic", "Driver CNIC", h.driver_cnic)}${field("truck_amount", booking ? "Truck rent / amount (Rs)" : "Truck delivery / amount (Rs)", h.truck_amount, "number", 'min="0" step="0.01"')}${!booking ? field("labour_bonus", "Labour Bonus (Rs)", h.labour_bonus || "0", "number", 'min="0" step="0.01"') + field("munshi_bonus", "Munshi Bonus (Rs)", h.munshi_bonus || "0", "number", 'min="0" step="0.01"') : ""}${booking ? field("commission", "Commission amount (Rs)", h.commission, "number", 'min="0" step="0.01"') : ""}${field("remarks", "Remarks", h.remarks, "text", 'maxlength="500"', true)}</div>`
         : f.step === 1
           ? draftBiltyList()
           : detailCells([
@@ -1835,7 +1838,7 @@ function buildThermalRecord(context) {
         slipText("Driver mobile", d.driver_mobile) +
         slipText("Driver CNIC", d.driver_cnic) +
         (d.kind === "incoming"
-          ? slipMoney("Truck amount", d.truck_amount)
+          ? slipMoney("Truck delivery / amount", d.truck_amount) + slipMoney("Labour Bonus", d.labour_bonus || 0) + slipMoney("Munshi Bonus", d.munshi_bonus || 0)
           : ""),
     );
     content += d.items

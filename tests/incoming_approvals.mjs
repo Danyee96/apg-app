@@ -17,7 +17,7 @@ await ops.locator('#f-username').fill('browser-ops');await ops.locator('#f-passw
 await ops.locator('[data-view="pending-incoming"]').first().waitFor();
 await ops.evaluate(()=>{
  newShipment('incoming');const a=lookups.accounts.find(a=>a.customer&&a.status==='A');const st=lookups.stations.find(s=>s.status==='A');
- currentForm.header={dated:today(),station_id:String(st.id),truck:'OPS-BROWSER',truck_amount:'0',commission:'0'};
+ currentForm.header={dated:today(),station_id:String(st.id),truck:'OPS-BROWSER',truck_amount:'0',commission:'0',labour_bonus:'150.25',munshi_bonus:'75.50'};
  currentForm.items=[{...blankItem(),account_id:a.id,bilty:'OPS-BROWSER-1',qty:'2',bilty_amount:'200',godown:'70',detail:'Original goods'}];currentForm.step=1;shipmentForm();
 });
 assert.equal(await ops.locator('#sum-total').innerText(),'—');
@@ -29,6 +29,8 @@ assert.ok((await ops.locator('#main').innerText()).includes('OPS-BROWSER'));
 await page.evaluate(()=>navigate('pending-incoming'));
 await page.locator('[data-action="review-incoming"]').first().click();
 await page.locator('#shipment-form [name="truck"]').fill('ADMIN-APPROVED');
+assert.equal(await page.locator('#shipment-form [name="labour_bonus"]').inputValue(),'150.25');
+await page.locator('#shipment-form [name="munshi_bonus"]').fill('100.75');
 await page.locator('#shipment-form [type="submit"]').click();
 await page.locator('[data-action="edit-bilty"]').first().click();
 await page.locator('#bilty-form [name="godown"]').fill('80');
@@ -38,6 +40,12 @@ assert.ok((await page.locator('.shipment-breakdown').innerText()).includes('80.0
 await page.getByRole('button',{name:'Approve & save incoming goods',exact:true}).click();
 await page.locator('[data-action="edit-shipment"]').waitFor();
 assert.ok((await page.locator('#modal').innerText()).includes('ADMIN-APPROVED'));
+assert.ok((await page.locator('#modal').innerText()).includes('100.75'));
+assert.ok((await page.locator('#modal').innerText()).includes('Truck delivery / amount'));
+await page.getByRole('button',{name:'Print sheet',exact:true}).click();
+assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('Labour Bonus'));
+assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('100.75'));
+await page.locator('[data-action="thermal-close"]').first().click();
 const id=await page.evaluate(()=>recordPrintContext.data.id);
 await ops.evaluate(async(id)=>{await showShipment(id);},id);
 assert.equal(await ops.locator('[data-action="edit-shipment"]').count(),0);

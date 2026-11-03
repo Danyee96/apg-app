@@ -46,3 +46,12 @@ function operations_response(mixed $data,?string $kind=null): mixed {
  foreach($data as $key=>$value)if(is_array($value))$data[$key]=operations_response($value,$kind);
  return $data;
 }
+
+function migrate_incoming_bonuses(): void {
+ if(one("SELECT value FROM meta WHERE key='incoming_bonuses_version'"))return;
+ transaction(function(){
+  $columns=array_column(query('PRAGMA table_info(shipments)'),'name');
+  foreach(['labour_bonus','munshi_bonus'] as $column)if(!in_array($column,$columns,true))run('ALTER TABLE shipments ADD COLUMN '.$column.' INTEGER NOT NULL DEFAULT 0');
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('incoming_bonuses_version','1')");
+ });
+}

@@ -23,3 +23,4 @@ CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name COLLATE NOCASE);
 CREATE TABLE IF NOT EXISTS historical_ledger(source_rowid INTEGER PRIMARY KEY,account_id TEXT,dated TEXT,kind TEXT,reference TEXT,memo TEXT,debit INTEGER NOT NULL,credit INTEGER NOT NULL,sequence INTEGER);
 CREATE INDEX IF NOT EXISTS idx_historical_ledger_account_date ON historical_ledger(account_id,dated,sequence,source_rowid);
 CREATE TABLE IF NOT EXISTS shipment_revisions(id INTEGER PRIMARY KEY,shipment_id INTEGER NOT NULL,actor TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,before_json TEXT NOT NULL,after_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS incoming_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT,submitted_by INTEGER NOT NULL,submitted_name TEXT NOT NULL,submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,status TEXT NOT NULL DEFAULT 'pending',payload TEXT NOT NULL,approved_by INTEGER,approved_at TEXT,shipment_id INTEGER UNIQUE);

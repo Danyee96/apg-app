@@ -52,7 +52,9 @@ function migrate_access(): void {
  });
 }
 function effective_permissions(array $user): array {
- return $user['role']==='super_admin'?array_keys(permission_catalog()):array_values(array_intersect(array_keys(permission_catalog()),json_decode($user['permissions'],true)?:[]));
+ if($user['role']==='super_admin')return array_keys(permission_catalog());
+ $permissions=array_values(array_intersect(array_keys(permission_catalog()),json_decode($user['permissions'],true)?:[]));
+ return $user['role']==='operations'?array_values(array_diff($permissions,['incoming.edit','ledger.view','reports.view','backups.create','archive.view'])):$permissions;
 }
 function can_access(array $user,string $permission): bool {return $user['role']==='super_admin'||in_array($permission,effective_permissions($user),true);}
 function require_permission(array $user,string $permission): void {if(!can_access($user,$permission))response(['error'=>'You do not have permission to perform this action. Ask your super admin for access.','code'=>'permission_denied'],403);}
@@ -141,6 +143,14 @@ function access_routes(string $action,string $method,array $p,array $user): void
  }
 }
 function authorize_action(string $action,string $method,array $p,array $user): void {
+ if($action==='pending_incoming'){if($user['role']==='super_admin'||($user['role']==='operations'&&can_access($user,'incoming.view')))return;fail('Pending incoming goods is unavailable to this account.',403);}
+ if($action==='incoming_submission'){if($user['role']==='super_admin')return;fail('Only the super admin can review submitted entries.',403);}
+ if($user['role']==='operations'){
+  if(in_array($action,['imported_tables','imported_rows','backup','financial_report','ledger'],true))fail('Financial totals are restricted for Operations.',403);
+  if($action==='save_shipment'&&!empty($p['id'])&&($p['kind']??'')==='incoming')fail('Operations incoming goods must go through approval.',403);
+  if($action==='save_shipment'&&!empty($p['pending_id']))fail('Only the super admin can approve incoming goods.',403);
+ }
+
  $map=['dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','settings'=>'settings.view','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
  if(isset($map[$action])){require_permission($user,$map[$action]);return;}
  if($action==='lookups')return;

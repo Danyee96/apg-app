@@ -6,7 +6,7 @@ function db(): PDO {global $storage;static $db;if(!$db){if(!is_file($storage.'/a
 function query(string $sql,array $args=[]): array {$s=db()->prepare($sql);$s->execute($args);return $s->fetchAll();}
 function one(string $sql,array $args=[]): ?array {return query($sql,$args)[0]??null;}
 function run(string $sql,array $args=[]): void {$s=db()->prepare($sql);$s->execute($args);}
-function response(mixed $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');echo json_encode($data,JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);exit;}
+function response(mixed $data,int $status=200): never {global $current;if(($current['role']??'')==='operations')$data=operations_response($data);http_response_code($status);header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');echo json_encode($data,JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);exit;}
 function fail(string $message,int $status=422): never {response(['error'=>$message],$status);}
 function text(array $p,string $k,int $max=250,bool $required=false): string {$v=$p[$k]??'';if(!is_string($v)&&!is_numeric($v))fail('Invalid '.$k);$v=trim((string)$v);if($required&&$v==='')fail(ucfirst(str_replace('_',' ',$k)).' is required.');if(mb_strlen($v)>$max)fail(ucfirst($k).' is too long.');return $v;}
 function money(array $p,string $k): int {$v=trim((string)($p[$k]??'0'));if($v==='')$v='0';if(!preg_match('/^\d{1,10}(\.\d{1,2})?$/D',$v))fail('Enter a valid non-negative amount for '.str_replace('_',' ',$k).'.');$parts=explode('.',$v);return (int)$parts[0]*100+(int)str_pad($parts[1]??'',2,'0');}
@@ -32,3 +32,17 @@ function shipment_snapshot(int $id): array {
  return ['header'=>one('SELECT * FROM shipments WHERE id=?',[$id]),'items'=>query('SELECT * FROM items WHERE shipment_id=? ORDER BY id',[$id])];
 }
 function shipment_version(array $snapshot): string {return hash('sha256',json_encode($snapshot,JSON_THROW_ON_ERROR));}
+
+function migrate_incoming_approvals(): void {
+ if(one("SELECT value FROM meta WHERE key='incoming_approvals_version'"))return;
+ transaction(function(){run("CREATE TABLE IF NOT EXISTS incoming_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT,submitted_by INTEGER NOT NULL,submitted_name TEXT NOT NULL,submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,status TEXT NOT NULL DEFAULT 'pending',payload TEXT NOT NULL,approved_by INTEGER,approved_at TEXT,shipment_id INTEGER UNIQUE)");run("INSERT OR IGNORE INTO meta(key,value) VALUES('incoming_approvals_version','1')");});
+}
+function operations_response(mixed $data,?string $kind=null): mixed {
+ if(!is_array($data))return $data;
+ $kind=$data['kind']??$kind??'incoming';
+ if(isset($data['bilty'])||(($data['kind']??'')==='incoming'&&isset($data['reference']))){
+  if($kind==='incoming'){foreach(['godown','total','stored_total'] as $key)if(array_key_exists($key,$data))$data[$key]=null;$data['charges_restricted']=true;}
+ }
+ foreach($data as $key=>$value)if(is_array($value))$data[$key]=operations_response($value,$kind);
+ return $data;
+}

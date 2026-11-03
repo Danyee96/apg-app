@@ -10,7 +10,7 @@ const esc = (v) =>
       ],
   );
 const num = (v) => Number(v || 0).toLocaleString("en-PK");
-const cash = (v) =>
+const cash = (v) => v == null ? "—" :
   "Rs " +
   (Number(v || 0) / 100).toLocaleString("en-PK", {
     minimumFractionDigits: 2,
@@ -153,6 +153,8 @@ const can = (permission) =>
   !permission ||
   session?.profile?.role === "super_admin" ||
   (session?.permissions || []).includes(permission);
+const isOperations = () => session?.profile?.role === "operations";
+const goodsCash = (value, kind = "incoming") => isOperations() && kind === "incoming" ? "—" : cash(value);
 const isSuper = () => session?.profile?.role === "super_admin";
 const roleLabel = (role) =>
   ({
@@ -181,6 +183,7 @@ function canView(view) {
     settings: "settings.view",
     archive: "archive.view",
   };
+  if (view === "pending-incoming") return isSuper() || (isOperations() && can("incoming.view"));
   if (view === "users") return isSuper();
   if (view === "reports")
     return [
@@ -289,6 +292,7 @@ function navigationHub() {
     overview:
       "Review arrivals, deliveries and station activity for a chosen date.",
     incoming: "Find incoming goods or record a new arrival.",
+    "pending-incoming": "Incoming goods awaiting super admin review and approval.",
     booking: "Manage outgoing shipments and their bilties.",
     deliveries: "Review handovers, receivers and cash collected.",
     customers: "Find customer accounts and contact details.",
@@ -310,6 +314,7 @@ function navigationHub() {
         "dashboard",
         "overview",
         "incoming",
+        "pending-incoming",
         "booking",
         "deliveries",
         "customers",
@@ -417,6 +422,7 @@ const navs = [
   ["dashboard", "grid", "Dashboard"],
   ["overview", "grid", "Overview"],
   ["incoming", "incoming", "Incoming goods"],
+  ["pending-incoming", "clock", "Pending incoming goods"],
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Deliveries"],
   ["customers", "users", "Customers"],
@@ -558,6 +564,9 @@ async function render() {
         break;
       case "customers":
         html = await customers();
+        break;
+      case "pending-incoming":
+        html = await pendingIncoming();
         break;
       case "incoming":
       case "booking":
@@ -1235,6 +1244,19 @@ async function customerForm(id) {
     modalSnapshot = modalValues();
   }
 }
+async function pendingIncoming() {
+  const data = await api("pending_incoming", null, { page: state.page });
+  listData = data;
+  return head("Pending incoming goods", isSuper() ? "Review, correct and approve submitted arrivals." : "Your submitted entries appear here until the super admin approves them.") + `<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Submitted by</th><th>Arrival / station</th><th>Truck</th><th>Bilties</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}<small>${esc(row.station)}</small></td><td>${esc(row.truck)}</td><td>${num(row.item_count)}</td><td>${isSuper() ? `<button class="btn primary" data-action="review-incoming" data-id="${row.id}">Review & approve</button>` : tag("Awaiting approval", "orange")}</td></tr>`).join("")}</tbody></table></div>${!data.rows.length ? empty("No incoming goods awaiting approval.") : ""}${pagination(data)}</section>`;
+}
+async function reviewIncoming(id) {
+  if (!isSuper()) throw Error("Only the super admin can approve incoming goods.");
+  const submission = await api("incoming_submission", null, {id});
+  const payload = submission.payload;
+  currentForm = {pendingId: submission.id, submittedName: submission.submitted_name, kind: "incoming", step: 0, header: {...payload}, items: payload.items.map(row=>({...blankItem(),...row}))};
+  delete currentForm.header.items;
+  shipmentForm();
+}
 function detailCells(data) {
   return `<div class="detail-grid">${data.map(([k, v]) => `<div class="detail-cell"><span>${k}</span><b>${esc(v || "—")}</b></div>`).join("")}</div>`;
 }
@@ -1248,7 +1270,7 @@ function shipmentBreakdown(items, kind, header, draft = false) {
   const total = booking ? sum("rent") + sum("loading") + sum("bilty_amount") + sum("local_charge") : sum("bilty_amount") + sum("godown");
   const services = booking ? 0 : sum("loading") + sum("suzuki");
   const descriptions = [...new Set(items.map(i => String(i.detail || "").trim()).filter(Boolean))];
-  const metrics = [
+  let metrics = [
     ["Bilties", num(items.length)],
     ["Total quantity", num(items.reduce((n, i) => n + Number(i.qty || 0), 0))],
     ...fields.map(([key, label]) => [label, cash(sum(key))]),
@@ -1259,12 +1281,14 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ["Truck rent / amount", cash(cents(header.truck_amount))],
     ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilties total less truck amount", cash(total - cents(header.truck_amount))]]),
   ];
+  if (isOperations() && !booking) metrics = metrics.filter(([label])=>!["Godown charges total","Bilties total","All charges total","Charges less advance","Bilties total less truck amount"].includes(label));
   return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2><p class="note">Goods type / description: <strong>${esc(descriptions.join(" · ") || "Not recorded")}</strong></p>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Bilties total includes bilty and godown charges. All charges also includes loading and Suzuki."} Truck amount${booking ? " and commission are" : " is"} shown separately. These figures are charges, not cash collected.</p></section>`;
 }
 function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);
-  const fields = kind === "booking" ? [["rent", "Rent"], ["loading", "Loading"], ["bilty_amount", "Bilty charges"], ["local_charge", "Local"]] : [["bilty_amount", "Bilty charges"], ["godown", "Godown"], ["loading", "Loading"], ["suzuki", "Suzuki"]];
-  return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Goods type / description</th><th>Qty</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${esc(i.detail || "—")}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td><td>${num(i.qty)}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${cash(draft ? itemTotal(i) : i.total)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
+  let fields = kind === "booking" ? [["rent", "Rent"], ["loading", "Loading"], ["bilty_amount", "Bilty charges"], ["local_charge", "Local"]] : [["bilty_amount", "Bilty charges"], ["godown", "Godown"], ["loading", "Loading"], ["suzuki", "Suzuki"]];
+  if(isOperations() && kind === "incoming") fields = fields.filter(([key])=>key!=="godown");
+  return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Goods type / description</th><th>Qty</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${esc(i.detail || "—")}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td><td>${num(i.qty)}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${goodsCash(draft ? itemTotal(i) : i.total, kind)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
 }
 async function showShipment(id) {
   let s = await api("shipment", null, { id });
@@ -1283,8 +1307,8 @@ async function showShipment(id) {
     ]) +
       shipmentBreakdown(s.items, s.kind, s) +
       `<hr class="divider"><h2 style="margin-bottom:18px">Bilties (${s.items.length})</h2>` + shipmentDetailTable(s.items, s.kind),
-    (can(s.kind + ".edit") ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
-    btn("Print sheet", "print-dialog", false, "print") +
+    (can(s.kind + ".edit") && !(isOperations() && s.kind === "incoming") ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
+    (isOperations() && s.kind === "incoming" ? "" : btn("Print sheet", "print-dialog", false, "print")) +
       btn("Close", "close-modal"),
   );
   recordPrintContext = { kind: "shipment", data: structuredClone(s) };
@@ -1309,16 +1333,16 @@ function showBilty(id) {
       ["City", i.city],
       ["Status", i.status],
       ["Bilty amount", cash(i.bilty_amount)],
-      ["Godown charges", cash(i.godown)],
+      ["Godown charges", isOperations() ? "—" : cash(i.godown)],
       ["Loading", cash(i.loading)],
       ["Suzuki kiraya", cash(i.suzuki)],
       ["Rent", cash(i.rent)],
       ["Local charges", cash(i.local_charge)],
-      ["Bilty total", cash(i.total)],
+      ["Bilty total", goodsCash(i.total,i.kind)],
       ["Advance", cash(i.advance)],
       ["Remarks", i.remarks],
     ]),
-    btn("Print bilty", "print-dialog", false, "print") +
+    (isOperations() && i.kind === "incoming" ? "" : btn("Print bilty", "print-dialog", false, "print")) +
       btn("Close", "close-modal"),
   );
   recordPrintContext = { kind: "bilty", data: structuredClone(i) };
@@ -1378,7 +1402,7 @@ function newShipment(kind) {
 }
 async function editShipment(id) {
   const s = await api("shipment", null, { id });
-  if (!can(s.kind + ".edit")) throw Error("You do not have permission to edit this entry.");
+  if (!can(s.kind + ".edit") || (isOperations() && s.kind === "incoming")) throw Error("You do not have permission to edit this entry.");
   const header = { ...s };
   delete header.items;
   for (const key of ["truck_amount", "commission"]) header[key] = (Number(s[key] || 0) / 100).toFixed(2);
@@ -1407,6 +1431,7 @@ function captureShipment() {
     Object.assign(currentForm.header, Object.fromEntries(new FormData(form)));
 }
 function shipmentAmountWarnings() {
+  if(isOperations() && currentForm.kind === "incoming") return "";
   const warnings = currentForm.items.filter(item => Math.round(Number(item.advance || 0) * 100) > itemTotal(item));
   return warnings.length ? `<div class="note-box warning" role="status" style="margin-bottom:18px">${warnings.map(item => `Bilty ${esc(item.bilty)}: advance is greater than its bilty total.`).join("<br>")}<br>You can continue and save these amounts.</div>` : "";
 }
@@ -1416,11 +1441,11 @@ function shipmentForm() {
     booking = f.kind === "booking";
   $("#main").innerHTML =
     head(
-      f.id ? "Edit " + (booking ? "booking" : "incoming goods") : booking ? "New booking" : "Record incoming goods",
+      f.pendingId ? "Approve incoming goods" : f.id ? "Edit " + (booking ? "booking" : "incoming goods") : booking ? "New booking" : "Record incoming goods",
       "A few clear steps. One place for all the details.",
       btn("Cancel", "cancel-shipment"),
     ) +
-    `${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${f.step > 0 ? shipmentAmountWarnings() : ""}${
+    `${f.pendingId ? `<div class="note-box warning" style="margin-bottom:20px">Submitted by ${esc(f.submittedName)}. Review and correct all details before approving. This entry is not yet in the main system.</div>` : ""}${isOperations() && !booking ? `<div class="note-box" style="margin-bottom:20px">Review and submit for super admin approval. The arrival will enter the main system after approval.</div>` : ""}${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", isOperations() && !booking ? "Review & submit" : "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${f.step > 0 ? shipmentAmountWarnings() : ""}${
       f.step === 0
         ? `<div class="form-grid">${field("dated", 'Date <span class="required">*</span>', h.dated, "date", "required")}${selectField("station_id", booking ? "Destination station *" : "Origin station *", stationOptions(), h.station_id, true)}${field("truck", 'Truck number <span class="required">*</span>', h.truck, "text", 'required placeholder="e.g. ABC-123" maxlength="30"')}${field("challan", "Challan number", h.challan)}${field("driver", "Driver name", h.driver)}${field("driver_mobile", "Driver mobile", h.driver_mobile, "tel")}${field("driver_cnic", "Driver CNIC", h.driver_cnic)}${field("truck_amount", "Truck rent / amount (Rs)", h.truck_amount, "number", 'min="0" step="0.01"')}${booking ? field("commission", "Commission amount (Rs)", h.commission, "number", 'min="0" step="0.01"') : ""}${field("remarks", "Remarks", h.remarks, "text", 'maxlength="500"', true)}</div>`
         : f.step === 1
@@ -1440,13 +1465,13 @@ function shipmentForm() {
             ]) +
             shipmentBreakdown(f.items, f.kind, h, true) +
             shipmentDetailTable(f.items, f.kind, true) +
-            `<div class="note-box" style="margin-top:20px">Saving records the shipment and its bilties. It does not automatically post an accounting voucher.</div>`
-    }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>Bilty totals</span><b id="sum-total">${cash(f.items.reduce((s, i) => s + itemTotal(i), 0))}</b></div><p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Bilty total = bilty amount + godown charges. Loading and Suzuki charges are tracked separately."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? "Save " + (booking ? "booking" : "incoming goods") : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
+            `<div class="note-box" style="margin-top:20px">${isOperations() && !booking ? "Submitting sends this entry to Pending incoming goods. It will appear in goods and delivery searches only after super admin approval." : "Saving records the shipment and its bilties. It does not automatically post an accounting voucher."}</div>`
+    }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>Bilty totals</span><b id="sum-total">${goodsCash(f.items.reduce((s, i) => s + itemTotal(i), 0), f.kind)}</b></div><p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Bilty total = bilty amount + godown charges. Loading and Suzuki charges are tracked separately."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? (f.pendingId ? "Approve & save incoming goods" : isOperations() && !booking ? "Submit for approval" : "Save " + (booking ? "booking" : "incoming goods")) : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function draftBiltyList() {
   let items = currentForm.items;
-  return `<div class="bilty-list-tools"><div><b>${items.length} ${items.length === 1 ? "bilty" : "bilties"}</b><p>Added to this shipment. Save the shipment after reviewing.</p></div>${btn("Add bilty", "add-bilty", true, "plus")}</div>${items.length ? `<div class="table-scroll draft-bilties"><table><thead><tr><th>#</th><th>Bilty / customer</th><th>Party to</th><th class="number">Qty</th><th class="number">Total</th><th class="number">Advance</th><th>Actions</th></tr></thead><tbody>${items.map((i, n) => `<tr><td>${String(n + 1).padStart(2, "0")}</td><td><button type="button" class="link" data-action="edit-bilty" data-index="${n}">${esc(i.bilty)}</button><small>${esc(lookups.accounts.find((a) => a.id === i.account_id)?.name || i.account_id)}</small></td><td><strong>${esc(i.party_to)}</strong><small>${esc(i.detail || "")}</small></td><td class="number">${num(i.qty)}</td><td class="number">${cash(itemTotal(i))}</td><td class="number">${cash(Math.round(Number(i.advance || 0) * 100))}</td><td><div class="buttons"><button type="button" class="icon-btn" data-action="edit-bilty" data-index="${n}" aria-label="Edit bilty ${esc(i.bilty)}">${icon("edit")}</button><button type="button" class="icon-btn" data-action="remove-bilty" data-index="${n}" aria-label="Remove bilty ${esc(i.bilty)}">${icon("close")}</button></div></td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Shipment totals</td><td class="number">${num(items.reduce((n, i) => n + Number(i.qty), 0))}</td><td class="number">${cash(items.reduce((n, i) => n + itemTotal(i), 0))}</td><td class="number">${cash(items.reduce((n, i) => n + Math.round(Number(i.advance || 0) * 100), 0))}</td><td></td></tr></tfoot></table></div>` : `<div class="bilty-list-empty"><span class="metric-icon">${icon("box")}</span><h3>No bilties added yet</h3><p>Add your first bilty. Each one will appear as a row in this list.</p>${btn("Add your first bilty", "add-bilty", true, "plus")}</div>`}`;
+  return `<div class="bilty-list-tools"><div><b>${items.length} ${items.length === 1 ? "bilty" : "bilties"}</b><p>Added to this shipment. Save the shipment after reviewing.</p></div>${btn("Add bilty", "add-bilty", true, "plus")}</div>${items.length ? `<div class="table-scroll draft-bilties"><table><thead><tr><th>#</th><th>Bilty / customer</th><th>Party to</th><th class="number">Qty</th><th class="number">Total</th><th class="number">Advance</th><th>Actions</th></tr></thead><tbody>${items.map((i, n) => `<tr><td>${String(n + 1).padStart(2, "0")}</td><td><button type="button" class="link" data-action="edit-bilty" data-index="${n}">${esc(i.bilty)}</button><small>${esc(lookups.accounts.find((a) => a.id === i.account_id)?.name || i.account_id)}</small></td><td><strong>${esc(i.party_to)}</strong><small>${esc(i.detail || "")}</small></td><td class="number">${num(i.qty)}</td><td class="number">${goodsCash(itemTotal(i), currentForm.kind)}</td><td class="number">${cash(Math.round(Number(i.advance || 0) * 100))}</td><td><div class="buttons"><button type="button" class="icon-btn" data-action="edit-bilty" data-index="${n}" aria-label="Edit bilty ${esc(i.bilty)}">${icon("edit")}</button><button type="button" class="icon-btn" data-action="remove-bilty" data-index="${n}" aria-label="Remove bilty ${esc(i.bilty)}">${icon("close")}</button></div></td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Shipment totals</td><td class="number">${num(items.reduce((n, i) => n + Number(i.qty), 0))}</td><td class="number">${goodsCash(items.reduce((n, i) => n + itemTotal(i), 0), currentForm.kind)}</td><td class="number">${cash(items.reduce((n, i) => n + Math.round(Number(i.advance || 0) * 100), 0))}</td><td></td></tr></tfoot></table></div>` : `<div class="bilty-list-empty"><span class="metric-icon">${icon("box")}</span><h3>No bilties added yet</h3><p>Add your first bilty. Each one will appear as a row in this list.</p>${btn("Add your first bilty", "add-bilty", true, "plus")}</div>`}`;
 }
 let biltyDraft = null,
   pickerIndex = -1,
@@ -1485,10 +1510,10 @@ function updateBiltyTotals() {
   let total = itemTotal(i),
     advance = Math.round(Number(i.advance || 0) * 100);
   const warning = $("#bilty-warning");
-  warning.hidden = advance <= total;
+  warning.hidden = advance <= total || (isOperations() && currentForm.kind === "incoming");
   warning.textContent = "Advance is greater than the bilty total. You can still save these amounts.";
-  $("#bilty-live-total").textContent = cash(total);
-  $("#bilty-live-remaining").textContent = cash(total - advance);
+  $("#bilty-live-total").textContent = goodsCash(total, currentForm.kind);
+  $("#bilty-live-remaining").textContent = goodsCash(total - advance, currentForm.kind);
   $("#bilty-live-remaining").classList.toggle(
     "invalid-amount",
     advance > total,
@@ -1598,7 +1623,7 @@ function recordDelivery(values = {}) {
   modal(
     "Delivery goods & counter cash",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></div><p class="note">${esc(r.station || "—")} · ${fmtdate(r.dated)} · Qty ${num(r.qty)} · ${esc(r.detail || "Goods description not recorded")}</p><div class="note" style="margin-bottom:14px">Bilty charges ${cash(r.bilty_amount)} · Godown ${cash(r.godown)} · Bilty total ${cash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
+    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></div><p class="note">${esc(r.station || "—")} · ${fmtdate(r.dated)} · Qty ${num(r.qty)} · ${esc(r.detail || "Goods description not recorded")}</p><div class="note" style="margin-bottom:14px">Bilty charges ${cash(r.bilty_amount)} · Godown ${isOperations() ? "—" : cash(r.godown)} · Bilty total ${goodsCash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
   const form = $("#delivery-form");
   for (const [name, value] of Object.entries(values)) {
@@ -1632,7 +1657,7 @@ function updateDeliveryWarnings() {
   const warnings = [];
   for (const r of selected.values()) {
     const amount = (key) => Math.round(Number(data[key + "_" + r.id] || 0) * 100);
-    if (amount("discount") + amount("bilty_received") > Math.max(0, r.total - r.advance))
+    if (!isOperations() && amount("discount") + amount("bilty_received") > Math.max(0, r.total - r.advance))
       warnings.push("Bilty " + r.bilty + ": cash plus discount is greater than the remaining bilty amount.");
     if (amount("service_received") > amount("loading") + amount("suzuki"))
       warnings.push("Bilty " + r.bilty + ": service cash is greater than loading plus Suzuki charges.");
@@ -1641,8 +1666,8 @@ function updateDeliveryWarnings() {
   const entered = (key) => [...selected.values()].reduce((n, r) => n + Math.round(Number(data[key + "_" + r.id] || 0) * 100), 0);
   $("#delivery-combined").innerHTML = detailCells([
     ["Bilties", num(selected.size)], ["Quantity", num(sum("qty"))],
-    ["Bilty charges", cash(sum("bilty_amount"))], ["Godown charges", cash(sum("godown"))],
-    ["Bilties total", cash(sum("total"))], ["Advance", cash(sum("advance"))],
+    ["Bilty charges", cash(sum("bilty_amount"))], ["Godown charges", isOperations() ? "—" : cash(sum("godown"))],
+    ["Bilties total", goodsCash(sum("total"))], ["Advance", cash(sum("advance"))],
     ["Loading", cash(entered("loading"))], ["Suzuki", cash(entered("suzuki"))],
     ["Discount", cash(entered("discount"))], ["Bilty cash received", cash(entered("bilty_received"))],
     ["Service cash received", cash(entered("service_received"))],
@@ -1747,6 +1772,7 @@ function originalBiltyTotal(i, kind) {
     : Number(i.bilty_amount || 0) + Number(i.godown || 0);
 }
 function buildThermalRecord(context) {
+  if(isOperations() && (context.kind === "delivery" || ["shipment","bilty"].includes(context.kind) && context.data.kind === "incoming")) context = {kind:"generic",data:{title:"Incoming goods",content:slipNote("Charge summaries are restricted for Operations.")}};
   const d = context.data;
   let title = "",
     reference = "",
@@ -2648,6 +2674,9 @@ async function action(name, el) {
     case "shipment":
       await showShipment(el.dataset.id);
       break;
+    case "review-incoming":
+      await reviewIncoming(el.dataset.id);
+      break;
     case "edit-shipment":
       await editShipment(el.dataset.id);
       break;
@@ -2880,8 +2909,8 @@ document.addEventListener("input", (e) => {
         0,
       ),
     );
-    $("#sum-total").textContent = cash(
-      currentForm.items.reduce((s, i) => s + itemTotal(i), 0),
+    $("#sum-total").textContent = goodsCash(
+      currentForm.items.reduce((s, i) => s + itemTotal(i), 0), currentForm.kind,
     );
   }
   if (e.target.closest("#voucher-lines")) updateVoucherSummary();
@@ -3026,11 +3055,13 @@ async function submitForm(form, submitter) {
           ...currentForm.header,
           id: currentForm.id,
           version: currentForm.version,
+          pending_id: currentForm.pendingId,
           kind: currentForm.kind,
           items: currentForm.items,
         });
         let kind = currentForm.kind;
         currentForm = null;
+        if(r.pending){await navigate("pending-incoming");toast(r.reference + " submitted for approval.");break;}
         await navigate(kind);
         toast(r.reference + " saved." + (r.warnings?.length ? " Warning: " + r.warnings.join(" ") : ""));
         await showShipment(r.id);
@@ -3227,7 +3258,7 @@ async function usersPage() {
       )
       .join(
         "",
-      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
+      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Operations incoming goods require super admin approval; incoming charge summaries and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
   );
 }
 function permissionChecklist(selected) {

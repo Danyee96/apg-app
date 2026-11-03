@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {})});
+try {
+const page=await browser.newPage({viewport:{width:390,height:844}});
+await page.goto(process.env.APG_TEST_URL);
+await page.locator('#f-username').fill('integration-review');
+await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
+await page.locator('#auth-form [type="submit"]').click();
+await page.locator('[data-view="dashboard"]').first().waitFor();
+await page.evaluate(async()=>{
+ await api('save_user',{username:'browser-ops',full_name:'Browser Operator',role:'operations',active:1,permissions:['incoming.create'],password:'Browser-ops-only-2026'});
+});
+const ops=await browser.newPage({viewport:{width:390,height:844}});
+await ops.goto(process.env.APG_TEST_URL);
+await ops.locator('#f-username').fill('browser-ops');await ops.locator('#f-password').fill('Browser-ops-only-2026');await ops.locator('#auth-form [type="submit"]').click();
+await ops.locator('[data-view="pending-incoming"]').first().waitFor();
+await ops.evaluate(()=>{
+ newShipment('incoming');const a=lookups.accounts.find(a=>a.customer&&a.status==='A');const st=lookups.stations.find(s=>s.status==='A');
+ currentForm.header={dated:today(),station_id:String(st.id),truck:'OPS-BROWSER',truck_amount:'0',commission:'0'};
+ currentForm.items=[{...blankItem(),account_id:a.id,bilty:'OPS-BROWSER-1',qty:'2',bilty_amount:'200',godown:'70',detail:'Original goods'}];currentForm.step=1;shipmentForm();
+});
+assert.equal(await ops.locator('#sum-total').innerText(),'—');
+await ops.locator('#shipment-form [type="submit"]').click();
+assert.ok(!(await ops.locator('#shipment-form').innerText()).includes('Godown charges total'));
+await ops.getByRole('button',{name:'Submit for approval',exact:true}).click();
+await ops.getByRole('heading',{name:'Pending incoming goods',exact:true}).waitFor();
+assert.ok((await ops.locator('#main').innerText()).includes('OPS-BROWSER'));
+await page.evaluate(()=>navigate('pending-incoming'));
+await page.locator('[data-action="review-incoming"]').first().click();
+await page.locator('#shipment-form [name="truck"]').fill('ADMIN-APPROVED');
+await page.locator('#shipment-form [type="submit"]').click();
+await page.locator('[data-action="edit-bilty"]').first().click();
+await page.locator('#bilty-form [name="godown"]').fill('80');
+await page.locator('#bilty-form [value="save"]').click();
+await page.locator('#shipment-form [type="submit"]').click();
+assert.ok((await page.locator('.shipment-breakdown').innerText()).includes('80.00'));
+await page.getByRole('button',{name:'Approve & save incoming goods',exact:true}).click();
+await page.locator('[data-action="edit-shipment"]').waitFor();
+assert.ok((await page.locator('#modal').innerText()).includes('ADMIN-APPROVED'));
+const id=await page.evaluate(()=>recordPrintContext.data.id);
+await ops.evaluate(async(id)=>{await showShipment(id);},id);
+assert.equal(await ops.locator('[data-action="edit-shipment"]').count(),0);
+assert.ok(!(await ops.locator('#modal').innerText()).includes('80.00'));
+console.log('Mobile Operations review/submit, pending queue, admin correction/approval, published visibility and hidden godown totals passed.');
+}finally{await browser.close();}

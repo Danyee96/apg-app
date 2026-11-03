@@ -12,7 +12,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();
+ migrate_access();migrate_incoming_approvals();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -67,6 +67,15 @@ try {
    run('INSERT INTO accounts(id,group_code,group_name,customer,'.implode(',',$fields).') VALUES('.implode(',',array_fill(0,4+count($fields),'?')).')',[$id,$group,'CUSTOMERS-'.$group,1,...$values]);audit('created','customer',$id);return $id;
   });response(['id'=>$result]);
  }
+ if($action==='pending_incoming'&&$method==='GET'){
+  $where=" WHERE status='pending'";$args=[];if($current['role']!=='super_admin'){$where.=' AND submitted_by=?';$args[]=$current['id'];}
+  $result=paged('incoming_submissions',$where,$args,'id,submitted_name,submitted_at,status,payload','id DESC');
+  foreach($result['rows'] as &$row){$data=json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR);unset($row['payload']);$row['dated']=$data['dated'];$row['truck']=$data['truck'];$row['item_count']=count($data['items']);$row['station']=one('SELECT name FROM stations WHERE id=?',[$data['station_id']])['name']??'';}
+  unset($row);response($result);
+ }
+ if($action==='incoming_submission'&&$method==='GET'){
+  $row=one("SELECT * FROM incoming_submissions WHERE id=? AND status='pending'",[(int)($_GET['id']??0)]);if(!$row)fail('Pending entry not found.',404);response(['id'=>$row['id'],'submitted_name'=>$row['submitted_name'],'submitted_at'=>$row['submitted_at'],'payload'=>json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR)]);
+ }
  if($action==='shipments'&&$method==='GET'){
   $kind=text($_GET,'kind',10)?:'incoming';if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');$where=' WHERE s.kind=?';$args=[$kind];
   if(!empty($_GET['search'])){$where.=" AND (s.reference LIKE ? ESCAPE '\' OR s.truck LIKE ? ESCAPE '\' OR s.driver LIKE ? ESCAPE '\' OR EXISTS(SELECT 1 FROM items x WHERE x.shipment_id=s.id AND (x.bilty LIKE ? ESCAPE '\' OR x.party_to LIKE ? ESCAPE '\')))";$args=[...$args,...array_fill(0,5,pattern())];}
@@ -80,7 +89,15 @@ try {
    $v=['account_id'=>$account,'bilty'=>$bilty,'party_from'=>text($l,'party_from',100),'party_to'=>text($l,'party_to',100),'city'=>text($l,'city',80),'contact'=>text($l,'contact',40),'qty'=>$qty,'detail'=>text($l,'detail',250),'remarks'=>text($l,'remarks',250)];foreach(['bilty_amount','godown','loading','suzuki','rent','local_charge','advance'] as $f)$v[$f]=money($l,$f);
    $v['total']=goods_total($v,$kind);if($v['advance']>$v['total'])$warnings[]='Bilty '.$bilty.': advance is greater than the bilty total.';if($kind==='incoming'&&($v['rent']||$v['local_charge']))fail('Rent and local charges belong to bookings.');$v['_id']=filter_var($l['id']??0,FILTER_VALIDATE_INT);if($v['_id']===false||$v['_id']<0)fail('Invalid bilty identifier.');$clean[]=$v;
   }
+  if($kind==='incoming'&&$current['role']==='operations'){
+   if(!empty($p['id'])||!empty($p['pending_id']))fail('Operations can submit new incoming goods for approval only.',403);
+   $payload=['kind'=>'incoming','dated'=>$dated,'station_id'=>$station,'truck'=>$truck,'driver'=>$driver,'driver_mobile'=>text($p,'driver_mobile',30),'driver_cnic'=>text($p,'driver_cnic',30),'challan'=>text($p,'challan',40),'truck_amount'=>text($p,'truck_amount',20),'commission'=>'0','remarks'=>text($p,'remarks',500),'items'=>$lines];money($p,'truck_amount');
+   $id=transaction(function()use($payload,$current){run('INSERT INTO incoming_submissions(submitted_by,submitted_name,payload) VALUES(?,?,?)',[$current['id'],$current['username'],json_encode($payload,JSON_THROW_ON_ERROR)]);$id=(int)db()->lastInsertId();audit('submitted','incoming_submission',$id);return $id;});
+   response(['id'=>$id,'reference'=>'PENDING-'.$id,'pending'=>true,'warnings'=>[]],201);
+  }
+  if(!empty($p['pending_id'])&&($current['role']!=='super_admin'||$kind!=='incoming'||!empty($p['id'])))fail('Only the super admin can approve incoming goods.',403);
   $result=transaction(function()use($p,$kind,$dated,$station,$truck,$driver,$clean){
+   if(!empty($p['pending_id'])){if(!one("SELECT id FROM incoming_submissions WHERE id=? AND status='pending'",[(int)$p['pending_id']]))throw new RuntimeException('This submission was already approved or is unavailable.',409);}
    if(!empty($p['id'])){
     $id=filter_var($p['id'],FILTER_VALIDATE_INT);if(!$id)throw new InvalidArgumentException('Invalid shipment identifier.');
     $before=shipment_snapshot($id);if(!$before['header'])throw new RuntimeException('Shipment not found.',404);
@@ -97,7 +114,7 @@ try {
     run('INSERT INTO shipment_revisions(shipment_id,actor,before_json,after_json) VALUES(?,?,?,?)',[$id,$_SESSION['username'],json_encode($before,JSON_THROW_ON_ERROR),json_encode(shipment_snapshot($id),JSON_THROW_ON_ERROR)]);
     audit('updated',$kind,$id);return ['id'=>$id,'reference'=>$before['header']['reference']];
    }
-   run('INSERT INTO shipments(kind,reference,dated,station_id,truck,driver,driver_mobile,driver_cnic,challan,truck_amount,commission,remarks,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[$kind,'pending',$dated,$station,$truck,$driver,text($p,'driver_mobile',30),text($p,'driver_cnic',30),text($p,'challan',40),money($p,'truck_amount'),money($p,'commission'),text($p,'remarks',500),$_SESSION['username']]);$id=(int)db()->lastInsertId();$ref=($kind==='incoming'?'IN-':'BK-').str_pad((string)$id,6,'0',STR_PAD_LEFT);run('UPDATE shipments SET reference=? WHERE id=?',[$ref,$id]);foreach($clean as $line){unset($line['_id']);$keys=array_keys($line);run('INSERT INTO items(shipment_id,'.implode(',',$keys).') VALUES('.implode(',',array_fill(0,count($keys)+1,'?')).')',[$id,...array_values($line)]);}audit('created',$kind,$id);return ['id'=>$id,'reference'=>$ref];});$result['warnings']=$warnings;response($result,201);
+   run('INSERT INTO shipments(kind,reference,dated,station_id,truck,driver,driver_mobile,driver_cnic,challan,truck_amount,commission,remarks,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[$kind,'pending',$dated,$station,$truck,$driver,text($p,'driver_mobile',30),text($p,'driver_cnic',30),text($p,'challan',40),money($p,'truck_amount'),money($p,'commission'),text($p,'remarks',500),$_SESSION['username']]);$id=(int)db()->lastInsertId();$ref=($kind==='incoming'?'IN-':'BK-').str_pad((string)$id,6,'0',STR_PAD_LEFT);run('UPDATE shipments SET reference=? WHERE id=?',[$ref,$id]);foreach($clean as $line){unset($line['_id']);$keys=array_keys($line);run('INSERT INTO items(shipment_id,'.implode(',',$keys).') VALUES('.implode(',',array_fill(0,count($keys)+1,'?')).')',[$id,...array_values($line)]);}if(!empty($p['pending_id'])){run("UPDATE incoming_submissions SET status='approved',approved_by=?,approved_at=CURRENT_TIMESTAMP,shipment_id=? WHERE id=? AND status='pending'",[$_SESSION['user_id'],$id,(int)$p['pending_id']]);audit('approved','incoming_submission',(int)$p['pending_id']);}audit('created',$kind,$id);return ['id'=>$id,'reference'=>$ref];});$result['warnings']=$warnings;response($result,201);
  }
  if($action==='bilties'&&$method==='GET'){
   $where=' WHERE 1=1';$args=[];if(isset($_GET['bilty_exact'])){$where.=' AND i.bilty=?';$args[]=text($_GET,'bilty_exact',40,true);}$status=text($_GET,'status',20);if(in_array($status,['pending','delivered'],true)){$where.=' AND i.status=?';$args[]=$status;}

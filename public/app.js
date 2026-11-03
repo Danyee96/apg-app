@@ -1162,7 +1162,7 @@ function field(
   extra = "",
   wide = false,
 ) {
-  return `<div class="field ${wide ? "wide" : ""}"><label for="f-${name}">${label}</label><input id="f-${name}" name="${name}" type="${type}" value="${esc(value)}" ${extra}></div>`;
+  return `<div class="field ${wide ? "wide" : ""}"><label for="f-${name}">${label}</label><input id="f-${name}" name="${name}" type="${type}" value="${esc(value)}" ${type === "number" && extra.includes('step="0.01"') ? 'data-money="true"' : ""} ${extra}></div>`;
 }
 function selectField(name, label, options, value = "", required = false) {
   return `<div class="field"><label for="f-${name}">${label}</label><select id="f-${name}" name="${name}" ${required ? "required" : ""}>${options.map(([v, t]) => `<option value="${esc(v)}" ${String(v) === String(value) ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></div>`;
@@ -3537,4 +3537,19 @@ document.addEventListener("keydown", (event) => {
   if (event.target.id === "delivery-bilty-number" && event.key === "Enter") {
     event.preventDefault(); clearTimeout(deliveryLookupTimer); fetchDeliveryBilty();
   }
+});
+
+// Treat default monetary zeros as placeholders while editing.
+function normalizeMoneyInput(input, focused = false) {
+  const original = input.value;
+  if (focused && /^0+(?:\.0+)?$/.test(original)) input.value = "";
+  else if (!focused && original === "" && !input.validity.badInput) input.value = "0";
+  else input.value = original.replace(/^0+(?=\d)/, "");
+  if (input.value !== original) input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+document.addEventListener("focusin", (event) => {
+  if (event.target.matches('input[data-money="true"]')) normalizeMoneyInput(event.target, true);
+});
+document.addEventListener("focusout", (event) => {
+  if (event.target.matches('input[data-money="true"]')) normalizeMoneyInput(event.target);
 });

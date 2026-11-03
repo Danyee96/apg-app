@@ -32,8 +32,17 @@ def check(base,database,password):
   p=payload(s);p['truck']='CORRECTED';p['items'][0]['detail']='Corrected goods';p['items'][0]['bilty_amount']='150'
   db.execute("UPDATE users SET role='manager' WHERE username='integration-review'");db.commit()
   call('save_shipment',p,status=403)
-  db.execute("UPDATE users SET role='super_admin' WHERE username='integration-review'");db.commit()
+  # Edit permission is separate from create and from the other goods kind.
+  other='booking' if kind=='incoming' else 'incoming'
+  db.execute("UPDATE users SET permissions=? WHERE username='integration-review'",(json.dumps([other+'.edit',other+'.view',kind+'.view']),));db.commit()
+  call('save_shipment',p,status=403)
+  db.execute("UPDATE users SET permissions=? WHERE username='integration-review'",(json.dumps([kind+'.edit',kind+'.view']),));db.commit()
+  lookup=call('lookups');assert any(a['id']==account for a in lookup['accounts'])
+  call('save_shipment',new,status=403)
   result=call('save_shipment',p,status=201);assert result['reference']==s['reference']
+  db.execute("UPDATE users SET permissions='[]' WHERE username='integration-review'");db.commit()
+  call('save_shipment',p,status=403)
+  db.execute("UPDATE users SET role='super_admin' WHERE username='integration-review'");db.commit()
   call('save_shipment',p,status=409)
   updated=call('shipment',params={'id':s['id']});assert updated['truck']=='CORRECTED' and updated['items'][0]['id']==item and updated['items'][0]['bilty_amount']==15000
   assert updated['items'][0]['status']==s['items'][0]['status']

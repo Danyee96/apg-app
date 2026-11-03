@@ -44,7 +44,7 @@ try {
  if($action==='lookups'&&$method==='GET'){
   $finance=can_access($current,'ledger.view')||can_access($current,'vouchers.view');
   $customers=can_access($current,'customers.view');
-  $goods=can_access($current,'incoming.create')||can_access($current,'booking.create')||can_access($current,'deliveries.create');
+  $goods=can_access($current,'incoming.edit')||can_access($current,'booking.edit')||can_access($current,'incoming.create')||can_access($current,'booking.create')||can_access($current,'deliveries.create');
   $select=$customers||can_access($current,'ledger.view')?'id,name,customer,group_code,status,mobile,phone,address,area':"id,name,customer,group_code,status,'' mobile,'' phone,'' address,'' area";
   $stationAccess=can_access($current,'overview.view')||can_access($current,'incoming.view')||can_access($current,'booking.view')||can_access($current,'deliveries.view')||can_access($current,'settings.view');
   response(['stations'=>$stationAccess?query('SELECT * FROM stations ORDER BY name'):[],'accounts'=>($finance||$customers||$goods)?query('SELECT '.$select.' FROM accounts'.($finance?'':' WHERE customer=1').' ORDER BY name COLLATE NOCASE'):[],'areas'=>$customers?query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area"):[]]);

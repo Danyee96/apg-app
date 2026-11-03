@@ -6,8 +6,10 @@ function permission_catalog(): array {
   'overview.view'=>['Dashboard & overview','View business-wide counts, shipment trends and recent activity.','Workspace'],
   'incoming.view'=>['View incoming goods','Search arrivals and incoming bilties.','Goods'],
   'incoming.create'=>['Record incoming goods','Create arrivals and their bilties.','Goods'],
+  'incoming.edit'=>['Edit incoming goods','Correct saved arrivals, bilties and charges.','Goods'],
   'booking.view'=>['View bookings','Search outgoing bookings and bilties.','Goods'],
   'booking.create'=>['Create bookings','Record outgoing shipments.','Goods'],
+  'booking.edit'=>['Edit bookings','Correct saved bookings, bilties and charges.','Goods'],
   'deliveries.view'=>['View deliveries','Read handover details and collected amounts.','Goods'],
   'deliveries.create'=>['Record deliveries','Hand over pending incoming goods.','Goods'],
   'customers.view'=>['View customers','Read customer names, contacts and addresses.','Customers'],
@@ -24,7 +26,7 @@ function permission_catalog(): array {
  ];
 }
 function permission_dependencies(): array {
- return ['incoming.create'=>['incoming.view'],'booking.create'=>['booking.view'],'deliveries.create'=>['deliveries.view','incoming.view'],'customers.manage'=>['customers.view'],'vouchers.create'=>['vouchers.view','ledger.view'],'accounts.create'=>['ledger.view'],'reports.view'=>['ledger.view'],'stations.manage'=>['settings.view'],'backups.create'=>['settings.view']];
+ return ['incoming.edit'=>['incoming.view'],'booking.edit'=>['booking.view'],'incoming.create'=>['incoming.view'],'booking.create'=>['booking.view'],'deliveries.create'=>['deliveries.view','incoming.view'],'customers.manage'=>['customers.view'],'vouchers.create'=>['vouchers.view','ledger.view'],'accounts.create'=>['ledger.view'],'reports.view'=>['ledger.view'],'stations.manage'=>['settings.view'],'backups.create'=>['settings.view']];
 }
 function role_presets(): array {
  $goods=['incoming.view','incoming.create','booking.view','booking.create','deliveries.view','deliveries.create','customers.view'];
@@ -144,8 +146,7 @@ function authorize_action(string $action,string $method,array $p,array $user): v
  if($action==='lookups')return;
  if($action==='stations'){foreach(['overview.view','incoming.view','booking.view','deliveries.view','settings.view'] as $key){if(can_access($user,$key))return;}require_permission($user,'settings.view');return;}
  if(in_array($action,['shipments','save_shipment'],true)){
-  if($action==='save_shipment'&&!empty($p['id'])&&$user['role']!=='super_admin')fail('Only the super admin can edit saved shipments.',403);
-  $kind=$method==='POST'?($p['kind']??''):($_GET['kind']??'incoming');if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');require_permission($user,$kind.'.'.($action==='save_shipment'?'create':'view'));return;
+  $kind=$method==='POST'?($p['kind']??''):($_GET['kind']??'incoming');if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');if($action==='save_shipment'&&!empty($p['id'])){$record=one('SELECT kind FROM shipments WHERE id=?',[(int)$p['id']]);if(!$record)fail('Shipment not found.',404);require_permission($user,$record['kind'].'.edit');if($record['kind']!==$kind)fail('Shipment type cannot be changed.');return;}require_permission($user,$kind.'.'.($action==='save_shipment'?'create':'view'));return;
  }
  if($action==='shipment'){$record=one('SELECT kind FROM shipments WHERE id=?',[(int)($_GET['id']??0)]);if(!$record)fail('Shipment not found.',404);require_permission($user,$record['kind'].'.view');return;}
  if($action==='bilties'){

@@ -1283,7 +1283,7 @@ async function showShipment(id) {
     ]) +
       shipmentBreakdown(s.items, s.kind, s) +
       `<hr class="divider"><h2 style="margin-bottom:18px">Bilties (${s.items.length})</h2>` + shipmentDetailTable(s.items, s.kind),
-    (isSuper() ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
+    (can(s.kind + ".edit") ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
     btn("Print sheet", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
@@ -1377,8 +1377,8 @@ function newShipment(kind) {
   shipmentForm();
 }
 async function editShipment(id) {
-  if (!isSuper()) throw Error("Only the super admin can edit saved entries.");
   const s = await api("shipment", null, { id });
+  if (!can(s.kind + ".edit")) throw Error("You do not have permission to edit this entry.");
   const header = { ...s };
   delete header.items;
   for (const key of ["truck_amount", "commission"]) header[key] = (Number(s[key] || 0) / 100).toFixed(2);

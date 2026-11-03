@@ -2,7 +2,7 @@
 declare(strict_types=1);
 date_default_timezone_set('Asia/Karachi');
 $storage=getenv('APG_STORAGE') ?: __DIR__.'/storage';
-function db(): PDO {global $storage;static $db;if(!$db){if(!is_file($storage.'/app.sqlite'))throw new RuntimeException('The workspace database is unavailable. Ask your administrator to finish uploading the database, then try again.',503);$db=new PDO('sqlite:'.$storage.'/app.sqlite');$db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);$db->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');}return $db;}
+function db(): PDO {global $storage,$apgConnection;$db=$apgConnection??null;if(!$db){if(!is_file($storage.'/app.sqlite'))throw new RuntimeException('The workspace database is unavailable. Ask your administrator to finish uploading the database, then try again.',503);$db=new PDO('sqlite:'.$storage.'/app.sqlite');$db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);$db->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');$apgConnection=$db;}return $db;}
 function query(string $sql,array $args=[]): array {$s=db()->prepare($sql);$s->execute($args);return $s->fetchAll();}
 function one(string $sql,array $args=[]): ?array {return query($sql,$args)[0]??null;}
 function run(string $sql,array $args=[]): void {$s=db()->prepare($sql);$s->execute($args);}
@@ -55,3 +55,5 @@ function migrate_incoming_bonuses(): void {
   run("INSERT OR IGNORE INTO meta(key,value) VALUES('incoming_bonuses_version','1')");
  });
 }
+
+function close_db(): void {global $apgConnection;$apgConnection=null;}

@@ -1,0 +1,23 @@
+name: APG midnight Pakistan backup
+on:
+  schedule:
+    - cron: '0 19 * * *' # 19:00 UTC = 00:00 Asia/Karachi
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: apg-daily-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Create verified backup on the hosting server
+        env:
+          APG_BACKUP_TOKEN: ${{ secrets.APG_BACKUP_TOKEN }}
+        run: |
+          test -n "$APG_BACKUP_TOKEN"
+          curl --fail-with-body --silent --show-error --connect-timeout 30 --max-time 600 \
+            --retry 2 --retry-delay 20 --retry-all-errors \
+            --request POST --header "X-APG-Backup-Token: $APG_BACKUP_TOKEN" \
+            'https://azadpakistangoods.com/api.php?action=scheduled_backup'

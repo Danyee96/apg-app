@@ -143,6 +143,7 @@ function access_routes(string $action,string $method,array $p,array $user): void
  }
 }
 function authorize_action(string $action,string $method,array $p,array $user): void {
+ if($action==='backup_restore'){if($user['role']!=='super_admin')fail('Only the super admin can restore backups.',403);return;}
  if($action==='pending_incoming'){if($user['role']==='super_admin'||($user['role']==='operations'&&can_access($user,'incoming.view')))return;fail('Pending incoming goods is unavailable to this account.',403);}
  if($action==='incoming_submission'){if($user['role']==='super_admin')return;fail('Only the super admin can review submitted entries.',403);}
  if($user['role']==='operations'){
@@ -151,7 +152,7 @@ function authorize_action(string $action,string $method,array $p,array $user): v
   if($action==='save_shipment'&&!empty($p['pending_id']))fail('Only the super admin can approve incoming goods.',403);
  }
 
- $map=['dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','settings'=>'settings.view','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
+ $map=['dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','backup_list'=>'backups.create','settings'=>'settings.view','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
  if(isset($map[$action])){require_permission($user,$map[$action]);return;}
  if($action==='lookups')return;
  if($action==='stations'){foreach(['overview.view','incoming.view','booking.view','deliveries.view','settings.view'] as $key){if(can_access($user,$key))return;}require_permission($user,'settings.view');return;}

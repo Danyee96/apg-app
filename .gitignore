@@ -19,3 +19,8 @@ __pycache__/
 
 # Optional browser-test dependencies
 node_modules/
+
+storage/backups/
+storage/workspace.lock
+storage/backup-schedule*
+storage/restore-*

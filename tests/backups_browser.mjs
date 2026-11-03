@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {})});
+try {
+const page=await browser.newPage({viewport:{width:390,height:844}});
+await page.goto(process.env.APG_TEST_URL);
+await page.locator('#f-username').fill('integration-review');
+await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
+await page.locator('#auth-form [type="submit"]').click();
+await page.locator('[data-view="dashboard"]').first().waitFor();
+await page.locator('#main [data-view="backups"]').click();
+await page.getByRole('heading',{name:'Backup / Restore',exact:true}).waitFor();
+assert.ok((await page.locator('#main').innerText()).includes('12:00 AM Pakistan time'));
+assert.ok((await page.locator('#main').innerText()).includes('automatic-'));
+await page.locator('[data-action="backup-kind"][data-value="manual"]').click();
+await page.getByRole('button',{name:'Create manual backup',exact:true}).click();
+await page.locator('#main tbody tr').first().waitFor();
+assert.ok((await page.locator('#main').innerText()).includes('manual-'));
+await page.locator('[data-action="backup-mode"][data-value="restore"]').click();
+await page.locator('[data-action="backup-kind"][data-value="automatic"]').click();
+await page.locator('[data-action="backup-restore"]').first().waitFor();
+await page.locator('[data-action="backup-kind"][data-value="manual"]').click();
+await page.locator('[data-action="backup-restore"]').first().click();
+assert.ok((await page.locator('#modal').innerText()).includes('safety backup'));
+await page.locator('#backup-restore-form [name="password"]').fill(process.env.APG_TEST_PASSWORD);
+await page.locator('#backup-restore-form [name="confirmation"]').fill('RESTORE');
+await page.locator('#backup-restore-form [type="submit"]').click();
+await page.locator('#auth-form').waitFor({timeout:180000});
+console.log('Mobile Backup/Restore navigation, automatic/manual lists, manual creation, explicit confirmation and restore sign-out passed.');
+}finally{await browser.close();}

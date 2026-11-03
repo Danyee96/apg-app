@@ -2,11 +2,15 @@
 declare(strict_types=1);
 require __DIR__.'/../bootstrap.php';
 require __DIR__.'/../access.php';
+require __DIR__.'/../backups.php';
 header('X-Content-Type-Options: nosniff');
 ini_set('session.use_strict_mode','1');session_name('APGSESSION');session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off','path'=>'/']);session_start();
 $_SESSION['csrf']??=bin2hex(random_bytes(24));
 try {
  $action=$_GET['action']??'session';$method=$_SERVER['REQUEST_METHOD'];
+ $workspaceLock=workspace_lock($action==='backup_restore');
+ if($action==='scheduled_backup'){if($method!=='POST')fail('Method not allowed.',405);$config=backup_config();$token=$_SERVER['HTTP_X_APG_BACKUP_TOKEN']??'';if(empty($config['token'])||!hash_equals($config['token'],$token))fail('Not authorized.',403);response(run_scheduled_backup());}
+
  if($method==='POST'){
   if(!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail('Your session changed. Refresh and try again.',403);
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
@@ -203,7 +207,13 @@ try {
  }
  if($action==='stations'&&$method==='GET')response(query('SELECT * FROM stations ORDER BY name'));
  if($action==='save_station'&&$method==='POST'){$name=text($p,'name',100,true);$id=(int)($p['id']??0);transaction(function()use($p,$name,$id){if($id){if(!one('SELECT id FROM stations WHERE id=?',[$id]))throw new InvalidArgumentException('Station not found.');run('UPDATE stations SET name=?,address=? WHERE id=?',[$name,text($p,'address',300),$id]);}else{run('INSERT INTO stations(name,address) VALUES(?,?)',[$name,text($p,'address',300)]);$id=(int)db()->lastInsertId();}audit('saved','station',$id);});response(['ok'=>true]);}
- if($action==='backup'&&$method==='POST'){global $storage;$file=$storage.'/backup-'.date('Ymd-His').'-'.bin2hex(random_bytes(3)).'.sqlite';$escaped=str_replace("'","''",$file);db()->exec("VACUUM INTO '".$escaped."'");audit('created','backup',basename($file));response(['filename'=>basename($file),'message'=>'Backup saved in the private storage folder.']);}
+ if($action==='backup_list'&&$method==='GET')response(backup_dashboard());
+ if($action==='backup'&&$method==='POST'){set_time_limit(0);$result=create_workspace_backup();response([...$result,'filename'=>$result['backup']['id'].'.sqlite','message'=>'Verified backup saved.']);}
+ if($action==='backup_restore'&&$method==='POST'){
+  if(text($p,'confirmation',20)!=='RESTORE')fail('Type RESTORE to confirm.');
+  if(!password_verify(text($p,'password',128,true),$current['password']))fail('Current password is incorrect.');
+  $result=restore_workspace_backup(text($p,'backup_id',100,true),$current);$_SESSION=[];session_destroy();response($result);
+ }
  if($action==='settings'&&$method==='GET')response(['user'=>$_SESSION['username'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','meta'=>query('SELECT * FROM meta'),'audit'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 20')]);
  fail('This action was not found.',404);
 }catch(JsonException){fail('Invalid JSON request.',400);}catch(InvalidArgumentException $e){fail($e->getMessage());}catch(RuntimeException $e){if(in_array($e->getCode(),[409,503],true))fail($e->getMessage(),$e->getCode());error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}catch(Throwable $e){error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}

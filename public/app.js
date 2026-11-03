@@ -181,6 +181,7 @@ function canView(view) {
     "financial-reports": "ledger.view",
     "financial-detail": "reports.view",
     settings: "settings.view",
+    backups: "backups.create",
     archive: "archive.view",
   };
   if (view === "pending-incoming") return isSuper() || (isOperations() && can("incoming.view"));
@@ -301,6 +302,7 @@ function navigationHub() {
     "financial-reports":
       "Explore account activity, balances and accounting reports.",
     settings: "Manage stations, backups and workspace activity.",
+    backups: "Automatic midnight backups, manual snapshots and restore history.",
     users: "Create staff accounts and set individual permissions.",
     profile: "Update your photo, personal details and password.",
     archive: "Browse the preserved original backup tables.",
@@ -330,7 +332,7 @@ function navigationHub() {
       "workspace",
       "Your workspace",
       "People, preferences and original records.",
-      ["users", "settings", "profile", "archive"],
+      ["users", "settings", "backups", "profile", "archive"],
     ],
   ]
     .map(([id, title, hint, views]) => ({
@@ -430,6 +432,7 @@ const navs = [
   ["reports", "report", "Reports"],
   ["financial-reports", "wallet", "Financial Reports"],
   ["settings", "settings", "Workspace settings"],
+  ["backups", "download", "Backup / Restore"],
   ["users", "shield", "Users & permissions"],
   ["profile", "users", "My profile"],
   ["archive", "report", "Imported backup"],
@@ -564,6 +567,9 @@ async function render() {
         break;
       case "customers":
         html = await customers();
+        break;
+      case "backups":
+        html = await backupsPage();
         break;
       case "pending-incoming":
         html = await pendingIncoming();
@@ -1132,7 +1138,7 @@ async function settings() {
   let d = await api("settings");
   return (
     head("Workspace settings", "Your stations, backups and recent changes.") +
-    `<div class="form-layout"><section class="panel"><div class="panel-head"><h2>Stations</h2>${btn("Add station", "new-station", false, "plus")}</div><div class="table-scroll"><table><thead><tr><th>Station</th><th>Address</th><th></th></tr></thead><tbody>${lookups.stations.map((s) => `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.address || "—")}</td><td><button class="icon-btn" data-action="station" data-id="${s.id}" aria-label="Edit station">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Recent activity</h2></div><div class="panel-body">${d.audit.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)} ${esc(a.entity_id)}<small>${fmttime(a.created_at)}</small></div>`).join("") || '<p class="note">No changes recorded yet.</p>'}</div></section><div><section class="panel"><div class="panel-head"><h2>Backup your workspace</h2></div><div class="panel-body"><p class="note">Save a separate copy of your current customer details, new entries and vouchers to the private storage folder.</p>${btn("Create backup", "backup", true, "download")}<div style="margin-top:14px">${btn("Browse imported backup", "imported-data", false, "report")}</div><p class="note" style="margin-top:18px">Original data snapshot<br><strong>${fmtdate(session.backup_date)}</strong></p></div></section><div class="note-box warning" style="margin-top:20px">Financial balances still require reconciliation before live accounting use. Access to each workspace is managed by your super admin.</div></div></div>`
+    `<div class="form-layout"><section class="panel"><div class="panel-head"><h2>Stations</h2>${btn("Add station", "new-station", false, "plus")}</div><div class="table-scroll"><table><thead><tr><th>Station</th><th>Address</th><th></th></tr></thead><tbody>${lookups.stations.map((s) => `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.address || "—")}</td><td><button class="icon-btn" data-action="station" data-id="${s.id}" aria-label="Edit station">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Recent activity</h2></div><div class="panel-body">${d.audit.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)} ${esc(a.entity_id)}<small>${fmttime(a.created_at)}</small></div>`).join("") || '<p class="note">No changes recorded yet.</p>'}</div></section><div><section class="panel"><div class="panel-head"><h2>Backup your workspace</h2></div><div class="panel-body"><p class="note">Save a separate copy of your current customer details, new entries and vouchers to the private storage folder.</p>${btn("Create backup", "backup", true, "download")} <button class="btn" data-view="backups">Backup / Restore</button><div style="margin-top:14px">${btn("Browse imported backup", "imported-data", false, "report")}</div><p class="note" style="margin-top:18px">Original data snapshot<br><strong>${fmtdate(session.backup_date)}</strong></p></div></section><div class="note-box warning" style="margin-top:20px">Financial balances still require reconciliation before live accounting use. Access to each workspace is managed by your super admin.</div></div></div>`
   );
 }
 async function importedData() {
@@ -1243,6 +1249,25 @@ async function customerForm(id) {
     $('#customer-form [type="submit"]').hidden = true;
     modalSnapshot = modalValues();
   }
+}
+let backupMode = "backup", backupKind = "automatic", backupData;
+async function backupsPage() {
+  if(!isSuper()) backupMode="backup";
+  backupData = await api("backup_list");
+  const schedule = backupData.schedule, rows = backupData.rows.filter(row=>row.kind === backupKind);
+  const tabs = (values, active, action) => `<div class="buttons backup-tabs">${values.map(([value,label])=>`<button class="btn ${active===value ? "primary" : ""}" data-action="${action}" data-value="${value}" aria-pressed="${active===value}">${label}</button>`).join("")}</div>`;
+  return head("Backup / Restore", "Private database snapshots, verified before they are offered for restore.") +
+    tabs([["backup","Backup"],...(isSuper()?[["restore","Restore"]]:[])],backupMode,"backup-mode") +
+    `<div class="note-box" style="margin:18px 0"><strong>Automatic schedule: every day at 12:00 AM Pakistan time</strong><br>${schedule.enabled ? "Scheduler enabled" : "Scheduler setup pending"} · ${esc(schedule.driver)} · Asia/Karachi<br>Last successful check: ${schedule.last_success ? esc(new Date(schedule.last_success).toLocaleString("en-PK",{timeZone:"Asia/Karachi"})) : "Not yet run"}<br>Newest 30 automatic backups are retained. Manual and pre-restore backups are retained separately. GitHub jobs may start after midnight when busy and can pause after 60 days without repository activity. Check the last successful run.${schedule.last_error ? `<p class="error">${esc(schedule.last_error)}</p>` : ""}</div>` +
+    tabs([["automatic","Automatic backups"],["manual","Manual backups"]],backupKind,"backup-kind") +
+    (backupMode==="backup"&&backupKind==="manual" ? `<div style="margin:18px 0">${btn("Create manual backup","backup",true,"download")}</div>` : "") +
+    (backupMode==="restore" ? '<div class="note-box warning" style="margin:18px 0">Restoring replaces the current database with the selected snapshot. A safety backup is created first. All users must sign in again; your current super admin password is retained.</div>' : "") +
+    `<section class="panel" style="margin-top:18px"><div class="table-scroll"><table><thead><tr><th>Created · Pakistan time</th><th>Backup</th><th>Size</th><th>Check</th><th></th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.created_local)}</td><td>${esc(row.id)}<small>${esc(row.reason || row.actor)}</small></td><td>${num((row.size/1048576).toFixed(1))} MB</td><td>${tag("Verified","green")}</td><td>${backupMode==="restore"&&isSuper() ? `<button class="btn" data-action="backup-restore" data-id="${esc(row.id)}">Restore</button>` : ""}</td></tr>`).join("")}</tbody></table></div>${!rows.length?empty("No "+backupKind+" backups yet."):""}</section>`;
+}
+function restoreBackupForm(id) {
+  if(!isSuper()) throw Error("Only the super admin can restore backups.");
+  const backup=backupData.rows.find(row=>row.id===id);if(!backup)throw Error("Backup unavailable. Refresh the list.");
+  modal("Restore backup",backup.created_local,`<form id="backup-restore-form"><input type="hidden" name="backup_id" value="${esc(id)}"><div class="note-box warning">Current database records will be replaced with this snapshot. A manual safety backup will be created first. All users will be signed out. Your current super admin password stays valid.</div><div class="form-grid" style="margin-top:18px">${field("password","Current super admin password","","password",'required autocomplete="current-password"',true)}${field("confirmation","Type RESTORE to confirm","","text",'required pattern="RESTORE" autocomplete="off"',true)}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel","close-modal")}<button class="btn primary" type="submit">Restore selected backup</button></div></form>`);
 }
 async function pendingIncoming() {
   const data = await api("pending_incoming", null, { page: state.page });
@@ -2910,11 +2935,18 @@ async function action(name, el) {
     case "station":
       stationForm(el.dataset.id);
       break;
+    case "backup-mode":
+      backupMode = el.dataset.value; await render(); break;
+    case "backup-kind":
+      backupKind = el.dataset.value; await render(); break;
+    case "backup-restore":
+      restoreBackupForm(el.dataset.id); break;
     case "backup": {
       el.disabled = true;
       try {
         let r = await api("backup", {});
-        toast(r.message + " " + r.filename);
+        toast(r.message);
+        if(state.view === "backups") await render();
       } finally {
         el.disabled = false;
       }
@@ -3069,6 +3101,10 @@ async function submitForm(form, submitter) {
       break;
     }
 
+    case "backup-restore-form": {
+      const result = await api("backup_restore",data);
+      closeModal();currentForm=null;selected.clear();session=await api("session");auth();toast(result.message);break;
+    }
     case "auth-form":
       await api(session.setup ? "setup" : "login", data);
       session = await api("session");

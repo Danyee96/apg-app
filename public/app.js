@@ -2186,6 +2186,66 @@ function visiblePrintContext(source) {
     content = slipPageScope(listData) + content;
   return { kind: "generic", data: { title, content } };
 }
+function printFormat() {
+  try { return localStorage.getItem("apg.print.format") === "a4" ? "a4" : "thermal"; } catch { return "thermal"; }
+}
+function buildA4Document(snapshot) {
+  const source = document.createElement("div");
+  source.innerHTML = snapshot.html;
+  const slip = source.querySelector(".thermal-slip");
+  if (!slip) return snapshot.html;
+  let output = "", entries = [];
+  function flushEntries() {
+    if (!entries.length) return;
+    const rows = entries.map(entry => {
+      const values = new Map();
+      entry.querySelectorAll(".slip-row,.slip-money-row").forEach(row => {
+        values.set(row.querySelector(".slip-label")?.textContent || "Detail", row.querySelector("strong")?.textContent || "—");
+      });
+      const notes = [...entry.querySelectorAll(".slip-note")].map(n => n.textContent).join(" · ");
+      if (notes) values.set("Notes", notes);
+      return {title: entry.querySelector("h3")?.textContent || "Entry", values};
+    });
+    const keys = [...new Set(rows.flatMap(row => [...row.values.keys()]))];
+    if (!keys.length) keys.push("Detail");
+    // Keep every field readable on portrait A4; continue wide records in linked tables.
+    for (let start = 0; start < keys.length; start += 6) {
+      const columns = keys.slice(start, start + 6);
+      output += `<table class="a4-table"><thead><tr><th>Entry${start ? " (continued)" : ""}</th>${columns.map(key=>`<th>${esc(key)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>`<tr><th scope="row">${esc(row.title)}</th>${columns.map(key=>`<td dir="auto">${esc(row.values.get(key) || "—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    }
+    entries = [];
+  }
+  for (const child of [...slip.children].flatMap(child=>child.classList.contains("slip-body") ? [...child.children] : [child])) {
+    if (child.classList.contains("slip-entry")) entries.push(child);
+    else { flushEntries(); output += child.outerHTML; }
+  }
+  flushEntries();
+  return `<article class="a4-document">${output}</article>`;
+}
+function refreshPrintLayout() {
+  if (!thermalSnapshot) return;
+  const format = $("#print-preview").open ? $("#print-format")?.value || printFormat() : printFormat();
+  const html = format === "a4" ? buildA4Document(thermalSnapshot) : thermalSnapshot.html;
+  const sheet = $("#thermal-preview-sheet");
+  const root = $("#thermal-print");
+  if (sheet) { sheet.dataset.format = format; sheet.innerHTML = html;
+    sheet.style.zoom = format === "a4" ? String(Math.min(1, Math.max(0.25, (sheet.parentElement.clientWidth - 32) / (210 * 96 / 25.4)))) : "1";
+  }
+  root.dataset.format = format;
+  root.innerHTML = html;
+  if ($("#print-preview").open) {
+    $("#thermal-preview-title").textContent = format === "a4" ? "A4 print preview" : "Thermal print preview";
+    $("#print-preview .modal-head p").textContent = thermalSnapshot.title + (format === "a4" ? " · Standard A4 document" : " · Narrow slip layout");
+    $("#thermal-width").closest(".thermal-toolbar").hidden = format === "a4";
+    $("#print-preview .thermal-print-help").textContent = format === "a4" ? "Select your normal printer and A4 portrait paper in the browser print dialog. Use 100% scale and turn off browser headers and footers. Long documents continue onto additional pages." : "Select your thermal printer and matching roll width in the browser print dialog. Use 100% scale, no margins, and turn off browser headers and footers.";
+    $("[data-action='thermal-confirm']").innerHTML = icon("print") + (format === "a4" ? "Print A4" : "Print slip");
+  }
+  if (format === "a4") {
+    $("#thermal-page-style").textContent = "@page { size: A4 portrait; margin: 10mm; }";
+    return true;
+  }
+  return false;
+}
 function fitThermalAmounts(root) {
   if (!root) return;
   $$(".slip-amount", root).forEach((el) => {
@@ -2207,6 +2267,7 @@ function fitThermalAmounts(root) {
 function updateThermalPage() {
   const root = $("#thermal-print");
   if (!root || !thermalSnapshot) return;
+  if (refreshPrintLayout()) return;
   const width = $("#print-preview").open
     ? $("#thermal-width")?.value || thermalWidth()
     : thermalWidth();
@@ -2238,8 +2299,9 @@ function openThermalPreview(source) {
   const context = visiblePrintContext(source);
   thermalSnapshot = buildThermalRecord(context);
   const dialog = $("#print-preview");
-  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">READY FOR THE ROLL</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Slip values<select id="thermal-values"><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
+  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">PRINT OPTIONS</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="print-format">Printer / paper type<select id="print-format"><option value="thermal">Thermal printer · Narrow slip</option><option value="a4">Normal printer · A4</option></select></label></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Report values<select id="thermal-values"><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
   $("#thermal-width").value = thermalWidth();
+  $("#print-format").value = printFormat();
   if (!dialog.open) dialog.showModal();
   updateThermalPage();
 }
@@ -2255,6 +2317,10 @@ $("#print-preview").addEventListener("cancel", (e) => {
   closeThermalPreview();
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "print-format") {
+    try {localStorage.setItem("apg.print.format", e.target.value);} catch {}
+    updateThermalPage();
+  }
   if (e.target.id === "thermal-values") {
     thermalSnapshot = buildThermalRecord({
       ...thermalSnapshot.context,
@@ -3553,3 +3619,5 @@ document.addEventListener("focusin", (event) => {
 document.addEventListener("focusout", (event) => {
   if (event.target.matches('input[data-money="true"]')) normalizeMoneyInput(event.target);
 });
+
+window.addEventListener("resize", () => { if ($("#print-preview").open) updateThermalPage(); });

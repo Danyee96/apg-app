@@ -102,7 +102,38 @@ try {
       kind + " " + width + "mm: no overflow, only narrow slip printed",
     );
   }
+  async function validateA4(kind) {
+    await page.locator("#print-format").selectOption("a4");
+    assert.equal(await page.locator("#thermal-width").isVisible(), false);
+    assert.equal(await page.locator("#thermal-preview-title").innerText(), "A4 print preview");
+    const check = await page.evaluate(() => {
+      const original = document.createElement("div"); original.innerHTML = thermalSnapshot.html;
+      const sheet = document.querySelector("#thermal-preview-sheet");
+      if(original.querySelector(".slip-entry") && !sheet.querySelector(".a4-table")) throw Error("A4 entries must use tables");
+      if(sheet.querySelector(".slip-entry")) throw Error("Thermal entry layout leaked into A4");
+      const missing = [...original.querySelectorAll("strong")].map(el=>el.textContent).filter(text=>!sheet.textContent.includes(text));
+      const root = sheet.querySelector(".a4-document");
+      const overflow = [...root.querySelectorAll("*")].filter(el=>el.clientWidth && el.scrollWidth>el.clientWidth+2).map(el=>el.className);
+      return {missing,overflow};
+    });
+    assert.deepEqual(check.missing, [], kind + " A4 values lost");
+    assert.deepEqual(check.overflow, [], kind + " A4 overflow");
+    await page.emulateMedia({media:"print"});
+    assert.equal(await page.locator("#app").isVisible(),false);
+    assert.equal(await page.locator("#thermal-print .a4-document").isVisible(),true);
+    const path = `${output}/apg-${kind}-a4.pdf`;
+    await page.pdf({path,preferCSSPageSize:true});pdfs.push({path,width:"210"});
+    await page.emulateMedia({media:"screen"});
+    await page.locator("#print-format").selectOption("thermal");
+    assert.equal(await page.locator("#thermal-width").isVisible(),true);
+    results.push(kind + " A4: all values retained, no overflow, A4 document printed");
+  }
+  await validateA4("delivery");
+  await page.locator("#print-format").selectOption("a4");
+  await page.screenshot({path:output + "/preview-a4.png",fullPage:true});
+  await page.locator("#print-format").selectOption("thermal");
   await page.locator("#thermal-values").selectOption("cash");
+  await validateA4("delivery-cash");
   await validate("delivery-cash", "58");
   await validate("delivery-cash", "80");
   await page.locator("#thermal-values").selectOption("receipt");
@@ -206,12 +237,17 @@ try {
         context.kind + (context.data.kind || context.data.report || ""),
         width,
       );
+    await validateA4(context.kind + (context.data.kind || context.data.report || ""));
     if (context.kind === "ledger" || context.kind === "financial")
       assert.match(
         await page.locator("#thermal-preview-sheet").innerText(),
         /CURRENT PAGE ONLY/,
       );
   }
+  await page.evaluate((incoming)=>{
+    closeThermalPreview();recordPrintContext={kind:"shipment",data:{...incoming,items:Array.from({length:65},(_,n)=>({...incoming.items[0],bilty:"A4-"+n,detail:"Multi-page goods record "+n}))}};openThermalPreview("dialog");
+  },incoming);
+  await validateA4("bulk-incoming");
   // Stress narrow slips with huge totals, unbroken identifiers, Urdu, and markup-like text.
   const stress = {
     kind: "bilty",
@@ -239,6 +275,7 @@ try {
     openThermalPreview("dialog");
   }, stress);
   await validate("stress", "58");
+  await validateA4("stress");
   assert.equal(
     await page
       .locator("#thermal-preview-sheet script,#thermal-preview-sheet img")
@@ -253,6 +290,15 @@ try {
     ),
   );
   results.push("mobile preview fits viewport");
+  await page.locator("#print-format").selectOption("a4");
+  assert.ok(await page.locator("#thermal-preview-sheet").evaluate(el=>el.getBoundingClientRect().width <= innerWidth));
+  await page.locator('[data-action="thermal-close"]').first().click();
+  await page.evaluate(()=>openThermalPreview("dialog"));
+  assert.equal(await page.locator("#print-format").inputValue(),"a4");
+  results.push("A4 preview fits mobile; printer type remembered across records");
+  await page.locator('[data-action="thermal-close"]').first().click();
+  const nativeA4 = `${output}/native-a4.pdf`;
+  await page.pdf({path:nativeA4,preferCSSPageSize:true});pdfs.push({path:nativeA4,width:"210"});
   fs.writeFileSync(output + "/pdfs.json", JSON.stringify(pdfs));
   console.log(JSON.stringify({ results, errors }, null, 2));
   assert.deepEqual(errors, []);

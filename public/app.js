@@ -1406,6 +1406,10 @@ function captureShipment() {
   if (form)
     Object.assign(currentForm.header, Object.fromEntries(new FormData(form)));
 }
+function shipmentAmountWarnings() {
+  const warnings = currentForm.items.filter(item => Math.round(Number(item.advance || 0) * 100) > itemTotal(item));
+  return warnings.length ? `<div class="note-box warning" role="status" style="margin-bottom:18px">${warnings.map(item => `Bilty ${esc(item.bilty)}: advance is greater than its bilty total.`).join("<br>")}<br>You can continue and save these amounts.</div>` : "";
+}
 function shipmentForm() {
   let f = currentForm,
     h = f.header,
@@ -1416,7 +1420,7 @@ function shipmentForm() {
       "A few clear steps. One place for all the details.",
       btn("Cancel", "cancel-shipment"),
     ) +
-    `${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${
+    `${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${f.step > 0 ? shipmentAmountWarnings() : ""}${
       f.step === 0
         ? `<div class="form-grid">${field("dated", 'Date <span class="required">*</span>', h.dated, "date", "required")}${selectField("station_id", booking ? "Destination station *" : "Origin station *", stationOptions(), h.station_id, true)}${field("truck", 'Truck number <span class="required">*</span>', h.truck, "text", 'required placeholder="e.g. ABC-123" maxlength="30"')}${field("challan", "Challan number", h.challan)}${field("driver", "Driver name", h.driver)}${field("driver_mobile", "Driver mobile", h.driver_mobile, "tel")}${field("driver_cnic", "Driver CNIC", h.driver_cnic)}${field("truck_amount", "Truck rent / amount (Rs)", h.truck_amount, "number", 'min="0" step="0.01"')}${booking ? field("commission", "Commission amount (Rs)", h.commission, "number", 'min="0" step="0.01"') : ""}${field("remarks", "Remarks", h.remarks, "text", 'maxlength="500"', true)}</div>`
         : f.step === 1

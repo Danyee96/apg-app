@@ -4708,3 +4708,11 @@ dialog.command-dialog {
 }
 
 .a4-document .a4-table tr:last-child td { border-bottom:1px solid #aaa; }
+
+#thermal-preview-sheet[data-format="a4"][data-orientation="landscape"],
+#thermal-preview-sheet[data-format="a4"][data-orientation="landscape"] .a4-document { width:297mm; }
+#thermal-preview-sheet[data-format="a4"][data-orientation="landscape"] .a4-document { min-height:210mm; }
+@media print {
+ body > #thermal-print[data-format="a4"][data-orientation="landscape"] { width:277mm !important; }
+ #thermal-print[data-format="a4"][data-orientation="landscape"] .a4-document { width:277mm; min-height:0; }
+}

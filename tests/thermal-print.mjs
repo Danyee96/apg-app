@@ -124,7 +124,15 @@ try {
     const path = `${output}/apg-${kind}-a4.pdf`;
     await page.pdf({path,preferCSSPageSize:true});pdfs.push({path,width:"210"});
     await page.emulateMedia({media:"screen"});
+    await page.locator("#print-orientation").selectOption("landscape");
+    assert.match(await page.locator("#thermal-page-style").textContent(),/A4 landscape/);
+    await page.emulateMedia({media:"print"});
+    const landscapePath = `${output}/apg-${kind}-a4-landscape.pdf`;
+    await page.pdf({path:landscapePath,preferCSSPageSize:true});pdfs.push({path:landscapePath,width:"297"});
+    await page.emulateMedia({media:"screen"});
+    await page.locator("#print-orientation").selectOption("portrait");
     await page.locator("#print-format").selectOption("thermal");
+    assert.equal(await page.locator("#print-orientation").isVisible(),false);
     assert.equal(await page.locator("#thermal-width").isVisible(),true);
     results.push(kind + " A4: all values retained, no overflow, A4 document printed");
   }
@@ -295,7 +303,13 @@ try {
   await page.locator('[data-action="thermal-close"]').first().click();
   await page.evaluate(()=>openThermalPreview("dialog"));
   assert.equal(await page.locator("#print-format").inputValue(),"a4");
-  results.push("A4 preview fits mobile; printer type remembered across records");
+  await page.locator("#print-orientation").selectOption("landscape");
+  assert.ok(await page.locator("#thermal-preview-sheet").evaluate(el=>el.getBoundingClientRect().width <= innerWidth));
+  await page.locator('[data-action="thermal-close"]').first().click();
+  await page.evaluate(()=>openThermalPreview("dialog"));
+  assert.equal(await page.locator("#print-orientation").inputValue(),"landscape");
+  await page.locator("#print-orientation").selectOption("portrait");
+  results.push("Portrait/landscape preview fits mobile; printer type and orientation remembered");
   await page.locator('[data-action="thermal-close"]').first().click();
   const nativeA4 = `${output}/native-a4.pdf`;
   await page.pdf({path:nativeA4,preferCSSPageSize:true});pdfs.push({path:nativeA4,width:"210"});

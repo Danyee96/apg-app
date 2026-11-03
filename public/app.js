@@ -2189,6 +2189,9 @@ function visiblePrintContext(source) {
 function printFormat() {
   try { return localStorage.getItem("apg.print.format") === "a4" ? "a4" : "thermal"; } catch { return "thermal"; }
 }
+function printOrientation() {
+  try {return localStorage.getItem("apg.print.orientation") === "landscape" ? "landscape" : "portrait";} catch {return "portrait";}
+}
 function buildA4Document(snapshot) {
   const source = document.createElement("div");
   source.innerHTML = snapshot.html;
@@ -2225,23 +2228,27 @@ function buildA4Document(snapshot) {
 function refreshPrintLayout() {
   if (!thermalSnapshot) return;
   const format = $("#print-preview").open ? $("#print-format")?.value || printFormat() : printFormat();
+  const orientation = $("#print-preview").open ? $("#print-orientation")?.value || printOrientation() : printOrientation();
+  const paperWidth = orientation === "landscape" ? 297 : 210;
   const html = format === "a4" ? buildA4Document(thermalSnapshot) : thermalSnapshot.html;
   const sheet = $("#thermal-preview-sheet");
   const root = $("#thermal-print");
-  if (sheet) { sheet.dataset.format = format; sheet.innerHTML = html;
-    sheet.style.zoom = format === "a4" ? String(Math.min(1, Math.max(0.25, (sheet.parentElement.clientWidth - 32) / (210 * 96 / 25.4)))) : "1";
+  if (sheet) { sheet.dataset.format = format; sheet.dataset.orientation = orientation; sheet.innerHTML = html;
+    sheet.style.zoom = format === "a4" ? String(Math.min(1, Math.max(0.25, (sheet.parentElement.clientWidth - 32) / (paperWidth * 96 / 25.4)))) : "1";
   }
   root.dataset.format = format;
+  root.dataset.orientation = orientation;
   root.innerHTML = html;
   if ($("#print-preview").open) {
     $("#thermal-preview-title").textContent = format === "a4" ? "A4 print preview" : "Thermal print preview";
     $("#print-preview .modal-head p").textContent = thermalSnapshot.title + (format === "a4" ? " · Standard A4 document" : " · Narrow slip layout");
     $("#thermal-width").closest(".thermal-toolbar").hidden = format === "a4";
-    $("#print-preview .thermal-print-help").textContent = format === "a4" ? "Select your normal printer and A4 portrait paper in the browser print dialog. Use 100% scale and turn off browser headers and footers. Long documents continue onto additional pages." : "Select your thermal printer and matching roll width in the browser print dialog. Use 100% scale, no margins, and turn off browser headers and footers.";
+    $("#print-orientation").closest(".thermal-toolbar").hidden = format !== "a4";
+    $("#print-preview .thermal-print-help").textContent = format === "a4" ? `Select your normal printer and A4 ${orientation} paper in the browser print dialog. Use 100% scale and turn off browser headers and footers. Long documents continue onto additional pages.` : "Select your thermal printer and matching roll width in the browser print dialog. Use 100% scale, no margins, and turn off browser headers and footers.";
     $("[data-action='thermal-confirm']").innerHTML = icon("print") + (format === "a4" ? "Print A4" : "Print slip");
   }
   if (format === "a4") {
-    $("#thermal-page-style").textContent = "@page { size: A4 portrait; margin: 10mm; }";
+    $("#thermal-page-style").textContent = `@page { size: A4 ${orientation}; margin: 10mm; }`;
     return true;
   }
   return false;
@@ -2299,9 +2306,10 @@ function openThermalPreview(source) {
   const context = visiblePrintContext(source);
   thermalSnapshot = buildThermalRecord(context);
   const dialog = $("#print-preview");
-  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">PRINT OPTIONS</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="print-format">Printer / paper type<select id="print-format"><option value="thermal">Thermal printer · Narrow slip</option><option value="a4">Normal printer · A4</option></select></label></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Report values<select id="thermal-values"><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
+  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">PRINT OPTIONS</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="print-format">Printer / paper type<select id="print-format"><option value="thermal">Thermal printer · Narrow slip</option><option value="a4">Normal printer · A4</option></select></label></div><div class="thermal-toolbar"><label for="print-orientation">Page orientation<select id="print-orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Report values<select id="thermal-values"><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
   $("#thermal-width").value = thermalWidth();
   $("#print-format").value = printFormat();
+  $("#print-orientation").value = printOrientation();
   if (!dialog.open) dialog.showModal();
   updateThermalPage();
 }
@@ -2317,6 +2325,10 @@ $("#print-preview").addEventListener("cancel", (e) => {
   closeThermalPreview();
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "print-orientation") {
+    try {localStorage.setItem("apg.print.orientation",e.target.value);} catch {}
+    updateThermalPage();
+  }
   if (e.target.id === "print-format") {
     try {localStorage.setItem("apg.print.format", e.target.value);} catch {}
     updateThermalPage();

@@ -25,6 +25,7 @@ def check_printing(base, database, password):
         for x,y,w,h in boxes:
             millimetres=(float(w)-float(x))*25.4/72
             assert abs(millimetres-float(item['width']))<.5,(item['path'],millimetres)
+            if item['width']=='297':assert abs((float(h)-float(y))*25.4/72-210)<.5,item['path']
             if item['width']=='210':assert abs((float(h)-float(y))*25.4/72-297)<.5,item['path']
     print(f'Verified physical paper widths in {len(files)} generated PDFs. No physical print jobs were submitted.')
 

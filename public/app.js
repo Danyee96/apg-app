@@ -1589,17 +1589,37 @@ function saveBilty(mode) {
   toast("Bilty " + i.bilty + " added to the shipment list.");
   if (mode === "another") openBilty();
 }
-function recordDelivery() {
-  if (!selected.size) {
-    toast("Select at least one pending bilty.");
-    return;
-  }
+function recordDelivery(values = {}) {
   let rows = [...selected.values()];
   modal(
-    "Record delivery",
+    "Delivery goods & counter cash",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider">${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span></div><div class="note" style="margin-bottom:14px">Bilty total ${cash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
+    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></div><p class="note">${esc(r.station || "—")} · ${fmtdate(r.dated)} · Qty ${num(r.qty)} · ${esc(r.detail || "Goods description not recorded")}</p><div class="note" style="margin-bottom:14px">Bilty charges ${cash(r.bilty_amount)} · Godown ${cash(r.godown)} · Bilty total ${cash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
+  const form = $("#delivery-form");
+  for (const [name, value] of Object.entries(values)) {
+    const input = form.elements.namedItem(name);
+    if (input) input.value = value;
+  }
+  updateDeliveryWarnings();
+}
+let deliveryMatches = new Map(), deliveryLookupSequence = 0, deliveryLookupTimer;
+function deliveryValues() { return Object.fromEntries(new FormData($("#delivery-form"))); }
+async function fetchDeliveryBilty() {
+  const input = $("#delivery-bilty-number");
+  if (!input) return;
+  const number = input.value.trim(), sequence = ++deliveryLookupSequence;
+  const box = $("#delivery-matches");
+  deliveryMatches.clear();
+  if (!number) { box.textContent = ""; return; }
+  box.textContent = "Looking up bilty…";
+  try {
+    const result = await api("bilties", null, { kind: "incoming", status: "pending", bilty_exact: number });
+    if (sequence !== deliveryLookupSequence || !document.contains(box) || input.value.trim() !== number) return;
+    deliveryMatches = new Map(result.rows.map(row => [row.id, row]));
+    box.innerHTML = result.rows.map(row => `<div class="delivery-match"><div><strong>Bilty ${esc(row.bilty)} · ${esc(row.customer || row.party_to || "—")}</strong><small>${esc(row.station || "—")} · ${fmtdate(row.dated)} · ${esc(row.reference)} · Qty ${num(row.qty)} · ${cash(row.total)}</small><small>${esc(row.detail || "")}</small></div><button type="button" class="btn" data-action="delivery-add" data-id="${row.id}" ${selected.has(row.id) ? "disabled" : ""}>${selected.has(row.id) ? "Added" : "Add bilty"}</button></div>`).join("") || "No pending incoming bilty matches this number.";
+    if(result.total > result.rows.length) box.insertAdjacentHTML("beforeend", '<p class="note">Many arrivals share this number. Use the pending goods list to choose an older arrival.</p>');
+  } catch (error) { if (sequence === deliveryLookupSequence && document.contains(box)) box.textContent = error.message; }
 }
 function updateDeliveryWarnings() {
   const form = $("#delivery-form");
@@ -1613,6 +1633,17 @@ function updateDeliveryWarnings() {
     if (amount("service_received") > amount("loading") + amount("suzuki"))
       warnings.push("Bilty " + r.bilty + ": service cash is greater than loading plus Suzuki charges.");
   }
+  const sum = (key) => [...selected.values()].reduce((n, r) => n + Number(r[key] || 0), 0);
+  const entered = (key) => [...selected.values()].reduce((n, r) => n + Math.round(Number(data[key + "_" + r.id] || 0) * 100), 0);
+  $("#delivery-combined").innerHTML = detailCells([
+    ["Bilties", num(selected.size)], ["Quantity", num(sum("qty"))],
+    ["Bilty charges", cash(sum("bilty_amount"))], ["Godown charges", cash(sum("godown"))],
+    ["Bilties total", cash(sum("total"))], ["Advance", cash(sum("advance"))],
+    ["Loading", cash(entered("loading"))], ["Suzuki", cash(entered("suzuki"))],
+    ["Discount", cash(entered("discount"))], ["Bilty cash received", cash(entered("bilty_received"))],
+    ["Service cash received", cash(entered("service_received"))],
+    ["Total cash received", cash(entered("bilty_received") + entered("service_received"))]
+  ]);
   const box = $("#delivery-warning");
   box.hidden = !warnings.length;
   box.textContent = warnings.join(" ") + (warnings.length ? " You can still save these amounts." : "");
@@ -2661,12 +2692,31 @@ async function action(name, el) {
       render();
       break;
     case "delivery-new":
-      state.inquiry = null;
-      state.deliveryMode = true;
-      state.status = "pending";
-      state.station_id = "";
-      navigate("bilties");
+      selected.clear();
+      recordDelivery();
       break;
+    case "delivery-fetch":
+      clearTimeout(deliveryLookupTimer);
+      await fetchDeliveryBilty();
+      break;
+    case "delivery-add": {
+      const row = deliveryMatches.get(Number(el.dataset.id));
+      if (!row || selected.has(row.id)) break;
+      if (selected.size >= 1000) throw Error("Save this batch before adding more bilties.");
+      const values = deliveryValues();
+      selected.set(row.id, row);
+      ++deliveryLookupSequence;
+      recordDelivery(values);
+      $("#delivery-bilty-number").focus();
+      break;
+    }
+    case "delivery-remove": {
+      const values = deliveryValues();
+      selected.delete(Number(el.dataset.id));
+      ++deliveryLookupSequence;
+      recordDelivery(values);
+      break;
+    }
     case "report-pending":
       state.inquiry = null;
       state.deliveryMode = false;
@@ -2811,6 +2861,10 @@ document.addEventListener("input", (e) => {
   }
   if (e.target.closest("#bilty-form")) updateBiltyTotals();
   if (e.target.closest("#delivery-form")) updateDeliveryWarnings();
+  if (e.target.id === "delivery-bilty-number") {
+    clearTimeout(deliveryLookupTimer);
+    deliveryLookupTimer = setTimeout(fetchDeliveryBilty, 450);
+  }
   if (e.target.closest("#shipment-form") && currentForm?.step === 1) {
     captureShipment();
     $("#sum-qty").textContent = num(
@@ -2979,6 +3033,7 @@ async function submitForm(form, submitter) {
       }
       break;
     case "delivery-form": {
+      if (!selected.size) throw Error("Add at least one bilty before saving.");
       let items = [...selected.values()].map((r) => ({
         id: r.id,
         discount: data["discount_" + r.id],
@@ -3439,3 +3494,9 @@ document.addEventListener("keydown", (e) => {
     startupError(e.message);
   }
 })();
+
+document.addEventListener("keydown", (event) => {
+  if (event.target.id === "delivery-bilty-number" && event.key === "Enter") {
+    event.preventDefault(); clearTimeout(deliveryLookupTimer); fetchDeliveryBilty();
+  }
+});

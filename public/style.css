@@ -4670,3 +4670,10 @@ dialog.command-dialog {
 .shipment-breakdown .detail-grid { margin: 20px 0; }
 .shipment-detail-table { min-width: 1050px; }
 @media(max-width:600px) { .shipment-breakdown { padding: 16px; } }
+
+.delivery-lookup { padding: 18px; border: 1px solid #dce5e3; border-radius: 14px; margin-bottom: 18px; }
+.delivery-lookup label { display:block; font-weight:700; margin-bottom:10px; }
+.delivery-lookup input { flex: 1; min-width: 120px; }
+.delivery-match { display:flex; align-items:center; gap:14px; justify-content:space-between; padding:14px 0; border-bottom:1px solid #dce5e3; }
+.delivery-match small { display:block; margin-top:5px; }
+#delivery-combined { margin-bottom:20px; }

@@ -121,3 +121,14 @@ For normal printers, **Page orientation** switches the preview and print layout 
 **Backup / Restore** provides automatic and manual snapshot lists, super-admin restore confirmation and pre-restore safety copies. The daily midnight Pakistan schedule, retention and restore behavior are documented in [BACKUP-RESTORE.md](BACKUP-RESTORE.md).
 
 Saved deliveries provide **Edit delivery** for the super admin and users granted **Edit deliveries**. Receiver/date/contact/remarks, discounts, bilty cash, service cash and service charges can be corrected with a revision snapshot and stale-edit protection. Original bilty membership, delivered statuses and incoming charge records are retained. Service-charge corrections are stored on delivery rows. Legacy receipt base charges remain sourced from the original GD record; corrected header/collections and service overrides appear on both A4 and thermal receipts. Grant this permission explicitly in Users & permissions; existing users are not automatically granted editing rights.
+
+
+### Goods categories and quantity analytics
+
+Incoming bilties support a main category, searchable subcategory, custom type and a separate goods description. The initial main categories are Cotton, Bundle, Roll, Bag, Drumi and Packet, with the 24 supplied subcategories. **Goods categories** is available to the super admin for adding categories/subcategories; catalog writes are checked on the server. Other/custom entries are allowed and counted without silently creating shared catalog entries.
+
+Classification IDs are separate from the original description and money. The migration classifies existing incoming items only when the trimmed description exactly matches one unambiguous catalog subcategory, ignoring letter case. Other historical descriptions remain intact under Uncategorised and can be classified when editing. No fuzzy matching or financial recalculation occurs.
+
+Review and saved incoming details include quantity and bilty counts by category/subcategory. Individual bilty details and printouts include the subcategory. **Goods analytics** shows approved incoming goods by category with status/date filters; pending submissions enter totals only after approval. Custom and uncategorised quantities are retained in reports. Operations can view quantity analytics without godown totals.
+
+Checks: `python3 tests/goods_categories.py` and `python3 tests/goods_categories_browser.py` (browser environment as for print tests).

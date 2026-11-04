@@ -25,7 +25,7 @@ function goods_total(array $item,string $kind): int {
 function goods_item(array $item,string $kind): array {
  $item['stored_total']=$item['total']??null;
  $item['total']=goods_total($item,$kind);
- return $item;
+ return goods_item_labels($item);
 }
 
 function shipment_snapshot(int $id): array {
@@ -70,3 +70,5 @@ function migrate_delivery_edits(): void {
 function delivery_snapshot(int $id): array {
  return ['header'=>one('SELECT * FROM deliveries WHERE id=?',[$id]),'items'=>query('SELECT * FROM delivery_items WHERE delivery_id=? ORDER BY id',[$id]),'goods'=>query('SELECT i.* FROM items i JOIN delivery_items di ON di.item_id=i.id WHERE di.delivery_id=? ORDER BY i.id',[$id])];
 }
+
+require_once __DIR__.'/goods.php';

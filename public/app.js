@@ -184,6 +184,8 @@ function canView(view) {
     backups: "backups.create",
     archive: "archive.view",
   };
+  if (view === "goods-categories") return isSuper();
+  if (view === "goods-analytics") return can("incoming.view");
   if (view === "pending-incoming") return isSuper() || (isOperations() && can("incoming.view"));
   if (view === "users") return isSuper();
   if (view === "reports")
@@ -293,6 +295,8 @@ function navigationHub() {
     overview:
       "Review arrivals, deliveries and station activity for a chosen date.",
     incoming: "Find incoming goods or record a new arrival.",
+    "goods-categories": "Add main goods categories and their subcategories.",
+    "goods-analytics": "Compare goods quantities by category and subcategory.",
     "pending-incoming": "Incoming goods awaiting super admin review and approval.",
     booking: "Manage outgoing shipments and their bilties.",
     deliveries: "Review handovers, receivers and cash collected.",
@@ -317,6 +321,7 @@ function navigationHub() {
         "overview",
         "incoming",
         "pending-incoming",
+        "goods-analytics",
         "booking",
         "deliveries",
         "customers",
@@ -332,7 +337,7 @@ function navigationHub() {
       "workspace",
       "Your workspace",
       "People, preferences and original records.",
-      ["users", "settings", "backups", "profile", "archive"],
+      ["users", "settings", "goods-categories", "backups", "profile", "archive"],
     ],
   ]
     .map(([id, title, hint, views]) => ({
@@ -424,6 +429,8 @@ const navs = [
   ["dashboard", "grid", "Dashboard"],
   ["overview", "grid", "Overview"],
   ["incoming", "incoming", "Incoming goods"],
+  ["goods-analytics", "report", "Goods analytics"],
+  ["goods-categories", "box", "Goods categories"],
   ["pending-incoming", "clock", "Pending incoming goods"],
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Deliveries"],
@@ -567,6 +574,12 @@ async function render() {
         break;
       case "customers":
         html = await customers();
+        break;
+      case "goods-categories":
+        html = goodsCategoriesPage();
+        break;
+      case "goods-analytics":
+        html = await goodsAnalyticsPage();
         break;
       case "backups":
         html = await backupsPage();
@@ -1314,7 +1327,7 @@ function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);
   let fields = kind === "booking" ? [["rent", "Rent"], ["loading", "Loading"], ["bilty_amount", "Bilty charges"], ["local_charge", "Local"]] : [["bilty_amount", "Bilty charges"], ["godown", "Godown"], ["loading", "Loading"], ["suzuki", "Suzuki"]];
   if(isOperations() && kind === "incoming") fields = fields.filter(([key])=>key!=="godown");
-  return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Qty</th><th>Goods type / description</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${num(i.qty)}</td><td>${esc(i.detail || "—")}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${goodsCash(draft ? itemTotal(i) : i.total, kind)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Qty</th><th>Goods type / description</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${num(i.qty)}</td><td><strong>${esc(goodsTypeLabel(i)||i.detail||"—")}</strong>${i.detail && i.detail!==goodsTypeLabel(i)?`<small>${esc(i.detail)}</small>`:""}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${goodsCash(draft ? itemTotal(i) : i.total, kind)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
 }
 async function showShipment(id) {
   let s = await api("shipment", null, { id });
@@ -1332,7 +1345,7 @@ async function showShipment(id) {
       ["Remarks", s.remarks],
     ]) +
       shipmentBreakdown(s.items, s.kind, s) +
-      `<hr class="divider"><h2 style="margin-bottom:18px">Bilties (${s.items.length})</h2>` + shipmentDetailTable(s.items, s.kind),
+      `<hr class="divider"><h2 style="margin-bottom:18px">Bilties (${s.items.length})</h2>` + shipmentDetailTable(s.items, s.kind) + (s.kind === "incoming" ? goodsAnalyticsSection(s.items) : ""),
     (can(s.kind + ".edit") && !(isOperations() && s.kind === "incoming") ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
     (isOperations() && s.kind === "incoming" ? "" : btn("Print sheet", "print-dialog", false, "print")) +
       btn("Close", "close-modal"),
@@ -1355,6 +1368,8 @@ function showBilty(id) {
       ["Station", i.station],
       ["Contact", i.contact],
       ["Quantity", String(i.qty ?? "")],
+      ["Goods category", goodsCategoryLabel(i)],
+      ["Subcategory / custom type", goodsTypeLabel(i)||"—"],
       ["Goods detail", i.detail],
       ["City", i.city],
       ["Status", i.status],
@@ -1401,6 +1416,10 @@ function blankItem() {
     contact: "",
     qty: "1",
     detail: "",
+    goods_category_id: "",
+    goods_subcategory_id: "",
+    goods_custom: "",
+    goods_type: "",
     bilty_amount: "0",
     godown: "0",
     loading: "0",
@@ -1493,14 +1512,14 @@ function shipmentForm() {
               ["Challan", h.challan],
             ]) +
             shipmentBreakdown(f.items, f.kind, h, true) +
-            shipmentDetailTable(f.items, f.kind, true) +
+            shipmentDetailTable(f.items, f.kind, true) + (!booking ? goodsAnalyticsSection(f.items) : "") +
             `<div class="note-box" style="margin-top:20px">${isOperations() && !booking ? "Submitting sends this entry to Pending incoming goods. It will appear in goods and delivery searches only after super admin approval." : "Saving records the shipment and its bilties. It does not automatically post an accounting voucher."}</div>`
     }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>Bilty totals</span><b id="sum-total">${goodsCash(f.items.reduce((s, i) => s + itemTotal(i), 0), f.kind)}</b></div><p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Bilty total = bilty amount + godown charges. Loading and Suzuki charges are tracked separately."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? (f.pendingId ? "Approve & save incoming goods" : isOperations() && !booking ? "Submit for approval" : "Save " + (booking ? "booking" : "incoming goods")) : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function draftBiltyList() {
   let items = currentForm.items;
-  return `<div class="bilty-list-tools"><div><b>${items.length} ${items.length === 1 ? "bilty" : "bilties"}</b><p>Added to this shipment. Save the shipment after reviewing.</p></div>${btn("Add bilty", "add-bilty", true, "plus")}</div>${items.length ? `<div class="table-scroll draft-bilties"><table><thead><tr><th>#</th><th>Bilty / customer</th><th>Party to</th><th class="number">Qty</th><th class="number">Total</th><th class="number">Advance</th><th>Actions</th></tr></thead><tbody>${items.map((i, n) => `<tr><td>${String(n + 1).padStart(2, "0")}</td><td><button type="button" class="link" data-action="edit-bilty" data-index="${n}">${esc(i.bilty)}</button><small>${esc(lookups.accounts.find((a) => a.id === i.account_id)?.name || i.account_id)}</small></td><td><strong>${esc(i.party_to)}</strong><small>${esc(i.detail || "")}</small></td><td class="number">${num(i.qty)}</td><td class="number">${goodsCash(itemTotal(i), currentForm.kind)}</td><td class="number">${cash(Math.round(Number(i.advance || 0) * 100))}</td><td><div class="buttons"><button type="button" class="icon-btn" data-action="edit-bilty" data-index="${n}" aria-label="Edit bilty ${esc(i.bilty)}">${icon("edit")}</button><button type="button" class="icon-btn" data-action="remove-bilty" data-index="${n}" aria-label="Remove bilty ${esc(i.bilty)}">${icon("close")}</button></div></td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Shipment totals</td><td class="number">${num(items.reduce((n, i) => n + Number(i.qty), 0))}</td><td class="number">${goodsCash(items.reduce((n, i) => n + itemTotal(i), 0), currentForm.kind)}</td><td class="number">${cash(items.reduce((n, i) => n + Math.round(Number(i.advance || 0) * 100), 0))}</td><td></td></tr></tfoot></table></div>` : `<div class="bilty-list-empty"><span class="metric-icon">${icon("box")}</span><h3>No bilties added yet</h3><p>Add your first bilty. Each one will appear as a row in this list.</p>${btn("Add your first bilty", "add-bilty", true, "plus")}</div>`}`;
+  return `<div class="bilty-list-tools"><div><b>${items.length} ${items.length === 1 ? "bilty" : "bilties"}</b><p>Added to this shipment. Save the shipment after reviewing.</p></div>${btn("Add bilty", "add-bilty", true, "plus")}</div>${items.length ? `<div class="table-scroll draft-bilties"><table><thead><tr><th>#</th><th>Bilty / customer</th><th>Party to</th><th class="number">Qty</th><th class="number">Total</th><th class="number">Advance</th><th>Actions</th></tr></thead><tbody>${items.map((i, n) => `<tr><td>${String(n + 1).padStart(2, "0")}</td><td><button type="button" class="link" data-action="edit-bilty" data-index="${n}">${esc(i.bilty)}</button><small>${esc(lookups.accounts.find((a) => a.id === i.account_id)?.name || i.account_id)}</small></td><td><strong>${esc(i.party_to)}</strong><small>${esc(goodsTypeLabel(i)||i.detail||"")}</small>${i.detail && i.detail!==goodsTypeLabel(i)?`<small>${esc(i.detail)}</small>`:""}</td><td class="number">${num(i.qty)}</td><td class="number">${goodsCash(itemTotal(i), currentForm.kind)}</td><td class="number">${cash(Math.round(Number(i.advance || 0) * 100))}</td><td><div class="buttons"><button type="button" class="icon-btn" data-action="edit-bilty" data-index="${n}" aria-label="Edit bilty ${esc(i.bilty)}">${icon("edit")}</button><button type="button" class="icon-btn" data-action="remove-bilty" data-index="${n}" aria-label="Remove bilty ${esc(i.bilty)}">${icon("close")}</button></div></td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Shipment totals</td><td class="number">${num(items.reduce((n, i) => n + Number(i.qty), 0))}</td><td class="number">${goodsCash(items.reduce((n, i) => n + itemTotal(i), 0), currentForm.kind)}</td><td class="number">${cash(items.reduce((n, i) => n + Math.round(Number(i.advance || 0) * 100), 0))}</td><td></td></tr></tfoot></table></div>` : `<div class="bilty-list-empty"><span class="metric-icon">${icon("box")}</span><h3>No bilties added yet</h3><p>Add your first bilty. Each one will appear as a row in this list.</p>${btn("Add your first bilty", "add-bilty", true, "plus")}</div>`}`;
 }
 let biltyDraft = null,
   pickerIndex = -1,
@@ -1518,9 +1537,10 @@ function openBilty(index = null) {
   modal(
     index === null ? "Add a bilty" : "Edit bilty " + esc(item.bilty),
     "Choose a customer, enter the goods, then save to your shipment list.",
-    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", "Party to", "text", 'maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
+    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", "Party to", "text", 'maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${!booking ? goodsPicker(item) : ""}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
   );
   $("#modal").classList.add("bilty-dialog");
+  updateGoodsOptions();
   updateBiltyTotals();
 }
 function readBiltyDraft() {
@@ -1531,6 +1551,14 @@ function readBiltyDraft() {
   if (biltyDraft?.index !== null && biltyDraft?.index !== undefined) item.id = currentForm.items[biltyDraft.index].id;
   for (const k of Object.keys(item))
     if (k in data) item[k] = String(data[k]).trim();
+  if(!form.elements.namedItem("goods_type") && biltyDraft?.index !== null && biltyDraft?.index !== undefined){const previous=currentForm.items[biltyDraft.index];for(const key of ["goods_category_id","goods_subcategory_id","goods_custom","goods_type"])item[key]=previous[key]??"";}
+  if(form.elements.namedItem("goods_type")){
+    const matches=item.goods_category_id==='other'?[]:goodsCatalog().subcategories.filter(row=>row.name.toLowerCase()===item.goods_type.toLowerCase()&&(!item.goods_category_id||String(row.category_id)===item.goods_category_id));const match=matches.length===1?matches[0]:null;
+    item.goods_subcategory_id=match?String(match.id):"";
+    if(match)item.goods_category_id=String(match.category_id);
+    item.goods_custom=match?"":item.goods_type;
+    if(!item.detail)item.detail=item.goods_type;
+  }
   return item;
 }
 function updateBiltyTotals() {
@@ -1647,12 +1675,41 @@ function saveBilty(mode) {
   toast("Bilty " + i.bilty + " added to the shipment list.");
   if (mode === "another") openBilty();
 }
+function goodsCatalog() {return lookups.goods_catalog || {categories:[],subcategories:[]};}
+function goodsTypeLabel(item) {return item.goods_subcategory_name || goodsCatalog().subcategories.find(row=>String(row.id)===String(item.goods_subcategory_id))?.name || item.goods_custom || item.goods_type || "";}
+function goodsCategoryLabel(item) {return item.goods_category_name || goodsCatalog().categories.find(row=>String(row.id)===String(item.goods_category_id))?.name || (goodsTypeLabel(item)?"Other / custom":"Uncategorised");}
+function goodsPicker(item) {
+ return `<div class="goods-picker field wide"><div class="form-grid">${selectField("goods_category_id","Goods category",[["","Choose category"],...goodsCatalog().categories.map(row=>[row.id,row.name]),["other","Other / custom"]],item.goods_category_id || (item.goods_custom?"other":""))}${field("goods_type","Subcategory / custom type",goodsTypeLabel(item),"text",'list="goods-type-options" maxlength="100" autocomplete="off" placeholder="Search or type a custom goods type…"')}</div><datalist id="goods-type-options"></datalist><small id="goods-type-hint">Choose a suggestion or type your own. Use Other / custom for a different category.</small></div>`;
+}
+function updateGoodsOptions(clear=false) {
+ const form=$("#bilty-form");if(!form)return;
+ const category=form.elements.namedItem("goods_category_id"), input=form.elements.namedItem("goods_type");if(!category||!input)return;
+ const previousType=input.value;
+ if(clear && category.value!=='other' && !goodsCatalog().subcategories.some(row=>String(row.category_id)===category.value&&row.name.toLowerCase()===input.value.trim().toLowerCase())){input.value="";const description=form.elements.namedItem('detail');if(previousType&&description?.value===previousType)description.value="";}
+ input.dataset.lastType=input.value;
+ const rows=category.value==='other'?[]:goodsCatalog().subcategories.filter(row=>!category.value||String(row.category_id)===category.value);
+ $("#goods-type-options").innerHTML=rows.map(row=>`<option value="${esc(row.name)}"></option>`).join("");
+ $("#goods-type-hint").textContent=category.value==='other'?"Type a custom goods type. It will be counted under Other / custom.":"Search the subcategories or type a custom type for this category.";
+}
+function goodsAnalyticsSection(rows,title="Goods analytics",includeEmpty=false) {
+ const groups=new Map();
+ for(const row of rows){const category=row.category || goodsCategoryLabel(row), subtype=row.subcategory || goodsTypeLabel(row) || "Uncategorised", key=(category+"|"+subtype).toLowerCase();const group=groups.get(key)||{category,subtype,quantity:0,bilties:0};group.quantity+=Number(row.quantity??row.qty??0);group.bilties+=Number(row.bilties??1);groups.set(key,group);}
+ const totals=new Map(includeEmpty?goodsCatalog().categories.map(row=>[row.name,{quantity:0,bilties:0}]):[]);for(const group of groups.values()){const total=totals.get(group.category)||{quantity:0,bilties:0};total.quantity+=group.quantity;total.bilties+=group.bilties;totals.set(group.category,total);}
+ return `<section class="goods-analysis"><div class="section-heading"><div><h2>${esc(title)}</h2><p>Quantity and bilty counts by category</p></div></div><div class="goods-category-metrics">${[...totals].map(([name,total])=>`<div><span>${esc(name)}</span><strong>${num(total.quantity)}</strong><small>Quantity · ${num(total.bilties)} bilties</small></div>`).join("")}</div><div class="table-scroll"><table><thead><tr><th>Main category</th><th>Subcategory / custom type</th><th class="number">Quantity</th><th class="number">Bilties</th></tr></thead><tbody>${[...groups.values()].sort((a,b)=>b.quantity-a.quantity).map(group=>`<tr><td>${esc(group.category)}</td><td>${esc(group.subtype)}</td><td class="number"><strong>${num(group.quantity)}</strong></td><td class="number">${num(group.bilties)}</td></tr>`).join("")}</tbody></table></div>${!groups.size?'<p class="note">Add bilties to see their goods breakdown.</p>':""}<p class="note">Uncategorised entries keep their original descriptions. Exact known descriptions are classified automatically.</p></section>`;
+}
+function goodsCategoriesPage() {
+ const catalog=goodsCatalog();return head("Goods categories","Manage the main categories and searchable subcategories used in incoming goods.")+`<div class="goods-management"><section class="panel"><div class="panel-head"><h2>Add main category</h2></div><form id="goods-category-form" class="panel-body">${field("category_name","Category name","","text",'required maxlength="100"')}<div class="error" data-form-error hidden></div><button type="submit" class="btn primary">Add category</button></form></section><section class="panel"><div class="panel-head"><h2>Add subcategory</h2></div><form id="goods-subcategory-form" class="panel-body">${selectField("category_id","Main category",[["","Choose category"],...catalog.categories.map(row=>[row.id,row.name])],"",true)}${field("subcategory_name","Subcategory name","","text",'required maxlength="100"')}<div class="error" data-form-error hidden></div><button type="submit" class="btn primary">Add subcategory</button></form></section></div><div class="goods-management">${catalog.categories.map(category=>`<section class="panel"><div class="panel-head"><h2>${esc(category.name)}</h2><span>${catalog.subcategories.filter(row=>row.category_id===category.id).length} subcategories</span></div><div class="panel-body goods-name-list">${catalog.subcategories.filter(row=>row.category_id===category.id).map(row=>`<span>${esc(row.name)}</span>`).join("")||'<p class="note">No subcategories yet.</p>'}</div></section>`).join("")}</div>`;
+}
+async function goodsAnalyticsPage() {
+ const data=await api("goods_analytics",null,{from:state.from||"",to:state.to||"",status:state.goodsStatus||"pending"});
+ return head("Goods analytics","Approved incoming goods only. Pending submissions enter these totals after approval.")+`<section class="panel"><div class="panel-body"><div class="form-grid"><div class="field"><label for="goods-analytics-status">Goods status</label><select id="goods-analytics-status"><option value="pending" ${(state.goodsStatus||'pending')==='pending'?'selected':''}>Awaiting delivery</option><option value="all" ${state.goodsStatus==='all'?'selected':''}>All arrivals</option><option value="delivered" ${state.goodsStatus==='delivered'?'selected':''}>Delivered</option></select></div><div class="field"><label for="filter-from">From date</label><input id="filter-from" type="date" value="${esc(state.from||'')}"></div><div class="field"><label for="filter-to">To date</label><input id="filter-to" type="date" value="${esc(state.to||'')}"></div></div>${detailCells([["Total quantity",num(data.totals.quantity)],["Bilties",num(data.totals.bilties)],["Shipments",num(data.totals.shipments)]])}</div></section>`+goodsAnalyticsSection(data.rows,"Goods analytics",true);
+}
 function deliveryFacts(rows) {
   return `<dl class="delivery-facts">${rows.map(([label,value,wide])=>`<div${wide?' class="delivery-fact-wide"':''}><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>`;
 }
 function deliveryBiltyCard(r) {
   return `<section class="bilty-card delivery-card"><header class="delivery-card-head"><div><h3>Bilty ${esc(r.bilty)}</h3><p>${esc(r.customer || r.party_to || "—")}</p></div><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></header>
-    ${deliveryFacts([["Party to",r.party_to||"—",true],["Station",r.station||"—"],["Arrival date",fmtdate(r.dated)],["Quantity",num(r.qty)],["Goods type / description",r.detail||"Not recorded",true]])}
+    ${deliveryFacts([["Party to",r.party_to||"—",true],["Station",r.station||"—"],["Arrival date",fmtdate(r.dated)],["Quantity",num(r.qty)],["Goods type / description",[goodsTypeLabel(r),r.detail!==goodsTypeLabel(r)?r.detail:""].filter(Boolean).join(" · ")||"Not recorded",true]])}
     <div class="delivery-charge-breakdown">${deliveryFacts([["Bilty charges",cash(r.bilty_amount)],...(!isOperations()?[["Godown charges",cash(r.godown)]]:[]),["Advance",cash(r.advance)],["Arrival loading + Suzuki",cash(r.loading+r.suzuki)]])}</div>
     <div class="delivery-total-banner"><span>Bilty total</span><strong>${goodsCash(r.total)}</strong></div>
     <div class="delivery-input-section"><h4>Service charges</h4><div class="form-grid">${field("loading_"+r.id,"Loading charge (Rs)",(r.loading/100).toFixed(2),"number",'required min="0" step="0.01"')}${field("suzuki_"+r.id,"Suzuki charge (Rs)",(r.suzuki/100).toFixed(2),"number",'required min="0" step="0.01"')}</div></div>
@@ -1844,7 +1901,7 @@ function buildThermalRecord(context) {
         slipText("Contact", d.contact) +
         slipText("City", d.city) +
         slipText("Quantity", d.qty) +
-        slipText("Goods", d.detail) +
+        slipText("Goods category", goodsCategoryLabel(d)) + slipText("Subcategory", goodsTypeLabel(d)) + slipText("Goods", d.detail) +
         slipText("Status", d.status),
     );
     const keys =
@@ -1899,7 +1956,7 @@ function buildThermalRecord(context) {
             slipText("From", i.party_from) +
             slipText("To", i.party_to) +
             slipText("Quantity", i.qty) +
-            slipText("Goods", i.detail) +
+            slipText("Goods category", goodsCategoryLabel(i)) + slipText("Subcategory", goodsTypeLabel(i)) + slipText("Goods", i.detail) +
             slipText("Contact", i.contact) +
             slipText("City", i.city) +
             slipText("Status", i.status) +
@@ -3138,6 +3195,10 @@ async function submitForm(form, submitter) {
       break;
     }
 
+    case "goods-category-form":
+      await api("save_goods_category",{name:data.category_name});await refreshLookups();await render();toast("Category added.");break;
+    case "goods-subcategory-form":
+      await api("save_goods_category",{name:data.subcategory_name,category_id:data.category_id});await refreshLookups();await render();toast("Subcategory added.");break;
     case "backup-restore-form": {
       const result = await api("backup_restore",data);
       closeModal();currentForm=null;selected.clear();session=await api("session");auth();toast(result.message);break;
@@ -3708,3 +3769,14 @@ document.addEventListener("focusout", (event) => {
 });
 
 window.addEventListener("resize", () => { if ($("#print-preview").open) updateThermalPage(); });
+
+document.addEventListener("change",event=>{
+ if(event.target.id==='f-goods_category_id'){updateGoodsOptions(true);updateBiltyTotals();}
+ if(event.target.id==='goods-analytics-status'){state.goodsStatus=event.target.value;render();}
+});
+document.addEventListener("input",event=>{
+ if(event.target.id!=='f-goods_type')return;
+ const description=$('#bilty-form [name="detail"]');const previous=event.target.dataset.lastType||'';if(previous&&description?.value===previous)description.value=event.target.value;event.target.dataset.lastType=event.target.value;
+ const category=$('#bilty-form [name="goods_category_id"]');
+ if(!category.value){const matches=goodsCatalog().subcategories.filter(row=>row.name.toLowerCase()===event.target.value.trim().toLowerCase());const match=matches.length===1?matches[0]:null;if(match){category.value=String(match.category_id);updateGoodsOptions();}}
+});

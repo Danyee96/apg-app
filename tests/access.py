@@ -96,7 +96,8 @@ def check_access(base, database, password):
     # Revoking permissions takes effect in existing sessions.
     update(operation_id,permissions=[])
     ops.call('shipments',params={'kind':'incoming'},status=403)
-    lookup=ops.call('lookups');assert lookup=={'stations':[],'accounts':[],'areas':[]}
+    lookup=ops.call('lookups');assert lookup=={'stations':[],'accounts':[],'areas':[],'goods_catalog':{'categories':[],'subcategories':[]}}
+    ops.call('goods_catalog',status=403);ops.call('goods_analytics',status=403)
     ops.call('stations',status=403)
     checks.append('permissions revoked immediately and profile-only lookups disclose no business data')
     update(operation_id,active=0)

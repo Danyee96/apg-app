@@ -16,7 +16,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();
+ migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_goods_catalog();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -51,7 +51,7 @@ try {
   $goods=can_access($current,'incoming.edit')||can_access($current,'booking.edit')||can_access($current,'incoming.create')||can_access($current,'booking.create')||can_access($current,'deliveries.create');
   $select=$customers||can_access($current,'ledger.view')?'id,name,customer,group_code,status,mobile,phone,address,area':"id,name,customer,group_code,status,'' mobile,'' phone,'' address,'' area";
   $stationAccess=can_access($current,'overview.view')||can_access($current,'incoming.view')||can_access($current,'booking.view')||can_access($current,'deliveries.view')||can_access($current,'settings.view');
-  response(['stations'=>$stationAccess?query('SELECT * FROM stations ORDER BY name'):[],'accounts'=>($finance||$customers||$goods)?query('SELECT '.$select.' FROM accounts'.($finance?'':' WHERE customer=1').' ORDER BY name COLLATE NOCASE'):[],'areas'=>$customers?query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area"):[]]);
+  response(['goods_catalog'=>$goods||$customers||$stationAccess||$current['role']==='super_admin'?goods_catalog():['categories'=>[],'subcategories'=>[]],'stations'=>$stationAccess?query('SELECT * FROM stations ORDER BY name'):[],'accounts'=>($finance||$customers||$goods)?query('SELECT '.$select.' FROM accounts'.($finance?'':' WHERE customer=1').' ORDER BY name COLLATE NOCASE'):[],'areas'=>$customers?query("SELECT DISTINCT area FROM accounts WHERE area IS NOT NULL AND area<>'' ORDER BY area"):[]]);
  }
 
  if($action==='customers'&&$method==='GET'){
@@ -71,6 +71,21 @@ try {
    run('INSERT INTO accounts(id,group_code,group_name,customer,'.implode(',',$fields).') VALUES('.implode(',',array_fill(0,4+count($fields),'?')).')',[$id,$group,'CUSTOMERS-'.$group,1,...$values]);audit('created','customer',$id);return $id;
   });response(['id'=>$result]);
  }
+ if($action==='goods_catalog'&&$method==='GET')response(goods_catalog());
+ if($action==='save_goods_category'&&$method==='POST'){
+  $name=text($p,'name',100,true);$parent=filter_var($p['category_id']??0,FILTER_VALIDATE_INT);if($parent===false||$parent<0)fail('Choose a valid main category.');
+  $id=transaction(function()use($name,$parent){
+   if($parent){if(!one('SELECT id FROM goods_categories WHERE id=?',[$parent]))throw new InvalidArgumentException('Choose a main category.');if(one('SELECT id FROM goods_subcategories WHERE category_id=? AND name=?',[$parent,$name]))throw new InvalidArgumentException('This subcategory already exists.');run('INSERT INTO goods_subcategories(category_id,name) VALUES(?,?)',[$parent,$name]);}
+   else{if(one('SELECT id FROM goods_categories WHERE name=?',[$name]))throw new InvalidArgumentException('This category already exists.');run('INSERT INTO goods_categories(name) VALUES(?)',[$name]);}
+   $id=(int)db()->lastInsertId();audit('created',$parent?'goods_subcategory':'goods_category',$id);return $id;
+  });response(['id'=>$id],201);
+ }
+ if($action==='goods_analytics'&&$method==='GET'){
+  $args=[];$where=" WHERE s.kind='incoming'".rangeWhere('s.dated',$args);
+  $status=text($_GET,'status',20);if(in_array($status,['pending','delivered'],true)){$where.=' AND i.status=?';$args[]=$status;}
+  $rows=query("SELECT i.goods_category_id,i.goods_subcategory_id,i.goods_custom,COALESCE(c.name,CASE WHEN i.goods_custom<>'' THEN 'Other / custom' ELSE 'Uncategorised' END) category,COALESCE(g.name,NULLIF(i.goods_custom,''),'Uncategorised') subcategory,COUNT(*) bilties,COALESCE(SUM(i.qty),0) quantity,COUNT(DISTINCT s.id) shipments FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN goods_categories c ON c.id=i.goods_category_id LEFT JOIN goods_subcategories g ON g.id=i.goods_subcategory_id".$where." GROUP BY i.goods_category_id,i.goods_subcategory_id,i.goods_custom ORDER BY quantity DESC",$args);
+  response(['rows'=>$rows,'totals'=>one('SELECT COUNT(*) bilties,COALESCE(SUM(i.qty),0) quantity,COUNT(DISTINCT s.id) shipments FROM items i JOIN shipments s ON s.id=i.shipment_id'.$where,$args)]);
+ }
  if($action==='pending_incoming'&&$method==='GET'){
   $where=" WHERE status='pending'";$args=[];if($current['role']!=='super_admin'){$where.=' AND submitted_by=?';$args[]=$current['id'];}
   $result=paged('incoming_submissions',$where,$args,'id,submitted_name,submitted_at,status,payload','id DESC');
@@ -85,7 +100,7 @@ try {
   });response(['ok'=>true,'id'=>$id]);
  }
  if($action==='incoming_submission'&&$method==='GET'){
-  $row=one("SELECT * FROM incoming_submissions WHERE id=? AND status='pending'",[(int)($_GET['id']??0)]);if(!$row)fail('Pending entry not found.',404);response(['id'=>$row['id'],'submitted_name'=>$row['submitted_name'],'submitted_at'=>$row['submitted_at'],'payload'=>json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR)]);
+  $row=one("SELECT * FROM incoming_submissions WHERE id=? AND status='pending'",[(int)($_GET['id']??0)]);if(!$row)fail('Pending entry not found.',404);$payload=json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR);$payload['items']=array_map(fn($item)=>goods_item_labels([...$item,...goods_classification($item)]),$payload['items']);response(['id'=>$row['id'],'submitted_name'=>$row['submitted_name'],'submitted_at'=>$row['submitted_at'],'payload'=>$payload]);
  }
  if($action==='shipments'&&$method==='GET'){
   $kind=text($_GET,'kind',10)?:'incoming';if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');$where=' WHERE s.kind=?';$args=[$kind];
@@ -97,12 +112,13 @@ try {
   $kind=text($p,'kind',10,true);if(!in_array($kind,['incoming','booking'],true))fail('Choose a valid shipment type.');$dated=day($p);$station=(int)($p['station_id']??0);if(!one("SELECT id FROM stations WHERE id=? AND status='A'",[$station]))fail('Choose a station.');
   $truck=text($p,'truck',30,true);$driver=text($p,'driver',100);$lines=$p['items']??[];if(!is_array($lines)||count($lines)<1||count($lines)>100)fail('Add between 1 and 100 bilties.');
   $warnings=[];$clean=[];$seen=[];foreach($lines as $l){if(!is_array($l))fail('Invalid bilty.');$bilty=text($l,'bilty',40,true);if(isset($seen[$bilty]))fail('Bilty numbers must be unique within this shipment.');$seen[$bilty]=true;$account=text($l,'account_id',40,true);if(!one("SELECT id FROM accounts WHERE id=? AND customer=1 AND status='A'",[$account]))fail('Choose an active customer for each bilty.');$qty=filter_var($l['qty']??null,FILTER_VALIDATE_INT);if($qty===false||$qty<1||$qty>999999)fail('Quantity must be a whole number greater than zero.');
-   $v=['account_id'=>$account,'bilty'=>$bilty,'party_from'=>text($l,'party_from',100),'party_to'=>text($l,'party_to',100),'city'=>text($l,'city',80),'contact'=>text($l,'contact',40),'qty'=>$qty,'detail'=>text($l,'detail',250),'remarks'=>text($l,'remarks',250)];foreach(['bilty_amount','godown','loading','suzuki','rent','local_charge','advance'] as $f)$v[$f]=money($l,$f);
+   $v=['account_id'=>$account,'bilty'=>$bilty,'party_from'=>text($l,'party_from',100),'party_to'=>text($l,'party_to',100),'city'=>text($l,'city',80),'contact'=>text($l,'contact',40),'qty'=>$qty,'detail'=>text($l,'detail',250),'remarks'=>text($l,'remarks',250),...goods_classification($l)];if($v['detail']==='')$v['detail']=text($l,'goods_type',100)?:text($l,'goods_custom',100);foreach(['bilty_amount','godown','loading','suzuki','rent','local_charge','advance'] as $f)$v[$f]=money($l,$f);
    $v['total']=goods_total($v,$kind);if($v['advance']>$v['total'])$warnings[]='Bilty '.$bilty.': advance is greater than the bilty total.';if($kind==='incoming'&&($v['rent']||$v['local_charge']))fail('Rent and local charges belong to bookings.');$v['_id']=filter_var($l['id']??0,FILTER_VALIDATE_INT);if($v['_id']===false||$v['_id']<0)fail('Invalid bilty identifier.');$clean[]=$v;
   }
   if($kind==='incoming'&&$current['role']==='operations'){
    if(!empty($p['id'])||!empty($p['pending_id']))fail('Operations can submit new incoming goods for approval only.',403);
-   $payload=['kind'=>'incoming','dated'=>$dated,'station_id'=>$station,'truck'=>$truck,'driver'=>$driver,'driver_mobile'=>text($p,'driver_mobile',30),'driver_cnic'=>text($p,'driver_cnic',30),'challan'=>text($p,'challan',40),'truck_amount'=>text($p,'truck_amount',20),'commission'=>'0','labour_bonus'=>text($p,'labour_bonus',20),'munshi_bonus'=>text($p,'munshi_bonus',20),'remarks'=>text($p,'remarks',500),'items'=>$lines];money($p,'truck_amount');money($p,'labour_bonus');money($p,'munshi_bonus');
+   $pendingLines=[];foreach($lines as $index=>$line){$classified=goods_item_labels($clean[$index]);$pendingLines[]=[...$line,'goods_category_id'=>$classified['goods_category_id'],'goods_subcategory_id'=>$classified['goods_subcategory_id'],'goods_custom'=>$classified['goods_custom'],'goods_type'=>$classified['goods_type'],'detail'=>$classified['detail']];}
+   $payload=['kind'=>'incoming','dated'=>$dated,'station_id'=>$station,'truck'=>$truck,'driver'=>$driver,'driver_mobile'=>text($p,'driver_mobile',30),'driver_cnic'=>text($p,'driver_cnic',30),'challan'=>text($p,'challan',40),'truck_amount'=>text($p,'truck_amount',20),'commission'=>'0','labour_bonus'=>text($p,'labour_bonus',20),'munshi_bonus'=>text($p,'munshi_bonus',20),'remarks'=>text($p,'remarks',500),'items'=>$pendingLines];money($p,'truck_amount');money($p,'labour_bonus');money($p,'munshi_bonus');
    $id=transaction(function()use($payload,$current){run('INSERT INTO incoming_submissions(submitted_by,submitted_name,payload) VALUES(?,?,?)',[$current['id'],$current['username'],json_encode($payload,JSON_THROW_ON_ERROR)]);$id=(int)db()->lastInsertId();audit('submitted','incoming_submission',$id);return $id;});
    response(['id'=>$id,'reference'=>'PENDING-'.$id,'pending'=>true,'warnings'=>[]],201);
   }

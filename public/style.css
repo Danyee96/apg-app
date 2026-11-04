@@ -4747,3 +4747,16 @@ dialog.command-dialog {
 .delivery-card-head > div { min-width:0; }
 .delivery-card-head p { overflow-wrap:anywhere; }
 .delivery-card-head > .link { flex-shrink:0; }
+
+.goods-picker { padding:16px; border:1px solid #cfe4dd; border-radius:12px; background:#f5faf7; }
+.goods-picker small { display:block; margin-top:10px; color:#607b72; }
+.goods-analysis { padding:22px; margin:24px 0; border:1px solid #dce8e3; border-radius:16px; background:#fff; }
+.goods-category-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:12px; margin:16px 0 20px; }
+.goods-category-metrics>div { background:#eff8f3; border-radius:12px; padding:16px; }
+.goods-category-metrics span,.goods-category-metrics small { display:block; color:#527369; }
+.goods-category-metrics strong { display:block; font-size:26px; color:#087f72; margin:6px 0; font-weight:800; }
+.goods-management { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; margin-bottom:22px; }
+.goods-management form .field { margin-bottom:16px; }
+.goods-name-list { display:flex; flex-wrap:wrap; gap:8px; }
+.goods-name-list span { background:#f0f7f3; border:1px solid #d8e7df; padding:8px 12px; border-radius:8px; }
+@media(max-width:650px){.goods-management{grid-template-columns:1fr}.goods-analysis{padding:16px}.goods-picker .form-grid{grid-template-columns:1fr}}

@@ -1305,16 +1305,16 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ["Charges less advance", cash(total + services - sum("advance"))],
     [booking ? "Truck rent / amount" : "Truck delivery / amount", cash(cents(header.truck_amount))],
     ...(!booking ? [["Labour Bonus", cash(cents(header.labour_bonus))], ["Munshi Bonus", cash(cents(header.munshi_bonus))]] : []),
-    ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilties total less truck amount", cash(total - cents(header.truck_amount))]]),
+    ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilty amounts less truck delivery", cash(sum("bilty_amount") - cents(header.truck_amount))]]),
   ];
-  if (isOperations() && !booking) metrics = metrics.filter(([label])=>!["Godown charges total","Bilties total","All charges total","Charges less advance","Bilties total less truck amount"].includes(label));
-  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2><p class="note">Goods type / description: <strong>${esc(descriptions.join(" · ") || "Not recorded")}</strong></p>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Bilties total includes bilty and godown charges. All charges also includes loading and Suzuki."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
+  if (isOperations() && !booking) metrics = metrics.filter(([label])=>!["Godown charges total","Bilties total","All charges total","Charges less advance","Bilty amounts less truck delivery"].includes(label));
+  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2><p class="note">Goods type / description: <strong>${esc(descriptions.join(" · ") || "Not recorded")}</strong></p>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Bilties total includes bilty and godown charges. All charges also includes loading and Suzuki. Truck balance uses bilty amounts only, less truck delivery; godown is excluded."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
 }
 function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);
   let fields = kind === "booking" ? [["rent", "Rent"], ["loading", "Loading"], ["bilty_amount", "Bilty charges"], ["local_charge", "Local"]] : [["bilty_amount", "Bilty charges"], ["godown", "Godown"], ["loading", "Loading"], ["suzuki", "Suzuki"]];
   if(isOperations() && kind === "incoming") fields = fields.filter(([key])=>key!=="godown");
-  return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Goods type / description</th><th>Qty</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${esc(i.detail || "—")}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td><td>${num(i.qty)}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${goodsCash(draft ? itemTotal(i) : i.total, kind)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Qty</th><th>Goods type / description</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${num(i.qty)}</td><td>${esc(i.detail || "—")}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${goodsCash(draft ? itemTotal(i) : i.total, kind)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
 }
 async function showShipment(id) {
   let s = await api("shipment", null, { id });
@@ -1873,10 +1873,10 @@ function buildThermalRecord(context) {
           slipText("Customer", i.customer || i.account_id || i.party_from) +
             slipText("From", i.party_from) +
             slipText("To", i.party_to) +
+            slipText("Quantity", i.qty) +
             slipText("Goods", i.detail) +
             slipText("Contact", i.contact) +
             slipText("City", i.city) +
-            slipText("Quantity", i.qty) +
             slipText("Status", i.status) +
             (d.kind === "booking"
               ? slipMoney("Rent", i.rent) +

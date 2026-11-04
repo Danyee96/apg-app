@@ -1384,7 +1384,7 @@ async function showDelivery(id) {
       ["CNIC", d.cnic],
       ["Remarks", d.remarks],
     ]) +
-      `<hr class="divider"><div class="table-scroll"><table><thead><tr><th>Bilty</th><th>Customer / party</th><th class="number">Discount</th><th class="number">Bilty cash</th><th class="number">Service cash</th></tr></thead><tbody>${d.items.map((i) => `<tr><td>${esc(i.bilty)}</td><td>${esc(i.customer || i.party_to)}</td><td class="number">${cash(i.discount)}</td><td class="number">${cash(i.bilty_received)}</td><td class="number">${cash(i.service_received)}</td></tr>`).join("")}</tbody></table></div><div class="summary-total"><span>Total cash recorded</span><b>${cash(d.items.reduce((s, i) => s + i.bilty_received + i.service_received, 0))}</b></div>`,
+      `<hr class="divider"><div class="table-scroll"><table><thead><tr><th>Bilty</th><th>Customer / party</th><th class="number">Discount</th><th class="number">Bilty cash</th><th class="number">Service cash</th></tr></thead><tbody>${d.items.map((i) => `<tr><td>${esc(i.bilty)}</td><td>${esc(i.customer || "—")}<small>Party to: ${esc(i.party_to || "—")}</small></td><td class="number">${cash(i.discount)}</td><td class="number">${cash(i.bilty_received)}</td><td class="number">${cash(i.service_received)}</td></tr>`).join("")}</tbody></table></div><div class="summary-total"><span>Total cash recorded</span><b>${cash(d.items.reduce((s, i) => s + i.bilty_received + i.service_received, 0))}</b></div>`,
     btn("Print receipt", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
@@ -1651,7 +1651,7 @@ function deliveryFacts(rows) {
 }
 function deliveryBiltyCard(r) {
   return `<section class="bilty-card delivery-card"><header class="delivery-card-head"><div><h3>Bilty ${esc(r.bilty)}</h3><p>${esc(r.customer || r.party_to || "—")}</p></div><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></header>
-    ${deliveryFacts([["Station",r.station||"—"],["Arrival date",fmtdate(r.dated)],["Quantity",num(r.qty)],["Goods type / description",r.detail||"Not recorded",true]])}
+    ${deliveryFacts([["Party to",r.party_to||"—",true],["Station",r.station||"—"],["Arrival date",fmtdate(r.dated)],["Quantity",num(r.qty)],["Goods type / description",r.detail||"Not recorded",true]])}
     <div class="delivery-charge-breakdown">${deliveryFacts([["Bilty charges",cash(r.bilty_amount)],...(!isOperations()?[["Godown charges",cash(r.godown)]]:[]),["Advance",cash(r.advance)],["Arrival loading + Suzuki",cash(r.loading+r.suzuki)]])}</div>
     <div class="delivery-total-banner"><span>Bilty total</span><strong>${goodsCash(r.total)}</strong></div>
     <div class="delivery-input-section"><h4>Service charges</h4><div class="form-grid">${field("loading_"+r.id,"Loading charge (Rs)",(r.loading/100).toFixed(2),"number",'required min="0" step="0.01"')}${field("suzuki_"+r.id,"Suzuki charge (Rs)",(r.suzuki/100).toFixed(2),"number",'required min="0" step="0.01"')}</div></div>
@@ -1686,7 +1686,7 @@ async function fetchDeliveryBilty() {
     const result = await api("bilties", null, { kind: "incoming", status: "pending", bilty_exact: number });
     if (sequence !== deliveryLookupSequence || !document.contains(box) || input.value.trim() !== number) return;
     deliveryMatches = new Map(result.rows.map(row => [row.id, row]));
-    box.innerHTML = result.rows.map(row => `<div class="delivery-match"><div><strong>Bilty ${esc(row.bilty)} · ${esc(row.customer || row.party_to || "—")}</strong><small>${esc(row.station || "—")} · ${fmtdate(row.dated)} · ${esc(row.reference)} · Qty ${num(row.qty)} · ${cash(row.total)}</small><small>${esc(row.detail || "")}</small></div><button type="button" class="btn" data-action="delivery-add" data-id="${row.id}" ${selected.has(row.id) ? "disabled" : ""}>${selected.has(row.id) ? "Added" : "Add bilty"}</button></div>`).join("") || "No pending incoming bilty matches this number.";
+    box.innerHTML = result.rows.map(row => `<div class="delivery-match"><div><strong>Bilty ${esc(row.bilty)} · ${esc(row.customer || row.party_to || "—")}</strong><small><b>Party to:</b> ${esc(row.party_to || "—")}</small><small>${esc(row.station || "—")} · ${fmtdate(row.dated)} · ${esc(row.reference)} · Qty ${num(row.qty)} · ${cash(row.total)}</small><small>${esc(row.detail || "")}</small></div><button type="button" class="btn" data-action="delivery-add" data-id="${row.id}" ${selected.has(row.id) ? "disabled" : ""}>${selected.has(row.id) ? "Added" : "Add bilty"}</button></div>`).join("") || "No pending incoming bilty matches this number.";
     if(result.total > result.rows.length) box.insertAdjacentHTML("beforeend", '<p class="note">Many arrivals share this number. Use the pending goods list to choose an older arrival.</p>');
   } catch (error) { if (sequence === deliveryLookupSequence && document.contains(box)) box.textContent = error.message; }
 }

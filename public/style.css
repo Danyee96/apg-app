@@ -4779,3 +4779,8 @@ dialog.command-dialog {
 .charge-summary-row.is-total { display:block; }
 .charge-summary-row.is-total span { display:block; }
 .charge-summary-row.is-total b { display:block; text-align:left; margin-top:8px; }
+
+.goods-search-picker { position:relative; }
+.goods-search-picker .customer-picker-results { top:100%; left:0; right:0; z-index:12; }
+.goods-custom-field { margin-top:16px; padding-top:16px; border-top:1px solid #d4e5dd; }
+.goods-custom-field[hidden] { display:none; }

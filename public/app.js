@@ -1582,10 +1582,9 @@ function readBiltyDraft() {
     if (k in data) item[k] = String(data[k]).trim();
   if(!form.elements.namedItem("goods_type") && biltyDraft?.index !== null && biltyDraft?.index !== undefined){const previous=currentForm.items[biltyDraft.index];for(const key of ["goods_category_id","goods_subcategory_id","goods_custom","goods_type"])item[key]=previous[key]??"";}
   if(form.elements.namedItem("goods_type")){
-    const matches=item.goods_category_id==='other'?[]:goodsCatalog().subcategories.filter(row=>row.name.toLowerCase()===item.goods_type.toLowerCase()&&(!item.goods_category_id||String(row.category_id)===item.goods_category_id));const match=matches.length===1?matches[0]:null;
-    item.goods_subcategory_id=match?String(match.id):"";
-    if(match)item.goods_category_id=String(match.category_id);
-    item.goods_custom=match?"":item.goods_type;
+    const other=$(".goods-search-picker",form)?.dataset.mode==='other';
+    if(other){item.goods_subcategory_id="";item.goods_custom=String(data.goods_custom||"").trim();item.goods_type=item.goods_custom;}
+    else {item.goods_custom="";}
     if(!item.detail)item.detail=item.goods_type;
   }
   return item;
@@ -1666,9 +1665,16 @@ function closeBilty() {
   closeModal();
 }
 function saveBilty(mode) {
-  const i = readBiltyDraft();
+  let i = readBiltyDraft();
   if (!i || !biltyDraft || !currentForm)
     throw Error("Reopen this bilty and try again.");
+  if($(".goods-search-picker")?.dataset.mode==='other'&&!i.goods_custom)throw Error("Enter a custom goods type.");
+  const goodsInput=$("#bilty-goods-search");
+  if(goodsInput?.value.trim()&&!i.goods_subcategory_id&&$(".goods-search-picker")?.dataset.mode!=='other'){
+    const matches=goodsCatalog().subcategories.filter(row=>row.name.toLowerCase()===goodsInput.value.trim().toLowerCase());
+    if(matches.length===1){selectGoodsType(matches[0].id);i=readBiltyDraft();}
+    else throw Error("Choose a goods type from the results, or select Other to enter a custom type.");
+  }
   if (
     !lookups.accounts.some(
       (a) => a.id === i.account_id && a.customer && a.status === "A",
@@ -1707,18 +1713,39 @@ function saveBilty(mode) {
 function goodsCatalog() {return lookups.goods_catalog || {categories:[],subcategories:[]};}
 function goodsTypeLabel(item) {return item.goods_subcategory_name || goodsCatalog().subcategories.find(row=>String(row.id)===String(item.goods_subcategory_id))?.name || item.goods_custom || item.goods_type || "";}
 function goodsCategoryLabel(item) {return item.goods_category_name || goodsCatalog().categories.find(row=>String(row.id)===String(item.goods_category_id))?.name || (goodsTypeLabel(item)?"Other / custom":"Uncategorised");}
+let goodsPickerMatches = [], goodsPickerIndex = -1;
 function goodsPicker(item) {
- return `<div class="goods-picker field wide"><div class="form-grid">${selectField("goods_category_id","Goods category",[["","Choose category"],...goodsCatalog().categories.map(row=>[row.id,row.name]),["other","Other / custom"]],item.goods_category_id || (item.goods_custom?"other":""))}${field("goods_type","Subcategory / custom type",goodsTypeLabel(item),"text",'list="goods-type-options" maxlength="100" autocomplete="off" placeholder="Search or type a custom goods type…"')}</div><datalist id="goods-type-options"></datalist><small id="goods-type-hint">Choose a suggestion or type your own. Use Other / custom for a different category.</small></div>`;
+ const label=goodsTypeLabel(item),custom=!!(item.goods_custom&&!item.goods_subcategory_id),mode=custom?'other':item.goods_subcategory_id?'known':'empty';
+ return `<div class="goods-picker field wide customer-picker goods-search-picker" data-mode="${mode}"><label for="bilty-goods-search">Goods type</label><input id="bilty-goods-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-goods-results" autocomplete="off" maxlength="100" placeholder="Search goods, e.g. Cotton Shoes or Bag Tea…" value="${esc(custom?'Other / custom':label)}"><input type="hidden" name="goods_category_id" value="${esc(item.goods_category_id|| (custom?'other':''))}"><input type="hidden" name="goods_subcategory_id" value="${esc(item.goods_subcategory_id||'')}"><input type="hidden" name="goods_type" value="${esc(label)}"><div id="bilty-goods-results" class="customer-picker-results" role="listbox" aria-label="Goods type matches" hidden></div><div id="goods-custom-field" class="goods-custom-field" ${custom?'':'hidden'}>${field("goods_custom","Custom goods type",item.goods_custom||"","text",`maxlength="100" placeholder="Type the goods type…" ${custom?'required':''}`)}</div><small id="goods-type-hint">${custom?'Enter your custom goods type below.':'Type to search, then choose a goods type. Choose Other for a custom entry.'}</small></div>`;
 }
-function updateGoodsOptions(clear=false) {
- const form=$("#bilty-form");if(!form)return;
- const category=form.elements.namedItem("goods_category_id"), input=form.elements.namedItem("goods_type");if(!category||!input)return;
- const previousType=input.value;
- if(clear && category.value!=='other' && !goodsCatalog().subcategories.some(row=>String(row.category_id)===category.value&&row.name.toLowerCase()===input.value.trim().toLowerCase())){input.value="";const description=form.elements.namedItem('detail');if(previousType&&description?.value===previousType)description.value="";}
- input.dataset.lastType=input.value;
- const rows=category.value==='other'?[]:goodsCatalog().subcategories.filter(row=>!category.value||String(row.category_id)===category.value);
- $("#goods-type-options").innerHTML=rows.map(row=>`<option value="${esc(row.name)}"></option>`).join("");
- $("#goods-type-hint").textContent=category.value==='other'?"Type a custom goods type. It will be counted under Other / custom.":"Search the subcategories or type a custom type for this category.";
+function hideGoodsSuggestions() {
+ const input=$("#bilty-goods-search"),list=$("#bilty-goods-results");if(list)list.hidden=true;if(input){input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');}goodsPickerIndex=-1;
+}
+function updateGoodsOptions() {hideGoodsSuggestions();}
+function goodsSuggestions() {
+ const input=$("#bilty-goods-search");if(!input)return;
+ const picker=input.closest('.goods-search-picker'),q=(picker.dataset.mode==='other'&&input.value==='Other / custom'?'':input.value.trim()).toLowerCase();
+ const all=goodsCatalog().subcategories.filter(row=>!q||row.name.toLowerCase().includes(q));
+ goodsPickerMatches=[...all.slice(0,7),{id:'other',name:'Other / custom'}];goodsPickerIndex=-1;
+ const list=$("#bilty-goods-results");
+ list.innerHTML=`<div class="picker-caption">${q?'Matching goods types':'Choose a goods type'}<span>${all.length>7?'First 7 · type to narrow':all.length+' found'}</span></div>`+goodsPickerMatches.map((row,index)=>`<button type="button" role="option" aria-selected="false" id="goods-result-${index}" data-action="select-goods-type" data-id="${row.id}"><span class="avatar">${row.id==='other'?'+':esc(row.name.slice(0,2).toUpperCase())}</span><span><b>${esc(row.name)}</b><small>${row.id==='other'?'Type a custom goods type':'Select goods type'}</small></span>${icon('chevron')}</button>`).join('');
+ list.hidden=false;input.setAttribute('aria-expanded','true');
+}
+function selectGoodsType(id) {
+ const form=$("#bilty-form"),input=$("#bilty-goods-search");if(!form||!input)return;
+ const custom=String(id)==='other',row=custom?null:goodsCatalog().subcategories.find(row=>String(row.id)===String(id));if(!custom&&!row)return;
+ const picker=input.closest('.goods-search-picker'),previous=form.elements.namedItem('goods_type').value||input.dataset.previousType||'',description=form.elements.namedItem('detail'),query=input.value.trim();
+ form.elements.namedItem('goods_category_id').value=custom?'other':row.category_id;
+ form.elements.namedItem('goods_subcategory_id').value=custom?'':row.id;
+ const customInput=form.elements.namedItem('goods_custom');
+ if(custom){if(query!=='Other / custom'&&!goodsCatalog().subcategories.some(row=>row.name.toLowerCase()===query.toLowerCase()))customInput.value=query;}
+ else customInput.value='';
+ customInput.required=custom;$("#goods-custom-field").hidden=!custom;
+ const value=custom?customInput.value:row.name;form.elements.namedItem('goods_type').value=value;
+ if(previous&&description.value===previous)description.value=value;
+ input.value=custom?'Other / custom':row.name;input.dataset.previousType=value;picker.dataset.mode=custom?'other':'known';
+ $("#goods-type-hint").textContent=custom?'Enter your custom goods type below.':'Goods type selected.';
+ hideGoodsSuggestions();if(custom)customInput.focus();else input.focus();hideGoodsSuggestions();updateBiltyTotals();
 }
 function goodsAnalyticsSection(rows,title="Goods analytics",includeEmpty=false) {
  const groups=new Map();
@@ -2895,6 +2922,9 @@ async function action(name, el) {
     case "edit-bilty":
       openBilty(Number(el.dataset.index));
       break;
+    case "select-goods-type":
+      selectGoodsType(el.dataset.id);
+      break;
     case "select-bilty-customer":
       selectBiltyCustomer(el.dataset.id);
       break;
@@ -3374,6 +3404,7 @@ document.addEventListener("keydown", (e) => {
     e.key === "Enter" &&
     e.target.closest("#bilty-form") &&
     e.target.id !== "bilty-customer-search" &&
+    e.target.id !== "bilty-goods-search" &&
     e.target.tagName === "INPUT"
   ) {
     e.preventDefault();
@@ -3765,15 +3796,34 @@ document.addEventListener("focusout", (event) => {
 
 window.addEventListener("resize", () => { if ($("#print-preview").open) updateThermalPage(); });
 
-document.addEventListener("change",event=>{
- if(event.target.id==='f-goods_category_id'){updateGoodsOptions(true);updateBiltyTotals();}
- if(event.target.id==='goods-analytics-status'){state.goodsStatus=event.target.value;render();}
-});
+document.addEventListener("change",event=>{if(event.target.id==='goods-analytics-status'){state.goodsStatus=event.target.value;render();}});
+document.addEventListener("focusin",event=>{if(event.target.id==='bilty-goods-search'){hideCustomerSuggestions();goodsSuggestions();}});
+document.addEventListener("pointerdown",event=>{if(!event.target.closest('.goods-search-picker'))hideGoodsSuggestions();});
 document.addEventListener("input",event=>{
- if(event.target.id!=='f-goods_type')return;
- const description=$('#bilty-form [name="detail"]');const previous=event.target.dataset.lastType||'';if(previous&&description?.value===previous)description.value=event.target.value;event.target.dataset.lastType=event.target.value;
- const category=$('#bilty-form [name="goods_category_id"]');
- if(!category.value){const matches=goodsCatalog().subcategories.filter(row=>row.name.toLowerCase()===event.target.value.trim().toLowerCase());const match=matches.length===1?matches[0]:null;if(match){category.value=String(match.category_id);updateGoodsOptions();}}
+ if(event.target.id==='bilty-goods-search'){
+  const form=event.target.closest('form'),picker=event.target.closest('.goods-search-picker');
+  if(form.elements.namedItem('goods_type').value)event.target.dataset.previousType=form.elements.namedItem('goods_type').value;
+  for(const name of ['goods_category_id','goods_subcategory_id','goods_type'])form.elements.namedItem(name).value='';
+  picker.dataset.mode='empty';$('#goods-type-hint').textContent='Choose a goods type from the results, or select Other.';form.elements.namedItem('goods_custom').required=false;$("#goods-custom-field").hidden=true;goodsSuggestions();
+ }
+ if(event.target.name==='goods_custom'&&event.target.closest('#bilty-form')){
+  const form=event.target.closest('form'),previous=form.elements.namedItem('goods_type').value,description=form.elements.namedItem('detail');
+  if(previous&&description.value===previous)description.value=event.target.value;form.elements.namedItem('goods_type').value=event.target.value;
+ }
+});
+document.addEventListener("keydown",event=>{
+ if(event.target.id!=='bilty-goods-search')return;
+ const list=$("#bilty-goods-results");
+ if(event.key==='Escape'){event.preventDefault();hideGoodsSuggestions();return;}
+ if(['ArrowDown','ArrowUp'].includes(event.key)){
+  event.preventDefault();if(list.hidden)goodsSuggestions();goodsPickerIndex=Math.max(0,Math.min(goodsPickerMatches.length-1,goodsPickerIndex+(event.key==='ArrowDown'?1:-1)));
+  $$('[role="option"]',list).forEach((option,index)=>{option.setAttribute('aria-selected',String(index===goodsPickerIndex));if(index===goodsPickerIndex){event.target.setAttribute('aria-activedescendant',option.id);option.scrollIntoView({block:'nearest'});}});
+ }
+ if(event.key==='Enter'){event.preventDefault();if(!list.hidden&&goodsPickerMatches.length)selectGoodsType(goodsPickerMatches[Math.max(0,goodsPickerIndex)].id);}
 });
 
 window.addEventListener("resize",fitIncomingSummary);
+
+document.addEventListener("focusout",event=>{
+ if(event.target.id==='bilty-goods-search'&&!event.target.closest('.goods-search-picker').contains(event.relatedTarget))hideGoodsSuggestions();
+});

@@ -125,7 +125,7 @@ Saved deliveries provide **Edit delivery** for the super admin and users granted
 
 ### Goods categories and quantity analytics
 
-Incoming bilties support a main category, searchable subcategory, custom type and a separate goods description. The initial main categories are Cotton, Bundle, Roll, Bag, Drumi and Packet, with the 24 supplied subcategories. **Goods categories** is available to the super admin for adding categories/subcategories; catalog writes are checked on the server. Other/custom entries are allowed and counted without silently creating shared catalog entries.
+Incoming bilties use one searchable Goods type picker, like the customer picker. Selecting a subcategory assigns its main category automatically; choosing Other / custom reveals a separate custom-type text field. Main category IDs stay hidden during entry. Goods description remains separate. The initial main categories are Cotton, Bundle, Roll, Bag, Drumi and Packet, with the 24 supplied subcategories. **Goods categories** is available to the super admin for adding categories/subcategories; catalog writes are checked on the server. Other/custom entries are allowed and counted without silently creating shared catalog entries.
 
 Classification IDs are separate from the original description and money. The migration classifies existing incoming items only when the trimmed description exactly matches one unambiguous catalog subcategory, ignoring letter case. Other historical descriptions remain intact under Uncategorised and can be classified when editing. No fuzzy matching or financial recalculation occurs.
 

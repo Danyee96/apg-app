@@ -33,3 +33,12 @@ function goods_item_labels(array $item): array {
  $item['goods_type']=$item['goods_subcategory_name']?:($item['goods_custom']??'');
  return $item;
 }
+
+function migrate_goods_names(): void {
+ if(one("SELECT value FROM meta WHERE key='goods_names_version'"))return;
+ transaction(function(){
+  $parent=one("SELECT id FROM goods_categories WHERE name='Packet'");
+  if($parent){$old=one("SELECT id FROM goods_subcategories WHERE category_id=? AND name='Packet Pampur'",[$parent['id']]);$current=one("SELECT id FROM goods_subcategories WHERE category_id=? AND name='Packet Pamper'",[$parent['id']]);if($old&&!$current){run("UPDATE goods_subcategories SET name='Packet Pamper' WHERE id=?",[$old['id']]);run("INSERT INTO audit(actor,action,entity,entity_id) VALUES('system','renamed Packet Pampur to Packet Pamper','goods_subcategory',?)",[(string)$old['id']]);}}
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('goods_names_version','1')");
+ });
+}

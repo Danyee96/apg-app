@@ -1724,7 +1724,12 @@ function goodsAnalyticsSection(rows,title="Goods analytics",includeEmpty=false) 
  return `<section class="goods-analysis"><div class="section-heading"><div><h2>${esc(title)}</h2><p>Quantity and bilty counts by category</p></div></div><div class="goods-category-metrics">${[...totals].map(([name,total])=>`<div><span>${esc(name)}</span><strong>${num(total.quantity)}</strong><small>Quantity · ${num(total.bilties)} bilties</small></div>`).join("")}</div><div class="table-scroll"><table><thead><tr><th>Main category</th><th>Subcategory / custom type</th><th class="number">Quantity</th><th class="number">Bilties</th></tr></thead><tbody>${[...groups.values()].sort((a,b)=>b.quantity-a.quantity).map(group=>`<tr><td>${esc(group.category)}</td><td>${esc(group.subtype)}</td><td class="number"><strong>${num(group.quantity)}</strong></td><td class="number">${num(group.bilties)}</td></tr>`).join("")}</tbody></table></div>${!groups.size?'<p class="note">Add bilties to see their goods breakdown.</p>':""}<p class="note">Uncategorised entries keep their original descriptions. Exact known descriptions are classified automatically.</p></section>`;
 }
 function goodsCategoriesPage() {
- const catalog=goodsCatalog();return head("Goods categories","Manage the main categories and searchable subcategories used in incoming goods.")+`<div class="goods-management"><section class="panel"><div class="panel-head"><h2>Add main category</h2></div><form id="goods-category-form" class="panel-body">${field("category_name","Category name","","text",'required maxlength="100"')}<div class="error" data-form-error hidden></div><button type="submit" class="btn primary">Add category</button></form></section><section class="panel"><div class="panel-head"><h2>Add subcategory</h2></div><form id="goods-subcategory-form" class="panel-body">${selectField("category_id","Main category",[["","Choose category"],...catalog.categories.map(row=>[row.id,row.name])],"",true)}${field("subcategory_name","Subcategory name","","text",'required maxlength="100"')}<div class="error" data-form-error hidden></div><button type="submit" class="btn primary">Add subcategory</button></form></section></div><div class="goods-management">${catalog.categories.map(category=>`<section class="panel"><div class="panel-head"><h2>${esc(category.name)}</h2><span>${catalog.subcategories.filter(row=>row.category_id===category.id).length} subcategories</span></div><div class="panel-body goods-name-list">${catalog.subcategories.filter(row=>row.category_id===category.id).map(row=>`<span>${esc(row.name)}</span>`).join("")||'<p class="note">No subcategories yet.</p>'}</div></section>`).join("")}</div>`;
+ const catalog=goodsCatalog();return head("Goods categories","Manage the main categories and searchable subcategories used in incoming goods.")+`<div class="goods-management"><section class="panel"><div class="panel-head"><h2>Add main category</h2></div><form id="goods-category-form" class="panel-body">${field("category_name","Category name","","text",'required maxlength="100"')}<div class="error" data-form-error hidden></div><button type="submit" class="btn primary">Add category</button></form></section><section class="panel"><div class="panel-head"><h2>Add subcategory</h2></div><form id="goods-subcategory-form" class="panel-body">${selectField("category_id","Main category",[["","Choose category"],...catalog.categories.map(row=>[row.id,row.name])],"",true)}${field("subcategory_name","Subcategory name","","text",'required maxlength="100"')}<div class="error" data-form-error hidden></div><button type="submit" class="btn primary">Add subcategory</button></form></section></div><div class="goods-management">${catalog.categories.map(category=>`<section class="panel"><div class="panel-head"><h2>${esc(category.name)}</h2><button class="link" data-action="edit-goods-category" data-id="${category.id}">Edit category</button><span>${catalog.subcategories.filter(row=>row.category_id===category.id).length} subcategories</span></div><div class="panel-body goods-name-list">${catalog.subcategories.filter(row=>row.category_id===category.id).map(row=>`<button class="btn" data-action="edit-goods-subcategory" data-id="${row.id}" title="Edit subcategory">${esc(row.name)} ${icon("edit")}</button>`).join("")||'<p class="note">No subcategories yet.</p>'}</div></section>`).join("")}</div>`;
+}
+function editGoodsCategory(id,kind) {
+ if(!isSuper())throw Error("Only the super admin can edit goods categories.");
+ const catalog=goodsCatalog(),row=(kind==='category'?catalog.categories:catalog.subcategories).find(row=>String(row.id)===String(id));if(!row)throw Error("Category unavailable. Refresh and try again.");
+ modal(kind==='category'?"Edit category":"Edit subcategory","Existing goods keep their category links.",`<form id="goods-rename-form"><input type="hidden" name="id" value="${row.id}"><input type="hidden" name="kind" value="${kind}"><input type="hidden" name="original_name" value="${esc(row.name)}">${kind==='subcategory'?`<p class="note">Main category: ${esc(catalog.categories.find(category=>category.id===row.category_id)?.name||"—")}</p>`:""}${field("name","Name",row.name,"text",'required maxlength="100"')}<div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel","close-modal")}<button class="btn primary" type="submit">Save changes</button></div></form>`);
 }
 async function goodsAnalyticsPage() {
  const data=await api("goods_analytics",null,{from:state.from||"",to:state.to||"",status:state.goodsStatus||"pending"});
@@ -2926,6 +2931,10 @@ async function action(name, el) {
     case "edit-bilty":
       openBilty(Number(el.dataset.index));
       break;
+    case "edit-goods-category":
+      editGoodsCategory(el.dataset.id,"category");break;
+    case "edit-goods-subcategory":
+      editGoodsCategory(el.dataset.id,"subcategory");break;
     case "select-goods-type":
       selectGoodsType(el.dataset.id);
       break;
@@ -3224,6 +3233,8 @@ async function submitForm(form, submitter) {
       break;
     }
 
+    case "goods-rename-form":
+      await api("update_goods_category",data);closeModal();await refreshLookups();await render();toast("Name updated.");break;
     case "goods-category-form":
       await api("save_goods_category",{name:data.category_name});await refreshLookups();await render();toast("Category added.");break;
     case "goods-subcategory-form":

@@ -15,6 +15,17 @@ await page.locator('#goods-subcategory-form [name="category_id"]').selectOption(
 await page.locator('#goods-subcategory-form [name="subcategory_name"]').fill('Crate Glass');
 await page.locator('#goods-subcategory-form [type="submit"]').click();
 await page.getByText('Crate Glass',{exact:true}).waitFor();
+const crateId=await page.evaluate(()=>goodsCatalog().categories.find(row=>row.name==='Crate').id);
+await page.locator(`[data-action="edit-goods-category"][data-id="${crateId}"]`).click();
+await page.locator('#goods-rename-form [name="name"]').fill('Box');await page.locator('#goods-rename-form [type="submit"]').click();
+await page.getByRole('heading',{name:'Box',exact:true}).waitFor();
+const crateSubId=await page.evaluate(()=>goodsCatalog().subcategories.find(row=>row.name==='Crate Glass').id);
+await page.locator(`[data-action="edit-goods-subcategory"][data-id="${crateSubId}"]`).click();
+await page.locator('#goods-rename-form [name="name"]').fill('Box Glass');await page.locator('#goods-rename-form [type="submit"]').click();
+await page.getByRole('button',{name:'Box Glass',exact:true}).waitFor();
+assert.equal(await page.evaluate(()=>goodsCatalog().subcategories.some(row=>row.name==='Packet Pamper')),true);
+assert.equal(await page.evaluate(()=>goodsCatalog().subcategories.some(row=>row.name==='Packet Pampur')),false);
+
 await page.evaluate(()=>{newShipment('incoming');const st=lookups.stations.find(s=>s.status==='A');currentForm.header={dated:today(),station_id:String(st.id),truck:'CATEGORY-BROWSER',truck_amount:'0',commission:'0'};shipmentForm();});
 await page.locator('#shipment-form [type="submit"]').click();
 await page.locator('[data-action="add-bilty"]').first().click();

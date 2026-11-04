@@ -16,7 +16,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_goods_catalog();
+ migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_goods_catalog();migrate_goods_names();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -79,6 +79,17 @@ try {
    else{if(one('SELECT id FROM goods_categories WHERE name=?',[$name]))throw new InvalidArgumentException('This category already exists.');run('INSERT INTO goods_categories(name) VALUES(?)',[$name]);}
    $id=(int)db()->lastInsertId();audit('created',$parent?'goods_subcategory':'goods_category',$id);return $id;
   });response(['id'=>$id],201);
+ }
+ if($action==='update_goods_category'&&$method==='POST'){
+  $kind=text($p,'kind',20,true);if(!in_array($kind,['category','subcategory'],true))fail('Choose a category or subcategory.');
+  $id=filter_var($p['id']??null,FILTER_VALIDATE_INT);if(!$id||$id<1)fail('Choose a valid category.');$name=text($p,'name',100,true);$original=text($p,'original_name',100,true);
+  transaction(function()use($id,$kind,$name,$original){
+   $table=$kind==='category'?'goods_categories':'goods_subcategories';$old=one('SELECT * FROM '.$table.' WHERE id=?',[$id]);if(!$old)throw new InvalidArgumentException('Category not found.');
+   if($old['name']!==$original)throw new RuntimeException('This name changed elsewhere. Refresh and try again.',409);
+   $args=[$name,$id];$where='name=? AND id<>?';if($kind==='subcategory'){$where.=' AND category_id=?';$args[]=$old['category_id'];}
+   if(one('SELECT id FROM '.$table.' WHERE '.$where,$args))throw new InvalidArgumentException('That name already exists.');
+   run('UPDATE '.$table.' SET name=? WHERE id=?',[$name,$id]);audit('renamed '.$old['name'].' to '.$name,'goods_'.$kind,$id);
+  });response(['ok'=>true,'id'=>$id]);
  }
  if($action==='goods_analytics'&&$method==='GET'){
   $args=[];$where=" WHERE s.kind='incoming'".rangeWhere('s.dated',$args);

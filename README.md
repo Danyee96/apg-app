@@ -134,3 +134,5 @@ Review and saved incoming details include quantity and bilty counts by category/
 Checks: `python3 tests/goods_categories.py` and `python3 tests/goods_categories_browser.py` (browser environment as for print tests).
 
 Incoming summary uses the original summary grid. The combined bilty/godown subtotal is labelled **Godown charges + Bilty charges**. The truck balance continues to use bilty amounts only, excluding godown, loading, Suzuki and bonuses.
+
+Super admin can rename main goods categories and subcategories from Goods categories. Editing preserves category IDs and existing goods links, checks duplicate names and stale edits, and records the old/new name in the audit log. The seeded Packet subcategory is corrected to **Packet Pamper** by a one-time rename of its existing ID.

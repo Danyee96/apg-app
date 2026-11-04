@@ -4767,3 +4767,6 @@ dialog.command-dialog {
 .goods-search-picker .customer-picker-results { top:100%; left:0; right:0; z-index:12; }
 .goods-custom-field { margin-top:16px; padding-top:16px; border-top:1px solid #d4e5dd; }
 .goods-custom-field[hidden] { display:none; }
+.goods-management .panel-head { flex-wrap:wrap; gap:12px; }
+.goods-management .panel-head h2 { max-width:100%; overflow-wrap:anywhere; }
+.goods-name-list .btn { max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }

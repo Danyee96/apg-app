@@ -77,6 +77,13 @@ try {
   foreach($result['rows'] as &$row){$data=json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR);unset($row['payload']);$row['dated']=$data['dated'];$row['truck']=$data['truck'];$row['item_count']=count($data['items']);$row['station']=one('SELECT name FROM stations WHERE id=?',[$data['station_id']])['name']??'';}
   unset($row);response($result);
  }
+ if($action==='discard_incoming'&&$method==='POST'){
+  $id=filter_var($p['id']??null,FILTER_VALIDATE_INT);if(!$id||$id<1)fail('Choose a valid pending entry.');
+  transaction(function()use($id){
+   if(!one("SELECT id FROM incoming_submissions WHERE id=? AND status='pending'",[$id]))throw new RuntimeException('This entry has already been approved, discarded or is unavailable.',409);
+   run("UPDATE incoming_submissions SET status='discarded' WHERE id=? AND status='pending'",[$id]);audit('discarded','incoming_submission',$id);
+  });response(['ok'=>true,'id'=>$id]);
+ }
  if($action==='incoming_submission'&&$method==='GET'){
   $row=one("SELECT * FROM incoming_submissions WHERE id=? AND status='pending'",[(int)($_GET['id']??0)]);if(!$row)fail('Pending entry not found.',404);response(['id'=>$row['id'],'submitted_name'=>$row['submitted_name'],'submitted_at'=>$row['submitted_at'],'payload'=>json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR)]);
  }

@@ -1272,7 +1272,7 @@ function restoreBackupForm(id) {
 async function pendingIncoming() {
   const data = await api("pending_incoming", null, { page: state.page });
   listData = data;
-  return head("Pending incoming goods", isSuper() ? "Review, correct and approve submitted arrivals." : "Your submitted entries appear here until the super admin approves them.") + `<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Submitted by</th><th>Arrival / station</th><th>Truck</th><th>Bilties</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}<small>${esc(row.station)}</small></td><td>${esc(row.truck)}</td><td>${num(row.item_count)}</td><td>${isSuper() ? `<button class="btn primary" data-action="review-incoming" data-id="${row.id}">Review & approve</button>` : tag("Awaiting approval", "orange")}</td></tr>`).join("")}</tbody></table></div>${!data.rows.length ? empty("No incoming goods awaiting approval.") : ""}${pagination(data)}</section>`;
+  return head("Pending incoming goods", isSuper() ? "Review, correct and approve submitted arrivals." : "Your submitted entries appear here until the super admin approves them.") + `<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Submitted by</th><th>Arrival / station</th><th>Truck</th><th>Bilties</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}<small>${esc(row.station)}</small></td><td>${esc(row.truck)}</td><td>${num(row.item_count)}</td><td>${isSuper() ? `<button class="btn primary" data-action="review-incoming" data-id="${row.id}">Review & approve</button> <button class="btn" data-action="discard-incoming" data-id="${row.id}">Discard entry</button>` : tag("Awaiting approval", "orange")}</td></tr>`).join("")}</tbody></table></div>${!data.rows.length ? empty("No incoming goods awaiting approval.") : ""}${pagination(data)}</section>`;
 }
 async function reviewIncoming(id) {
   if (!isSuper()) throw Error("Only the super admin can approve incoming goods.");
@@ -2806,6 +2806,14 @@ async function action(name, el) {
     case "shipment":
       await showShipment(el.dataset.id);
       break;
+    case "discard-incoming": {
+      if(!isSuper()) throw Error("Only the super admin can discard pending entries.");
+      const id=Number(el.dataset.id);
+      if(!confirm("Discard PENDING-"+id+"? It will be removed from Pending incoming goods.")) break;
+      await api("discard_incoming",{id});
+      if(currentForm?.pendingId===id) currentForm=null;
+      await navigate("pending-incoming");toast("Pending entry discarded.");break;
+    }
     case "review-incoming":
       await reviewIncoming(el.dataset.id);
       break;

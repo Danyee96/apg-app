@@ -49,6 +49,18 @@ def check(base,database,password):
  bilty=ops.call('bilties',params={'kind':'incoming','bilty_exact':'PENDING-TEST'})['rows'][0];assert bilty['godown'] is None and bilty['total'] is None
  ops.call('save_shipment',{**approval,'id':saved['id'],'pending_id':None},status=403)
  assert not ops.call('pending_incoming')['rows'] and not admin.call('pending_incoming')['rows']
+ # Discard removes only pending work and races safely with approval.
+ discarded=ops.call('save_shipment',payload,status=201)['id']
+ ops.call('discard_incoming',{'id':discarded},status=403)
+ before_discard=db.execute('SELECT count(*) FROM shipments').fetchone()[0]
+ admin.call('discard_incoming',{'id':discarded})
+ admin.call('discard_incoming',{'id':discarded},status=409)
+ admin.call('save_shipment',{**payload,'pending_id':discarded},status=409)
+ admin.call('discard_incoming',{'id':pending_id},status=409)
+ assert not ops.call('pending_incoming')['rows']
+ assert db.execute('SELECT status FROM incoming_submissions WHERE id=?',(discarded,)).fetchone()[0]=='discarded'
+ assert db.execute('SELECT count(*) FROM shipments').fetchone()[0]==before_discard
+ assert db.execute("SELECT count(*) FROM audit WHERE action='discarded' AND entity='incoming_submission' AND entity_id=?",(str(discarded),)).fetchone()[0]==1
  assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
  db.close();print('Operations submissions isolated; own queue visibility; super-only review/approval; edited approval; retry protection; source retention; server charge redaction passed.')
 if __name__=='__main__':main(check)

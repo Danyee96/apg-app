@@ -50,5 +50,16 @@ const id=await page.evaluate(()=>recordPrintContext.data.id);
 await ops.evaluate(async(id)=>{await showShipment(id);},id);
 assert.equal(await ops.locator('[data-action="edit-shipment"]').count(),0);
 assert.ok(!(await ops.locator('#modal').innerText()).includes('80.00'));
+const discardedId=await ops.evaluate(async()=>{
+ const a=lookups.accounts.find(a=>a.customer&&a.status==='A');const st=lookups.stations.find(s=>s.status==='A');
+ const pending=await api('save_shipment',{kind:'incoming',dated:today(),station_id:st.id,truck:'DISCARD-TEST',items:[{account_id:a.id,bilty:'DISCARD-1',qty:1,bilty_amount:'10'}]});
+ closeModal();await navigate('pending-incoming');return pending.id;
+});
+assert.equal(await ops.locator('[data-action="discard-incoming"]').count(),0);
+await page.evaluate(async()=>{closeModal();await navigate('pending-incoming');});
+const discard=page.locator(`[data-action="discard-incoming"][data-id="${discardedId}"]`);
+page.once('dialog',dialog=>dialog.dismiss());await discard.click();assert.ok(await discard.isVisible());
+page.once('dialog',dialog=>dialog.accept());await discard.click();await discard.waitFor({state:'detached'});
+assert.ok(!(await page.locator('#main').innerText()).includes('DISCARD-TEST'));
 console.log('Mobile Operations review/submit, pending queue, admin correction/approval, published visibility and hidden godown totals passed.');
 }finally{await browser.close();}

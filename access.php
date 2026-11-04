@@ -146,6 +146,7 @@ function access_routes(string $action,string $method,array $p,array $user): void
 function authorize_action(string $action,string $method,array $p,array $user): void {
  if($action==='backup_restore'){if($user['role']!=='super_admin')fail('Only the super admin can restore backups.',403);return;}
  if($action==='pending_incoming'){if($user['role']==='super_admin'||($user['role']==='operations'&&can_access($user,'incoming.view')))return;fail('Pending incoming goods is unavailable to this account.',403);}
+ if($action==='discard_incoming'){if($user['role']==='super_admin')return;fail('Only the super admin can discard pending incoming goods.',403);}
  if($action==='incoming_submission'){if($user['role']==='super_admin')return;fail('Only the super admin can review submitted entries.',403);}
  if($user['role']==='operations'){
   if(in_array($action,['imported_tables','imported_rows','backup','financial_report','ledger'],true))fail('Financial totals are restricted for Operations.',403);

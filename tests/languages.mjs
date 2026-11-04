@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
+try {
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(process.env.APG_TEST_URL);
+ await page.locator('#app-language').selectOption('ur');
+ assert.equal(await page.locator('html').getAttribute('dir'),'rtl');
+ await page.getByRole('button',{name:'لاگ اِن کریں',exact:true}).waitFor();
+ await page.locator('#f-username').fill('integration-review');
+ await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
+ await page.locator('#auth-form [type="submit"]').click();
+ await page.locator('#main [data-view="incoming"]').first().waitFor();
+ await page.waitForTimeout(150);
+ assert.match(await page.locator('#navigation').innerText(),/آنے والا مال/);
+ const positions=await page.evaluate(()=>({sidebar:document.querySelector('.sidebar').getBoundingClientRect().right,shell:document.querySelector('.shell').getBoundingClientRect().right,width:innerWidth}));
+ assert.equal(positions.sidebar,positions.width);assert.ok(positions.shell<positions.sidebar-200);
+ await page.evaluate(()=>{newShipment('incoming');const st=lookups.stations.find(s=>s.status==='A');currentForm.header={dated:today(),station_id:String(st.id),truck:'LANG-TRUCK',truck_amount:'0',commission:'0'};shipmentForm();});
+ await page.locator('#shipment-form [name="truck"]').fill('UNSAVED-123');
+ await page.locator('#app-language').selectOption('roman');
+ assert.equal(await page.locator('#shipment-form [name="truck"]').inputValue(),'UNSAVED-123');
+ assert.equal(await page.locator('html').getAttribute('lang'),'ur-Latn');assert.equal(await page.locator('html').getAttribute('dir'),'ltr');
+ assert.match(await page.locator('#main').innerText(),/Tareekh/);
+ await page.locator('#app-language').selectOption('ur');
+ await page.locator('#shipment-form [type="submit"]').click();
+ await page.locator('[data-action="add-bilty"]').first().click();
+ await page.evaluate(()=>selectBiltyCustomer(lookups.accounts.find(a=>a.customer&&a.status==='A').id));
+ await page.locator('#bilty-form [name="bilty"]').fill('LANG-BILTY-1');
+ await page.locator('#bilty-form [name="qty"]').fill('4');
+ await page.locator('#bilty-form [name="bilty_amount"]').fill('100');
+ await page.locator('#bilty-form [name="detail"]').fill('Cotton Shoes — اپنا متن');
+ await page.locator('#app-language').selectOption('en');
+ assert.equal(await page.locator('#bilty-form [name="detail"]').inputValue(),'Cotton Shoes — اپنا متن');
+ assert.equal(await page.locator('#bilty-form [name="bilty_amount"]').inputValue(),'100');
+ await page.locator('#bilty-form [value="save"]').click();
+ await page.locator('#shipment-form [type="submit"]').click();
+ await page.locator('#app-language').selectOption('ur');
+ assert.ok((await page.locator('#shipment-form').innerText()).includes('Cotton Shoes — اپنا متن'));
+ await page.locator('#shipment-form [type="submit"]').click();
+ await page.locator('[data-action="edit-shipment"]').waitFor();
+ await page.locator('[data-action="print-dialog"]').click();
+ await page.locator('#print-preview').waitFor();
+ await page.waitForTimeout(100);
+ assert.match(await page.locator('#thermal-preview-sheet').innerText(),/بلٹی/);
+ for (const width of ['58','80']) {
+  await page.locator('#thermal-width').selectOption(width);await page.waitForTimeout(80);
+  assert.ok(await page.locator('#thermal-preview-sheet .thermal-slip').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+  assert.match(await page.locator('#thermal-preview-sheet').innerText(),/بلٹی/);
+  await page.pdf({path:`/private/tmp/apg-urdu-${width}.pdf`,preferCSSPageSize:true});
+ }
+ await page.locator('#print-format').selectOption('a4');await page.locator('#print-orientation').selectOption('landscape');
+ await page.waitForTimeout(100);
+ assert.match(await page.locator('#thermal-preview-sheet').innerText(),/بلٹی/);
+ assert.equal(await page.locator('#thermal-print').getAttribute('data-orientation'),'landscape');
+ await page.pdf({path:'/private/tmp/apg-urdu-a4.pdf',preferCSSPageSize:true});
+ await page.locator('[data-action="thermal-close"]').first().click();await page.locator('[data-action="close-modal"]').first().click();
+ await page.setViewportSize({width:390,height:844});
+ await page.locator('.mobile-menu').click();await page.waitForTimeout(250);
+ assert.ok(await page.locator('.sidebar').isVisible());
+ assert.equal(Math.round(await page.locator('.sidebar').evaluate(e=>e.getBoundingClientRect().right)),390);
+ await page.locator('[data-action="close-menu"]').click({position:{x:20,y:350}});
+ await page.screenshot({path:'/private/tmp/apg-urdu-mobile.png'});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.locator('#app-language').selectOption('roman');
+ await page.reload();await page.locator('#app-language').waitFor();
+ assert.equal(await page.locator('#app-language').inputValue(),'roman');assert.equal(await page.locator('html').getAttribute('dir'),'ltr');
+ await page.locator('#app-language').selectOption('en');
+ await page.waitForTimeout(100);assert.match(await page.locator('#navigation').innerText(),/Incoming goods/);
+ await page.locator('#app-language').selectOption('ur');
+ await page.evaluate(()=>navigate('navigation',false));await page.waitForTimeout(100);
+ await page.locator('#hub-search').fill('حوالگی');
+ assert.ok(await page.locator('#hub-content [data-hub-search]:visible').count()>0);
+ await page.locator('#hub-search').fill('');
+ await page.evaluate(()=>commandPalette());await page.locator('#command-search').fill('آنے والا مال');
+ assert.ok(await page.locator('#command-results .command-option').count()>0);
+ await page.locator('[data-action="close-modal"]').first().click();
+ for(const view of ['dashboard','overview','goods-categories','goods-analytics','pending-incoming','booking','deliveries','customers','accounts','financial-reports','users','profile','settings','backups']){
+  await page.evaluate(v=>navigate(v,false),view);await page.waitForTimeout(60);
+  assert.equal(await page.locator('#app-language').inputValue(),'ur');
+  assert.equal(await page.locator('#main .error-state').count(),0,view);
+  if (!(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))) {
+   console.log(view,await page.evaluate(()=>[...document.querySelectorAll('#main *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.left<0||r.right>innerWidth);}).slice(0,12).map(e=>({tag:e.tagName,cls:e.className,left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right}))));await page.screenshot({path:'/private/tmp/apg-overflow.png'});
+   assert.fail(view+' mobile overflow');
+  }
+ }
+ await page.evaluate(()=>navigate('incoming',false));
+ await page.evaluate(()=>openThermalPreview('page'));await page.waitForTimeout(100);
+ await page.evaluate(()=>APG.setLanguage('en'));await page.waitForTimeout(100);
+ assert.match(await page.locator('#thermal-preview-sheet').innerText(),/Reference/);
+ assert.ok(!(await page.locator('#thermal-preview-sheet').innerText()).includes('حوالہ نمبر'));
+ await page.locator('[data-action="thermal-close"]').first().click();
+ await page.locator('#app-language').selectOption('roman');
+ for(const view of ['navigation','overview','goods-categories','goods-analytics','booking','deliveries','customers','accounts','financial-reports','users','profile','settings','backups']){
+  await page.evaluate(v=>navigate(v,false),view);await page.waitForTimeout(60);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),view+' Roman Urdu mobile overflow');
+ }
+ await page.locator('#app-language').selectOption('ur');
+ await page.evaluate(()=>navigate('goods-categories',false));
+ await page.locator('[data-action="edit-goods-category"]').first().click();
+ await page.locator('#goods-rename-form [name="name"]').fill('');
+ await page.locator('#goods-rename-form [type="submit"]').click();
+ assert.match(await page.locator('#goods-rename-form [name="name"]').evaluate(e=>e.validationMessage),/خانہ/);
+ await page.locator('#app-language').selectOption('en');
+ assert.equal(await page.locator('#goods-rename-form [name="name"]').evaluate(e=>e.validity.customError),false);
+ await page.locator('#goods-rename-form [name="name"]').fill('Cotton');
+ await page.locator('[data-action="close-modal"]').first().click();
+ assert.deepEqual(errors,[]);
+ console.log('PASS: sign-in, three languages, RTL desktop/mobile, unsaved forms, bilty saving, original data, A4/thermal preview, persistence and English round trip');
+} finally {await browser.close();}

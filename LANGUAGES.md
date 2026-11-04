@@ -1,0 +1,11 @@
+# Interface languages
+
+The sign-in page and workspace header offer English, Urdu, and Roman Urdu (Urdu written in English letters). The choice is remembered in this browser using `apg.language`. Switching languages preserves the current form, selections, and open record. No translation service or external font is required.
+
+`public/translations.js` contains phrase pairs `[Urdu, Roman Urdu]` keyed by the English UI phrase. Use everyday goods transport terminology, not word-for-word translation. New UI copy should be added here in both languages. `public/language.js` handles dynamic counts/messages and translates visible text, placeholders, titles, accessibility labels, and validation guidance. Weak maps retain original source copy for reliable switching back to English. Generic print extraction also uses the original source text, so changing language does not freeze an earlier translated preview.
+
+The document uses `lang=ur`, `dir=rtl` for Urdu and `lang=ur-Latn`, `dir=ltr` for Roman Urdu. Logical CSS properties mirror navigation, alignment, and form grids; the mobile drawer opens from the corresponding edge. Amounts, dates, phone numbers, bilty numbers, and authentication fields retain LTR input. Print previews and output use the selected interface language; thermal dimensions are measured after localisation. Native browser/printer controls follow the browser/OS language.
+
+Language is presentation only. API keys, permissions, calculations, input values, and database records stay unchanged. API business names/descriptions are registered as user data and excluded from translation; editable values and original archive cells are also preserved. Explicit `data-no-translate` marks any new source-data-only regions. Customers and goods are searched using their saved names. Navigation/task search also accepts translated labels. Brand names and technical identifiers remain as entered.
+
+Regression: run `tests/languages.py` with `PLAYWRIGHT_MODULE` and `CHROME_PATH` configured as for `tests/printing.py`. It uses a disposable database, tests all three languages, RTL desktop/mobile layout, unsaved values, saving an incoming shipment, localised validation/search, persisted preference, and Urdu 58/80 mm and A4 print previews. Generated PDFs are never sent to a physical printer.

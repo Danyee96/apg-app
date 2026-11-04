@@ -121,10 +121,12 @@ kbd {
 /* Navigation */
 .sidebar {
   position: fixed;
-  inset: 0 auto 0 0;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inset-inline-end: auto;
   width: 254px;
   background: #fff;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   padding: 29px 17px 12px;
   z-index: 30;
   display: flex;
@@ -203,7 +205,7 @@ kbd {
   margin-top: 2px;
 }
 .workspace-label > svg {
-  margin-left: auto;
+  margin-inline-start: auto;
   width: 13px;
   color: #9aabae;
 }
@@ -231,7 +233,7 @@ kbd {
   color: #6d7e82;
   background: none;
   width: 100%;
-  text-align: left;
+  text-align: start;
   font-size: 12px;
   font-weight: 550;
   min-height: 43px;
@@ -254,7 +256,7 @@ kbd {
 .nav-link small {
   font-size: 8px;
   letter-spacing: 0.5px;
-  margin-left: auto;
+  margin-inline-start: auto;
   opacity: 0.7;
 }
 .sidebar-bottom {
@@ -274,7 +276,7 @@ kbd {
   color: var(--muted);
 }
 .sidebar-help kbd {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .sidebar-help svg {
   width: 16px;
@@ -309,10 +311,10 @@ kbd {
   font-size: 12px;
 }
 .user button {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .shell {
-  margin-left: 254px;
+  margin-inline-start: 254px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -553,7 +555,7 @@ kbd {
   color: #087f75;
   font-size: inherit;
   font-weight: 600;
-  text-align: left;
+  text-align: start;
 }
 .link svg {
   width: 15px;
@@ -725,7 +727,7 @@ kbd {
   margin-top: 4px;
 }
 .route-check {
-  margin-left: auto;
+  margin-inline-start: auto;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -1111,7 +1113,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 11px;
   padding: 18px;
-  text-align: left;
+  text-align: start;
   color: var(--ink);
 }
 .dashboard-tile:hover {
@@ -1160,7 +1162,7 @@ kbd {
   margin-top: 5px;
 }
 .tile-arrow {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: #a8b9b2;
 }
 .tile-arrow svg {
@@ -1182,7 +1184,7 @@ kbd {
   height: 15px;
 }
 .data-note > span:last-child {
-  margin-left: auto;
+  margin-inline-start: auto;
   white-space: nowrap;
 }
 .dashboard-footer {
@@ -1214,7 +1216,7 @@ kbd {
   margin-top: 4px;
 }
 .dashboard-intro > .tag {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 /* Data tables */
 .table-scroll {
@@ -1226,11 +1228,11 @@ table {
   width: 100%;
   border-collapse: collapse;
   white-space: nowrap;
-  text-align: left;
+  text-align: start;
 }
 th {
   position: relative;
-  text-align: left;
+  text-align: start;
   color: #81938e;
   font-size: 9px;
   letter-spacing: 0.8px;
@@ -1265,7 +1267,7 @@ td small {
   margin-top: 5px;
 }
 .number {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 .tag {
@@ -1415,7 +1417,7 @@ td small {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 25px;
-  text-align: left;
+  text-align: start;
   color: inherit;
 }
 .report-card:hover {
@@ -1693,7 +1695,7 @@ details > .form-grid {
 }
 .quick {
   display: flex;
-  text-align: left;
+  text-align: start;
   align-items: center;
   gap: 13px;
   padding: 18px;
@@ -1726,7 +1728,7 @@ details > .form-grid {
   margin-top: 5px;
 }
 .quick > svg {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: #a1bba8;
   width: 16px;
 }
@@ -1890,7 +1892,7 @@ dialog.bilty-dialog {
 }
 .bilty-charge-panel {
   background: #f7faf7;
-  border-left: 1px solid #e2ece4;
+  border-inline-start: 1px solid #e2ece4;
   padding: 26px;
 }
 .bilty-section-title {
@@ -2021,7 +2023,7 @@ dialog.bilty-dialog {
   display: flex;
   align-items: center;
   gap: 10px;
-  text-align: left;
+  text-align: start;
   border: 0;
   background: white;
   border-radius: 7px;
@@ -2050,7 +2052,7 @@ dialog.bilty-dialog {
   border-radius: 8px;
 }
 .customer-picker-results > button > svg {
-  margin-left: auto;
+  margin-inline-start: auto;
   width: 14px;
   color: #a0bda8;
 }
@@ -2114,7 +2116,7 @@ dialog.command-dialog {
   border-radius: 9px;
   border: 0;
   background: white;
-  text-align: left;
+  text-align: start;
   color: #6a8d7e;
 }
 .command-option:hover,
@@ -2155,7 +2157,7 @@ dialog.command-dialog {
   background: #fafcfb;
 }
 .command-footer kbd:not(:first-child) {
-  margin-left: 5px;
+  margin-inline-start: 5px;
 }
 #toast {
   position: fixed;
@@ -2253,7 +2255,7 @@ dialog.command-dialog {
   white-space: nowrap;
 }
 .float-right {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .tabs {
   display: flex;
@@ -2531,14 +2533,14 @@ dialog.command-dialog {
 @media (max-width: 1250px) {
   .sidebar {
     width: 228px;
-    padding-left: 12px;
+    padding-inline-start: 12px;
     padding-right: 12px;
   }
   .shell {
-    margin-left: 228px;
+    margin-inline-start: 228px;
   }
   .brand {
-    padding-left: 10px;
+    padding-inline-start: 10px;
   }
   .brand small {
     font-size: 7px;
@@ -2796,7 +2798,7 @@ dialog.command-dialog {
     font-size: 8px;
   }
   .shell {
-    margin-left: 0;
+    margin-inline-start: 0;
   }
   .mobile-menu {
     display: inline-flex !important;
@@ -2948,7 +2950,7 @@ dialog.command-dialog {
     font-size: 8px;
   }
   .chart-summary {
-    padding-left: 19px;
+    padding-inline-start: 19px;
     padding-top: 20px;
   }
   .movement-chart {
@@ -3129,7 +3131,7 @@ dialog.command-dialog {
     flex-wrap: wrap;
   }
   .form-actions > .buttons {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
   .field input,
   .field select,
@@ -3177,7 +3179,7 @@ dialog.command-dialog {
     padding: 21px;
   }
   .bilty-charge-panel {
-    border-left: 0;
+    border-inline-start: 0;
     border-top: 1px solid var(--line);
   }
   .bilty-charge-panel .form-grid {
@@ -3240,15 +3242,15 @@ dialog.command-dialog {
     top: 125px;
   }
   .command-search {
-    margin-left: 18px;
-    margin-right: 18px;
+    margin-inline-start: 18px;
+    margin-inline-end: 18px;
   }
   .command-search input {
     font-size: 16px;
   }
   .command-footer {
     font-size: 9px;
-    padding-left: 18px;
+    padding-inline-start: 18px;
     padding-right: 18px;
   }
   .dashboard-footer {
@@ -3396,7 +3398,7 @@ dialog.command-dialog {
   padding: 0;
   border: 0;
   background: transparent;
-  text-align: left;
+  text-align: start;
   color: inherit;
   min-width: 0;
 }
@@ -3411,7 +3413,7 @@ dialog.command-dialog {
   color: var(--blue);
 }
 .sidebar .user > .icon-btn {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .profile-layout {
   display: grid;
@@ -3445,7 +3447,7 @@ dialog.command-dialog {
 }
 .profile-facts {
   margin: 27px 0;
-  text-align: left;
+  text-align: start;
   border-top: 1px solid var(--line);
 }
 .profile-facts > div {
@@ -3462,11 +3464,11 @@ dialog.command-dialog {
 .profile-facts b {
   font-weight: 550;
   overflow-wrap: anywhere;
-  text-align: right;
+  text-align: end;
 }
 .profile-summary .note-box {
   font-size: 11px;
-  text-align: left;
+  text-align: start;
 }
 .profile-main {
   display: grid;
@@ -3547,7 +3549,7 @@ dialog.command-dialog {
   max-width: 540px;
 }
 .team-banner > .tag {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: #d6e6bd;
   background: #ffffff08;
   border: 1px solid #83a48633;
@@ -3851,7 +3853,7 @@ dialog.command-dialog {
     font-size: 10px;
   }
   .user-form-footer > .buttons {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
   .user-dialog #form-error {
     margin: 15px 20px;
@@ -3888,7 +3890,7 @@ dialog.command-dialog {
 }
 .data-note > span:only-of-type {
   display: inline !important;
-  margin-left: 0;
+  margin-inline-start: 0;
   white-space: normal;
 }
 /* Personal starting page and complete workspace directory. */
@@ -3954,7 +3956,7 @@ dialog.command-dialog {
   height: 13px;
 }
 .hub-day {
-  border-left: 1px solid #91b49a2b;
+  border-inline-start: 1px solid #91b49a2b;
   padding: 10px 0 10px 28px;
   display: flex;
   flex-direction: column;
@@ -4064,7 +4066,7 @@ dialog.command-dialog {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  text-align: left;
+  text-align: start;
   background: white;
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -4162,7 +4164,7 @@ dialog.command-dialog {
     font-size: 11px;
   }
   .hub-day {
-    padding-left: 20px;
+    padding-inline-start: 20px;
   }
   .hub-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4210,7 +4212,7 @@ dialog.command-dialog {
   }
   .hub-day {
     padding: 20px 0 0;
-    border-left: 0;
+    border-inline-start: 0;
     border-top: 1px solid #91b49a2b;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -4394,7 +4396,7 @@ dialog.command-dialog {
   font-size: var(--thermal-font);
   font-weight: 400;
   line-height: 1.45;
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
@@ -4477,7 +4479,7 @@ dialog.command-dialog {
 }
 .slip-row > strong {
   font-weight: 600;
-  text-align: right;
+  text-align: end;
   min-width: 0;
   white-space: pre-line;
   overflow-wrap: anywhere;
@@ -4522,7 +4524,7 @@ dialog.command-dialog {
 .slip-amount {
   white-space: nowrap;
   font-weight: 600;
-  margin-left: auto;
+  margin-inline-start: auto;
   max-width: 100%;
   font-size: inherit;
 }
@@ -4770,3 +4772,39 @@ dialog.command-dialog {
 .goods-management .panel-head { flex-wrap:wrap; gap:12px; }
 .goods-management .panel-head h2 { max-width:100%; overflow-wrap:anywhere; }
 .goods-name-list .btn { max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+
+/* Language selection stays available on sign-in and throughout the workspace. */
+.language-control { display:flex; flex-direction:column; gap:3px; flex-shrink:0; direction:ltr; text-align:start; }
+.language-control > span { font-size:10px; color:var(--muted); }
+.language-control select { min-height:36px; max-width:145px; background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:5px 8px; font-size:12px; }
+.auth-side > .language-control { align-self:flex-end; margin-bottom:22px; }
+html[lang="ur"] { font-family:"Noto Naskh Arabic","Geeza Pro","Segoe UI",Tahoma,Arial,sans-serif; }
+html[lang="ur"] :is(h1,h2,h3,h4,p,span,b,strong,small,label,button,th,td,a) { letter-spacing:normal; }
+html[lang="ur"] :is(button,label,th,td,p,.note,.note-box,.nav-link,.subtitle) { line-height:1.85; }
+html[lang="ur"] :is(.thermal-slip,.thermal-slip h1,.thermal-slip h2,.thermal-slip h3,.a4-document,.a4-document h1,.a4-document h2,.a4-document h3) { font-family:"Noto Naskh Arabic","Geeza Pro","Segoe UI",Tahoma,Arial,sans-serif; line-height:1.65; }
+html[lang="ur"] .nav-link { font-size:14px; }
+html[lang="ur"] :is(.nav-label,.field label,.detail-cell > span,.slip-label,.note) { font-size:13px; }
+html[dir="rtl"] :is(.breadcrumbs > svg,.tile-arrow,.quick > svg,.customer-picker-results > button > svg,.auth-submit > svg,.hub-card-top > svg:last-child) { transform:scaleX(-1); }
+html[dir="rtl"] .hub-day { padding-inline:28px 0; }
+html[dir="rtl"] .password-toggle { right:13px; left:auto; }
+:is(input[type="number"],input[type="date"],input[type="tel"],input[type="email"],.slip-amount,.slip-reference) { direction:ltr; unicode-bidi:isolate; }
+.language-control, .language-control * { letter-spacing:normal; }
+html[data-language="roman"] :is(.nav-link,.btn,.hub-card,.permission-choice) { overflow-wrap:anywhere; }
+html[data-language="roman"] .nav-link { font-size:11px; }
+@media(max-width:1050px) { .top-actions .date-chip { display:none; } .top-actions { gap:8px; } }
+@media(max-width:740px) {
+ html[dir="rtl"] .sidebar { transform:translateX(100%); }
+ html[dir="rtl"] .sidebar.open { transform:translateX(0); }
+ .language-control > span { font-size:9px; }
+ .language-control select { min-height:34px; max-width:117px; font-size:11px; }
+ html[dir="rtl"] .hub-day { padding-inline:0; }
+ .topbar .breadcrumbs > span { display:none; }
+ .topbar .breadcrumbs { font-size:11px; }
+ .topbar { gap:8px; }
+ .topbar .top-actions { margin-inline-start:auto; }
+ html[lang="ur"] .topbar .breadcrumbs { font-size:13px; }
+}
+@media print { .language-control { display:none !important; } }
+/* Let translated labels wrap while each table keeps its own horizontal scrolling. */
+.grid-main > *, .form-layout > *, .profile-layout > *, .dashboard-workgrid > *, .dashboard-overview > * { min-width:0; }
+.panel-head > div, .quick > span, .permission-choice > span, .hub-person > div { min-width:0; }

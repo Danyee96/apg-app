@@ -123,6 +123,7 @@ async function api(action, data, params = {}) {
   }
   if (__render !== undefined && __render !== requestID)
     throw Error("Superseded request.");
+  APG.remember(body);
   return body;
 }
 function toast(msg) {
@@ -374,7 +375,7 @@ document.addEventListener("input", (e) => {
   const q = e.target.value.trim().toLowerCase();
   let count = 0;
   $$("#hub-content [data-hub-search]").forEach((card) => {
-    card.hidden = !card.dataset.hubSearch.includes(q);
+    card.hidden = !(card.dataset.hubSearch + " " + card.textContent.toLowerCase()).includes(q);
     if (!card.hidden) count++;
   });
   $$(".hub-section").forEach(
@@ -469,7 +470,7 @@ function shell() {
       )
       .join(
         "",
-      )}</nav><div class="sidebar-bottom"><button class="sidebar-help" data-action="command">${icon("search")}<span>Find a task</span><kbd>⌘ K</kbd></button><div class="user">${avatarMarkup(session.profile)}<button class="user-identity" data-view="profile"><b>${esc(displayName())}</b><small>${esc(roleLabel(session.profile.role))}</small></button><button class="icon-btn" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></div></aside><div class="shell"><header class="topbar"><div class="buttons"><button class="icon-btn mobile-menu" data-action="menu" aria-controls="navigation" aria-expanded="false" aria-label="Open navigation">${icon("menu")}</button><div class="breadcrumbs"><span>Workspace</span>${icon("chevron")}<strong id="crumb">Dashboard</strong></div></div><div class="top-actions"><form id="global-search" class="search-global">${icon("search")}<input name="q" aria-label="Find a bilty" placeholder="Search a bilty, party or customer…"><button type="submit" aria-label="Search">${icon("arrow")}</button></form><button class="icon-btn command-trigger" data-action="command" title="Find a task (Ctrl or Command K)" aria-label="Find a task">${icon("grid")}</button><div class="date-chip">${icon("calendar")}<span>${fmtdate(today())}</span></div></div></header><main class="main" id="main" tabindex="-1"></main><footer class="app-footer"><span><span class="dot"></span> Azad Pakistan Goods</span><span>Goods in motion. Business in order.</span></footer></div>`;
+      )}</nav><div class="sidebar-bottom"><button class="sidebar-help" data-action="command">${icon("search")}<span>Find a task</span><kbd>⌘ K</kbd></button><div class="user">${avatarMarkup(session.profile)}<button class="user-identity" data-view="profile"><b>${esc(displayName())}</b><small>${esc(roleLabel(session.profile.role))}</small></button><button class="icon-btn" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></div></aside><div class="shell"><header class="topbar"><div class="buttons"><button class="icon-btn mobile-menu" data-action="menu" aria-controls="navigation" aria-expanded="false" aria-label="Open navigation">${icon("menu")}</button><div class="breadcrumbs"><span>Workspace</span>${icon("chevron")}<strong id="crumb">Dashboard</strong></div></div><div class="top-actions">${APG.picker()}<form id="global-search" class="search-global">${icon("search")}<input name="q" aria-label="Find a bilty" placeholder="Search a bilty, party or customer…"><button type="submit" aria-label="Search">${icon("arrow")}</button></form><button class="icon-btn command-trigger" data-action="command" title="Find a task (Ctrl or Command K)" aria-label="Find a task">${icon("grid")}</button><div class="date-chip">${icon("calendar")}<span>${fmtdate(today())}</span></div></div></header><main class="main" id="main" tabindex="-1"></main><footer class="app-footer"><span><span class="dot"></span> Azad Pakistan Goods</span><span>Goods in motion. Business in order.</span></footer></div>`;
   applyPermissions();
 }
 function toggleMenu(open) {
@@ -519,7 +520,7 @@ async function navigate(view, reset = true) {
   }
   if (
     currentForm &&
-    !confirm("Leave this entry? Unsaved changes will be lost.")
+    !confirm(APG.t("Leave this entry? Unsaved changes will be lost."))
   )
     return false;
   currentForm = null;
@@ -1170,7 +1171,7 @@ async function importedData() {
       "All 21 original tables are stored in your app database. These source records are read-only.",
       btn("Export this page", "export", false, "download"),
     ) +
-    `<div class="note-box" style="margin-bottom:20px">Backup: ${esc(summary.source_archive)} · ${num(summary.tables.reduce((s, t) => s + t.count, 0))} source records. The original ledger includes ${num(summary.incomplete_account_rows)} entries with incomplete account codes and ${num(summary.undated_ledger_rows)} entries without dates. They are preserved here.</div><section class="panel">${searchBar("Search original source fields…", `<select class="filter" id="archive-table" aria-label="Imported table">${summary.tables.map((t) => `<option value="${esc(t.name)}" ${state.archiveTable === t.name ? "selected" : ""}>${esc(t.label)} · ${num(t.count)} records</option>`).join("")}</select>`)}<div class="table-scroll"><table><thead><tr><th>Source row</th>${d.columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${d.rows.map((r) => `<tr><td>${r._source_row}</td>${d.columns.map((c) => `<td>${esc(r[c] ?? "—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty() : ""}${pagination(d)}</section>`
+    `<div class="note-box" style="margin-bottom:20px">Backup: ${esc(summary.source_archive)} · ${num(summary.tables.reduce((s, t) => s + t.count, 0))} source records. The original ledger includes ${num(summary.incomplete_account_rows)} entries with incomplete account codes and ${num(summary.undated_ledger_rows)} entries without dates. They are preserved here.</div><section class="panel">${searchBar("Search original source fields…", `<select class="filter" id="archive-table" aria-label="Imported table">${summary.tables.map((t) => `<option value="${esc(t.name)}" ${state.archiveTable === t.name ? "selected" : ""}>${esc(t.label)} · ${num(t.count)} records</option>`).join("")}</select>`)}<div class="table-scroll"><table><thead><tr><th>Source row</th>${d.columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${d.rows.map((r) => `<tr><td>${r._source_row}</td>${d.columns.map((c) => `<td data-no-translate dir="auto">${esc(r[c] ?? "—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty() : ""}${pagination(d)}</section>`
   );
 }
 function field(
@@ -1206,7 +1207,7 @@ function requestCloseModal() {
   }
   if (
     modalValues() !== modalSnapshot &&
-    !confirm("Discard the unsaved changes in this form?")
+    !confirm(APG.t("Discard the unsaved changes in this form?"))
   )
     return;
   closeModal();
@@ -1628,7 +1629,7 @@ function closeBilty() {
   if (
     item &&
     JSON.stringify(item) !== biltyDraft.initial &&
-    !confirm("Discard the unsaved changes to this bilty?")
+    !confirm(APG.t("Discard the unsaved changes to this bilty?"))
   )
     return;
   biltyDraft = null;
@@ -2276,29 +2277,21 @@ function visiblePrintContext(source) {
         content: slipNote("Sign in and open a saved record to print a slip."),
       },
     };
-  const title = $("h1,h2", root)?.textContent || "Workspace record";
+  const title = APG.sourceText($("h1,h2", root)) || "Workspace record";
   let content = "";
   $$("table", root)
     .filter((table) => !table.closest("form") && table.getClientRects().length)
     .forEach((table) => {
-      const headers = $$("thead th", table).map((th) => th.textContent.trim());
+      const headers = $$("thead th", table).map((th) => APG.sourceText(th).trim());
       content += $$("tbody tr", table)
         .map((row, n) =>
           slipEntry(
             "Record " + (n + 1),
             $$("td", row)
               .map((td, i) => {
-                const clean = td.cloneNode(true);
-                $$(
-                  "button:not(.link),input,select,textarea,.avatar,img,svg",
-                  clean,
-                ).forEach((el) => el.remove());
-                $$("small", clean).forEach((el) =>
-                  el.prepend(document.createTextNode(" · ")),
-                );
                 return slipText(
                   headers[i] || "Detail",
-                  clean.textContent.trim(),
+                  APG.sourceText(td,"button:not(.link),input,select,textarea,.avatar,img,svg").trim(),
                 );
               })
               .join(""),
@@ -2385,6 +2378,7 @@ function refreshPrintLayout() {
     $("#print-preview .thermal-print-help").textContent = format === "a4" ? `Select your normal printer and A4 ${orientation} paper in the browser print dialog. Use 100% scale and turn off browser headers and footers. Long documents continue onto additional pages.` : "Select your thermal printer and matching roll width in the browser print dialog. Use 100% scale, no margins, and turn off browser headers and footers.";
     $("[data-action='thermal-confirm']").innerHTML = icon("print") + (format === "a4" ? "Print A4" : "Print slip");
   }
+  APG.localise();
   if (format === "a4") {
     $("#thermal-page-style").textContent = `@page { size: A4 ${orientation}; margin: 10mm; }`;
     return true;
@@ -2421,6 +2415,7 @@ function updateThermalPage() {
   const sheet = $("#thermal-preview-sheet");
   if (sheet) sheet.dataset.paper = paper;
   root.innerHTML = thermalSnapshot.html;
+  APG.localise();
   root.classList.add("thermal-measuring");
   fitThermalAmounts(root);
   fitThermalAmounts(sheet);
@@ -2491,6 +2486,7 @@ window.addEventListener("beforeprint", () => {
     );
   }
   updateThermalPage();
+  APG.localise();
 });
 window.addEventListener("afterprint", () => {
   if (!$("#print-preview").open) closeThermalPreview();
@@ -2733,7 +2729,7 @@ async function openDashboard(key) {
     return toast("This action is not available for your account.");
   if (
     currentForm &&
-    !confirm("Leave this entry? Unsaved changes will be lost.")
+    !confirm(APG.t("Leave this entry? Unsaved changes will be lost."))
   )
     return;
   currentForm = null;
@@ -2897,7 +2893,7 @@ async function action(name, el) {
     case "discard-incoming": {
       if(!isSuper()) throw Error("Only the super admin can discard pending entries.");
       const id=Number(el.dataset.id);
-      if(!confirm("Discard PENDING-"+id+"? It will be removed from Pending incoming goods.")) break;
+      if(!confirm(APG.t("Discard PENDING-"+id+"? It will be removed from Pending incoming goods."))) break;
       await api("discard_incoming",{id});
       if(currentForm?.pendingId===id) currentForm=null;
       await navigate("pending-incoming");toast("Pending entry discarded.");break;
@@ -2915,7 +2911,7 @@ async function action(name, el) {
       newShipment("booking");
       break;
     case "cancel-shipment":
-      if (confirm("Discard this unsaved shipment?")) {
+      if (confirm(APG.t("Discard this unsaved shipment?"))) {
         currentForm = null;
         render();
       }
@@ -2946,7 +2942,7 @@ async function action(name, el) {
       break;
     case "remove-bilty":
       if (currentForm.items[Number(el.dataset.index)]?.id) throw Error("Existing bilties cannot be removed. Edit their details instead.");
-      if (confirm("Remove this bilty from the shipment?")) {
+      if (confirm(APG.t("Remove this bilty from the shipment?"))) {
         currentForm.items.splice(Number(el.dataset.index), 1);
         shipmentForm();
       }
@@ -3056,6 +3052,7 @@ async function action(name, el) {
       break;
     case "thermal-confirm":
       updateThermalPage();
+      APG.localise();
       window.print();
       break;
     case "export":
@@ -3253,7 +3250,7 @@ async function submitForm(form, submitter) {
     case "global-search":
       if (
         currentForm &&
-        !confirm("Leave this entry? Unsaved changes will be lost.")
+        !confirm(APG.t("Leave this entry? Unsaved changes will be lost."))
       )
         return;
       currentForm = null;
@@ -3673,7 +3670,7 @@ function auth() {
   const setup = session.setup;
   toggleMenu(false);
   $("#app").innerHTML =
-    `<div class="auth-layout"><div class="auth-art"><div class="brand"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></div><div class="auth-story"><span class="hero-label"><span class="dot"></span> YOUR BUSINESS, IN GOOD HANDS</span><h1>Goods in motion.<br>Business in order.</h1><p>A clear path from incoming goods to delivery.<br>One workspace for the people who keep it moving.</p><div class="auth-journey"><span>${icon("incoming")}Receive</span><i></i><span>${icon("box")}Organise</span><i></i><span>${icon("truck")}Deliver</span></div></div><footer><span>${icon("pin")} D. I. Khan, Pakistan</span><span>AZAD PAKISTAN GOODS</span></footer></div><div class="auth-side"><div class="auth-form"><span class="auth-overline">WELCOME TO YOUR WORKSPACE</span><div class="auth-mark">${icon("box")}</div><h1>${setup ? "A fresh start." : "Welcome back."}</h1><p class="subtitle">${setup ? "Create an administrator login to get started." : "Sign in and pick up where you left off."}</p><form id="auth-form">${field("username", "Username", "", "text", 'required autocomplete="username" maxlength="40" placeholder="Enter your username"')}${field("password", setup ? "Create a password" : "Password", "", "password", `required autocomplete="${setup ? "new-password" : "current-password"}" ${setup ? 'minlength="10"' : ""} maxlength="128" placeholder="Enter your password"`)}<button type="button" class="password-toggle" data-action="toggle-password" aria-pressed="false" aria-controls="f-password">Show</button>${setup ? '<p class="note">Use at least 10 characters.</p>' : ""}<div class="error" id="form-error" role="alert" hidden></div><button type="submit" class="btn primary auth-submit">${setup ? "Create workspace" : "Sign in to workspace"} ${icon("arrow")}</button></form><div class="auth-trust">${icon("shield")}<span>Your goods, customers and accounts.<br>All together. All in one place.</span></div></div><div class="auth-bottom">Azad Pakistan Goods <span>•</span> Goods & accounts</div></div></div>`;
+    `<div class="auth-layout"><div class="auth-art"><div class="brand"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></div><div class="auth-story"><span class="hero-label"><span class="dot"></span> YOUR BUSINESS, IN GOOD HANDS</span><h1>Goods in motion.<br>Business in order.</h1><p>A clear path from incoming goods to delivery.<br>One workspace for the people who keep it moving.</p><div class="auth-journey"><span>${icon("incoming")}Receive</span><i></i><span>${icon("box")}Organise</span><i></i><span>${icon("truck")}Deliver</span></div></div><footer><span>${icon("pin")} D. I. Khan, Pakistan</span><span>AZAD PAKISTAN GOODS</span></footer></div><div class="auth-side">${APG.picker()}<div class="auth-form"><span class="auth-overline">WELCOME TO YOUR WORKSPACE</span><div class="auth-mark">${icon("box")}</div><h1>${setup ? "A fresh start." : "Welcome back."}</h1><p class="subtitle">${setup ? "Create an administrator login to get started." : "Sign in and pick up where you left off."}</p><form id="auth-form">${field("username", "Username", "", "text", 'required autocomplete="username" maxlength="40" placeholder="Enter your username"')}${field("password", setup ? "Create a password" : "Password", "", "password", `required autocomplete="${setup ? "new-password" : "current-password"}" ${setup ? 'minlength="10"' : ""} maxlength="128" placeholder="Enter your password"`)}<button type="button" class="password-toggle" data-action="toggle-password" aria-pressed="false" aria-controls="f-password">Show</button>${setup ? '<p class="note">Use at least 10 characters.</p>' : ""}<div class="error" id="form-error" role="alert" hidden></div><button type="submit" class="btn primary auth-submit">${setup ? "Create workspace" : "Sign in to workspace"} ${icon("arrow")}</button></form><div class="auth-trust">${icon("shield")}<span>Your goods, customers and accounts.<br>All together. All in one place.</span></div></div><div class="auth-bottom">Azad Pakistan Goods <span>•</span> Goods & accounts</div></div></div>`;
 }
 function startupError(message) {
   $("#app").innerHTML =
@@ -3696,11 +3693,11 @@ function renderCommands(value) {
     g.items.map(([key, title, desc, ic]) => ({ key, title, desc, ic })),
   );
   const matches = tasks.filter((t) =>
-    (t.title + " " + t.desc).toLowerCase().includes(q),
+    (t.title + " " + t.desc + " " + APG.t(t.title) + " " + APG.t(t.desc)).toLowerCase().includes(q),
   );
   const screens = navs
     .filter(([v]) => canView(v))
-    .filter(([v, ic, title]) => title.toLowerCase().includes(q));
+    .filter(([v, ic, title]) => (title + " " + APG.t(title)).toLowerCase().includes(q));
   const customers =
     q.length >= 2 && can("ledger.view")
       ? lookups.accounts
@@ -3842,3 +3839,5 @@ document.addEventListener("keydown",event=>{
 document.addEventListener("focusout",event=>{
  if(event.target.id==='bilty-goods-search'&&!event.target.closest('.goods-search-picker').contains(event.relatedTarget))hideGoodsSuggestions();
 });
+
+window.addEventListener("apg-language-change", () => { if (thermalSnapshot) updateThermalPage(); });

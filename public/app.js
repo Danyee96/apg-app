@@ -1307,7 +1307,6 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     : [["bilty_amount", "Bilty charges total"], ["godown", "Godown charges total"], ["loading", "Loading total"], ["suzuki", "Suzuki total"]];
   const total = booking ? sum("rent") + sum("loading") + sum("bilty_amount") + sum("local_charge") : sum("bilty_amount") + sum("godown");
   const services = booking ? 0 : sum("loading") + sum("suzuki");
-  const descriptions = [...new Set(items.map(i => String(i.detail || "").trim()).filter(Boolean))];
   let metrics = [
     ["Bilties", num(items.length)],
     ["Total quantity", num(items.reduce((n, i) => n + Number(i.qty || 0), 0))],
@@ -1321,7 +1320,7 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilty amounts less truck delivery", cash(sum("bilty_amount") - cents(header.truck_amount))]]),
   ];
   if (isOperations() && !booking) metrics = metrics.filter(([label])=>!["Godown charges total","Godown charges + Bilty charges","All charges total","Charges less advance","Bilty amounts less truck delivery"].includes(label));
-  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2><p class="note">Goods type / description: <strong>${esc(descriptions.join(" · ") || "Not recorded")}</strong></p>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Godown charges + Bilty charges combines those two charges. All charges also includes loading and Suzuki. Truck balance uses bilty amounts only, less truck delivery; godown is excluded."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
+  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Godown charges + Bilty charges combines those two charges. All charges also includes loading and Suzuki. Truck balance uses bilty amounts only, less truck delivery; godown is excluded."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
 }
 function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);

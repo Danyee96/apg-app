@@ -15,13 +15,9 @@ const result=await page.evaluate(()=>{
  const review=shipmentBreakdown([draft],'incoming',{truck_amount:'100'},true);
  if(saved!==review)throw Error('Review and saved calculations differ');
  const wrapper=document.createElement('div');wrapper.innerHTML=saved;
- const metric=[...wrapper.querySelectorAll('.detail-cell')].find(el=>el.textContent.includes('Bilty charges − truck delivery'));
+ const metric=[...wrapper.querySelectorAll('.detail-cell')].find(el=>el.textContent.includes('Bilty amounts less truck delivery'));
  if(!metric?.textContent.includes('100.00'))throw Error('Godown included in truck balance');
- if(saved.includes('Bilties total')||saved.includes('All charges total'))throw Error('Ambiguous duplicate totals remain');
- if(saved.includes('Labour Bonus')||saved.includes('Munshi Bonus')||saved.includes('Loading charges'))throw Error('Unused zero charges should be hidden');
- const detailed=incomingSummaryRows(incomingAmounts([{...item,loading:1000,suzuki:500,advance:10000}],{truck_amount:10000}));
- if(detailed.charges.find(row=>row[0]==='Total goods charges')[1]!==28500)throw Error('Total goods charges incorrect');
- if(detailed.charges.find(row=>row[0]==='Charges after advance')[1]!==18500)throw Error('Advance incorrectly applied');
+ const combined=[...wrapper.querySelectorAll('.detail-cell')].find(el=>el.textContent.includes('Godown charges + Bilty charges'));if(!combined?.textContent.includes('270.00'))throw Error('Combined bilty/godown label incorrect');
  const table=document.createElement('div');table.innerHTML=shipmentDetailTable([item],'incoming');
  const headings=[...table.querySelectorAll('th')].map(el=>el.textContent);
  if(headings.indexOf('Qty')>headings.indexOf('Goods type / description'))throw Error('Quantity must precede goods description');
@@ -30,17 +26,15 @@ const result=await page.evaluate(()=>{
  const snapshot=buildThermalRecord({kind:'shipment',data:{kind:'incoming',reference:'ORDER-TEST',dated:today(),truck_amount:10000,items:[item]}});
  if(snapshot.html.indexOf('Quantity')>snapshot.html.indexOf('Cotton shoes'))throw Error('Print quantity order differs');
  const print=document.createElement('div');print.innerHTML=snapshot.html;
- const balance=[...print.querySelectorAll('.slip-money-row')].find(el=>el.textContent.includes('Bilty charges − truck delivery'));
+ const balance=[...print.querySelectorAll('.slip-money-row')].find(el=>el.textContent.includes('Truck balance'));
  if(!balance?.textContent.includes('100.00'))throw Error('Print balance differs');
  const a4=buildA4Document(snapshot);if(a4.indexOf('<th>Quantity</th>')>a4.indexOf('<th>Goods</th>'))throw Error('A4 quantity order differs');
  session.profile.role='operations';session.permissions=['incoming.view'];
  const restricted=shipmentBreakdown([item],'incoming',{truck_amount:10000});
- if(restricted.includes('Bilty charges − truck delivery'))throw Error('Restricted summary exposed');
- session.profile.role='super_admin';
- modal('Summary check','',saved);
+ const restrictedRoot=document.createElement('div');restrictedRoot.innerHTML=restricted;
+ if([...restrictedRoot.querySelectorAll('.detail-cell span')].some(el=>el.textContent==='Godown charges + Bilty charges'))throw Error('Restricted combined charges exposed');
+ if(restricted.includes('Bilty amounts less truck delivery'))throw Error('Restricted summary exposed');
  return true;
 });assert.ok(result);
-assert.ok(await page.locator(".charge-summary-row.is-total b").evaluateAll(elements=>elements.every(el=>el.scrollWidth<=el.clientWidth+1)));
-if(process.env.APG_SUMMARY_REVIEW)await page.screenshot({path:process.env.APG_SUMMARY_REVIEW,fullPage:true});
 console.log('Quantity/description columns aligned; saved/review/thermal/A4 truck balance excludes godown; Operations restriction retained.');
 }finally{await browser.close();}

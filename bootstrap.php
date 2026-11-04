@@ -57,3 +57,16 @@ function migrate_incoming_bonuses(): void {
 }
 
 function close_db(): void {global $apgConnection;$apgConnection=null;}
+
+function migrate_delivery_edits(): void {
+ if(one("SELECT value FROM meta WHERE key='delivery_edits_version'"))return;
+ transaction(function(){
+  $columns=array_column(query('PRAGMA table_info(delivery_items)'),'name');
+  foreach(['loading_charge','suzuki_charge'] as $column)if(!in_array($column,$columns,true))run('ALTER TABLE delivery_items ADD COLUMN '.$column.' INTEGER');
+  run("CREATE TABLE IF NOT EXISTS delivery_revisions(id INTEGER PRIMARY KEY,delivery_id INTEGER NOT NULL,actor TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,before_json TEXT NOT NULL,after_json TEXT NOT NULL)");
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('delivery_edits_version','1')");
+ });
+}
+function delivery_snapshot(int $id): array {
+ return ['header'=>one('SELECT * FROM deliveries WHERE id=?',[$id]),'items'=>query('SELECT * FROM delivery_items WHERE delivery_id=? ORDER BY id',[$id]),'goods'=>query('SELECT i.* FROM items i JOIN delivery_items di ON di.item_id=i.id WHERE di.delivery_id=? ORDER BY i.id',[$id])];
+}

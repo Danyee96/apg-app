@@ -12,6 +12,7 @@ function permission_catalog(): array {
   'booking.edit'=>['Edit bookings','Correct saved bookings, bilties and charges.','Goods'],
   'deliveries.view'=>['View deliveries','Read handover details and collected amounts.','Goods'],
   'deliveries.create'=>['Record deliveries','Hand over pending incoming goods.','Goods'],
+  'deliveries.edit'=>['Edit deliveries','Correct saved receiver details, charges and collections.','Goods'],
   'customers.view'=>['View customers','Read customer names, contacts and addresses.','Customers'],
   'customers.manage'=>['Manage customers','Create and edit customer records.','Customers'],
   'vouchers.view'=>['View vouchers','Read accounting vouchers posted in this app.','Finance'],
@@ -26,7 +27,7 @@ function permission_catalog(): array {
  ];
 }
 function permission_dependencies(): array {
- return ['incoming.edit'=>['incoming.view'],'booking.edit'=>['booking.view'],'incoming.create'=>['incoming.view'],'booking.create'=>['booking.view'],'deliveries.create'=>['deliveries.view','incoming.view'],'customers.manage'=>['customers.view'],'vouchers.create'=>['vouchers.view','ledger.view'],'accounts.create'=>['ledger.view'],'reports.view'=>['ledger.view'],'stations.manage'=>['settings.view'],'backups.create'=>['settings.view']];
+ return ['deliveries.edit'=>['deliveries.view','incoming.view'],'incoming.edit'=>['incoming.view'],'booking.edit'=>['booking.view'],'incoming.create'=>['incoming.view'],'booking.create'=>['booking.view'],'deliveries.create'=>['deliveries.view','incoming.view'],'customers.manage'=>['customers.view'],'vouchers.create'=>['vouchers.view','ledger.view'],'accounts.create'=>['ledger.view'],'reports.view'=>['ledger.view'],'stations.manage'=>['settings.view'],'backups.create'=>['settings.view']];
 }
 function role_presets(): array {
  $goods=['incoming.view','incoming.create','booking.view','booking.create','deliveries.view','deliveries.create','customers.view'];
@@ -152,7 +153,7 @@ function authorize_action(string $action,string $method,array $p,array $user): v
   if($action==='save_shipment'&&!empty($p['pending_id']))fail('Only the super admin can approve incoming goods.',403);
  }
 
- $map=['dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','backup_list'=>'backups.create','settings'=>'settings.view','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
+ $map=['dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','update_delivery'=>'deliveries.edit','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','backup_list'=>'backups.create','settings'=>'settings.view','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
  if(isset($map[$action])){require_permission($user,$map[$action]);return;}
  if($action==='lookups')return;
  if($action==='stations'){foreach(['overview.view','incoming.view','booking.view','deliveries.view','settings.view'] as $key){if(can_access($user,$key))return;}require_permission($user,'settings.view');return;}

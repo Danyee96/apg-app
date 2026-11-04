@@ -1385,6 +1385,7 @@ async function showDelivery(id) {
       ["Remarks", d.remarks],
     ]) +
       `<hr class="divider"><div class="table-scroll"><table><thead><tr><th>Bilty</th><th>Customer / party</th><th class="number">Discount</th><th class="number">Bilty cash</th><th class="number">Service cash</th></tr></thead><tbody>${d.items.map((i) => `<tr><td>${esc(i.bilty)}</td><td>${esc(i.customer || "—")}<small>Party to: ${esc(i.party_to || "—")}</small></td><td class="number">${cash(i.discount)}</td><td class="number">${cash(i.bilty_received)}</td><td class="number">${cash(i.service_received)}</td></tr>`).join("")}</tbody></table></div><div class="summary-total"><span>Total cash recorded</span><b>${cash(d.items.reduce((s, i) => s + i.bilty_received + i.service_received, 0))}</b></div>`,
+    (can("deliveries.edit") ? `<button class="btn primary" data-action="edit-delivery" data-id="${d.id}">${icon("edit")}Edit delivery</button>` : "") +
     btn("Print receipt", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
@@ -1658,14 +1659,26 @@ function deliveryBiltyCard(r) {
     <div class="delivery-input-section"><h4>Cash collection</h4><div class="form-grid">${field("discount_"+r.id,"Discount (Rs)","0","number",'min="0" step="0.01"',true)}${field("bilty_received_"+r.id,"Bilty cash received (Rs)","0","number",'min="0" step="0.01"')}${field("service_received_"+r.id,"Loading / Suzuki received (Rs)","0","number",'min="0" step="0.01"')}</div></div>
     <div class="delivery-line-totals" data-delivery-totals="${r.id}" aria-live="polite"></div></section>`;
 }
-function recordDelivery(values = {}) {
+let deliveryEdit = null;
+async function editDelivery(id) {
+  if(!can("deliveries.edit"))throw Error("You do not have permission to edit deliveries.");
+  const delivery = await api("delivery",null,{id});
+  const values={dated:delivery.dated,receiver:delivery.receiver,mobile:delivery.mobile||"",cnic:delivery.cnic||"",remarks:delivery.remarks||""};
+  closeModal();selected.clear();
+  for(const item of delivery.items){const row={...item};const original=delivery.print_items?.find(line=>String(line.source_id)===String(row.delivery_source_id));if(original){row.bilty_amount=original.bilty_amount;row.godown=original.godown;row.total=Number(original.bilty_amount)+Number(original.godown);row.loading=original.loading;row.suzuki=original.suzuki;}
+    selected.set(row.id,row);for(const key of ["loading","suzuki","discount","bilty_received","service_received"])values[key+"_"+row.id]=(Number(row[key]||0)/100).toFixed(2);}
+  recordDelivery(values,{id:delivery.id,version:delivery.version,reference:delivery.reference});
+}
+function recordDelivery(values = {}, edit = null) {
+  deliveryEdit = edit;
   let rows = [...selected.values()];
   modal(
-    "Delivery goods & counter cash",
+    edit ? "Edit delivery · " + esc(edit.reference) : "Delivery goods & counter cash",
     rows.length + " bilty selected · Record the handover details.",
     `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map(deliveryBiltyCard).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
   const form = $("#delivery-form");
+  if(edit){$(".delivery-lookup",form).hidden=true;$$('[data-action="delivery-remove"]',form).forEach(button=>button.remove());$('button[type="submit"]',form).innerHTML=icon("check")+"Save changes";}
   for (const [name, value] of Object.entries(values)) {
     const input = form.elements.namedItem(name);
     if (input) input.value = value;
@@ -2416,6 +2429,7 @@ function stationForm(id) {
   );
 }
 function closeModal() {
+  if(deliveryEdit && $("#delivery-form")){deliveryEdit=null;selected.clear();}
   recordPrintContext = null;
   const d = $("#modal");
   if (d.open) d.close();
@@ -2881,6 +2895,9 @@ async function action(name, el) {
     case "record-delivery":
       recordDelivery();
       break;
+    case "edit-delivery":
+      await editDelivery(el.dataset.id);
+      break;
     case "delivery":
       await showDelivery(el.dataset.id);
       break;
@@ -3206,7 +3223,8 @@ async function submitForm(form, submitter) {
         loading: data["loading_" + r.id],
         suzuki: data["suzuki_" + r.id],
       }));
-      let r = await api("save_delivery", {
+      let r = await api(deliveryEdit ? "update_delivery" : "save_delivery", {
+        ...(deliveryEdit || {}),
         dated: data.dated,
         receiver: data.receiver,
         mobile: data.mobile,
@@ -3214,6 +3232,7 @@ async function submitForm(form, submitter) {
         remarks: data.remarks,
         items,
       });
+      deliveryEdit=null;
       selected.clear();
       closeModal();
       await navigate("deliveries");

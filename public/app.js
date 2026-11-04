@@ -1646,12 +1646,24 @@ function saveBilty(mode) {
   toast("Bilty " + i.bilty + " added to the shipment list.");
   if (mode === "another") openBilty();
 }
+function deliveryFacts(rows) {
+  return `<dl class="delivery-facts">${rows.map(([label,value,wide])=>`<div${wide?' class="delivery-fact-wide"':''}><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>`;
+}
+function deliveryBiltyCard(r) {
+  return `<section class="bilty-card delivery-card"><header class="delivery-card-head"><div><h3>Bilty ${esc(r.bilty)}</h3><p>${esc(r.customer || r.party_to || "—")}</p></div><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></header>
+    ${deliveryFacts([["Station",r.station||"—"],["Arrival date",fmtdate(r.dated)],["Quantity",num(r.qty)],["Goods type / description",r.detail||"Not recorded",true]])}
+    <div class="delivery-charge-breakdown">${deliveryFacts([["Bilty charges",cash(r.bilty_amount)],...(!isOperations()?[["Godown charges",cash(r.godown)]]:[]),["Advance",cash(r.advance)],["Arrival loading + Suzuki",cash(r.loading+r.suzuki)]])}</div>
+    <div class="delivery-total-banner"><span>Bilty total</span><strong>${goodsCash(r.total)}</strong></div>
+    <div class="delivery-input-section"><h4>Service charges</h4><div class="form-grid">${field("loading_"+r.id,"Loading charge (Rs)",(r.loading/100).toFixed(2),"number",'required min="0" step="0.01"')}${field("suzuki_"+r.id,"Suzuki charge (Rs)",(r.suzuki/100).toFixed(2),"number",'required min="0" step="0.01"')}</div></div>
+    <div class="delivery-input-section"><h4>Cash collection</h4><div class="form-grid">${field("discount_"+r.id,"Discount (Rs)","0","number",'min="0" step="0.01"',true)}${field("bilty_received_"+r.id,"Bilty cash received (Rs)","0","number",'min="0" step="0.01"')}${field("service_received_"+r.id,"Loading / Suzuki received (Rs)","0","number",'min="0" step="0.01"')}</div></div>
+    <div class="delivery-line-totals" data-delivery-totals="${r.id}" aria-live="polite"></div></section>`;
+}
 function recordDelivery(values = {}) {
   let rows = [...selected.values()];
   modal(
     "Delivery goods & counter cash",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map((r) => `<div class="bilty-card"><div class="bilty-title"><b>Bilty ${esc(r.bilty)}</b><span>${esc(r.customer || r.party_to)}</span><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></div><p class="note">${esc(r.station || "—")} · ${fmtdate(r.dated)} · Qty ${num(r.qty)} · ${esc(r.detail || "Goods description not recorded")}</p><div class="note" style="margin-bottom:14px">Bilty charges ${cash(r.bilty_amount)} · Godown ${isOperations() ? "—" : cash(r.godown)} · Bilty total ${goodsCash(r.total)} · Advance ${cash(r.advance)} · Arrival loading + Suzuki ${cash(r.loading + r.suzuki)}</div><div class="form-grid three">${field("loading_" + r.id, "Loading charge (Rs)", (r.loading / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("suzuki_" + r.id, "Suzuki charge (Rs)", (r.suzuki / 100).toFixed(2), "number", 'required min="0" step="0.01"')}${field("discount_" + r.id, "Discount (Rs)", "0", "number", 'min="0" step="0.01"')}${field("bilty_received_" + r.id, "Bilty cash received (Rs)", "0", "number", 'min="0" step="0.01"')}${field("service_received_" + r.id, "Loading / Suzuki received (Rs)", "0", "number", 'min="0" step="0.01"')}</div></div>`).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
+    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map(deliveryBiltyCard).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
   const form = $("#delivery-form");
   for (const [name, value] of Object.entries(values)) {
@@ -1685,6 +1697,8 @@ function updateDeliveryWarnings() {
   const warnings = [];
   for (const r of selected.values()) {
     const amount = (key) => Math.round(Number(data[key + "_" + r.id] || 0) * 100);
+    const line = form.querySelector(`[data-delivery-totals="${r.id}"]`);
+    if(line) line.innerHTML = `<div><span>Total charges</span><strong>${goodsCash(Number(r.total||0)+amount("loading")+amount("suzuki"))}</strong></div><div><span>Cash recorded</span><strong>${cash(amount("bilty_received")+amount("service_received"))}</strong></div>`;
     if (!isOperations() && amount("discount") + amount("bilty_received") > Math.max(0, r.total - r.advance))
       warnings.push("Bilty " + r.bilty + ": cash plus discount is greater than the remaining bilty amount.");
     if (amount("service_received") > amount("loading") + amount("suzuki"))
@@ -1692,15 +1706,13 @@ function updateDeliveryWarnings() {
   }
   const sum = (key) => [...selected.values()].reduce((n, r) => n + Number(r[key] || 0), 0);
   const entered = (key) => [...selected.values()].reduce((n, r) => n + Math.round(Number(data[key + "_" + r.id] || 0) * 100), 0);
-  $("#delivery-combined").innerHTML = detailCells([
-    ["Bilties", num(selected.size)], ["Quantity", num(sum("qty"))],
-    ["Bilty charges", cash(sum("bilty_amount"))], ["Godown charges", isOperations() ? "—" : cash(sum("godown"))],
-    ["Bilties total", goodsCash(sum("total"))], ["Advance", cash(sum("advance"))],
-    ["Loading", cash(entered("loading"))], ["Suzuki", cash(entered("suzuki"))],
-    ["Discount", cash(entered("discount"))], ["Bilty cash received", cash(entered("bilty_received"))],
-    ["Service cash received", cash(entered("service_received"))],
-    ["Total cash received", cash(entered("bilty_received") + entered("service_received"))]
-  ]);
+  $("#delivery-combined").innerHTML = `<div class="delivery-summary-head"><h3>Delivery totals</h3><span>${num(selected.size)} bilties · Quantity ${num(sum("qty"))}</span></div>` + deliveryFacts([
+    ["Bilty charges",cash(sum("bilty_amount"))],...(!isOperations()?[["Godown charges",cash(sum("godown"))]]:[]),
+    ["Bilties total",goodsCash(sum("total"))],["Advance",cash(sum("advance"))],
+    ["Loading",cash(entered("loading"))],["Suzuki",cash(entered("suzuki"))],["Discount",cash(entered("discount"))],
+    ["Total charges",goodsCash(sum("total")+entered("loading")+entered("suzuki"))],
+    ["Bilty cash received",cash(entered("bilty_received"))],["Service cash received",cash(entered("service_received"))]
+  ]) + `<div class="delivery-total-banner delivery-cash-banner"><span>Total cash received</span><strong>${cash(entered("bilty_received")+entered("service_received"))}</strong></div>`;
   const box = $("#delivery-warning");
   box.hidden = !warnings.length;
   box.textContent = warnings.join(" ") + (warnings.length ? " You can still save these amounts." : "");

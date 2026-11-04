@@ -32,6 +32,14 @@ assert.equal(await page.locator('[name^="bilty_received_"]').first().inputValue(
 await page.locator('#delivery-bilty-number').fill('MULTI-LOOKUP');
 await page.locator('[data-action="delivery-add"]:not([disabled])').click();
 await page.locator('[name^="bilty_received_"]').last().fill('120');
+const layout=await page.evaluate(()=>{
+ const card=document.querySelector('.delivery-card');
+ const facts=[...card.querySelectorAll('.delivery-facts dt')].map(el=>el.textContent);
+ return {facts,bold:getComputedStyle(card.querySelector('.delivery-total-banner strong')).fontWeight,overflow:document.documentElement.scrollWidth>innerWidth};
+});
+assert.ok(layout.facts.includes('Quantity')&&layout.facts.includes('Goods type / description'));
+assert.ok(Number(layout.bold)>=700);assert.equal(layout.overflow,false);
+if(process.env.APG_DELIVERY_REVIEW) await page.screenshot({path:process.env.APG_DELIVERY_REVIEW,fullPage:true});
 await page.locator('#delivery-form [type="submit"]').click();
 await page.getByRole('button',{name:'Print receipt',exact:true}).waitFor();
 const text=await page.locator('#modal').innerText();assert.ok(text.includes('220.00'));

@@ -41,7 +41,7 @@ await page.getByRole('button',{name:'Approve & save incoming goods',exact:true})
 await page.locator('[data-action="edit-shipment"]').waitFor();
 assert.ok((await page.locator('#modal').innerText()).includes('ADMIN-APPROVED'));
 assert.ok((await page.locator('#modal').innerText()).includes('100.75'));
-assert.ok((await page.locator('#modal').innerText()).includes('Truck delivery / amount'));
+assert.ok(!(await page.locator('#modal').innerText()).includes('Truck delivery amount')); // zero truck amount is omitted
 await page.getByRole('button',{name:'Print sheet',exact:true}).click();
 assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('Labour Bonus'));
 assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('100.75'));

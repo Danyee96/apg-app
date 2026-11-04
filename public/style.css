@@ -4760,3 +4760,22 @@ dialog.command-dialog {
 .goods-name-list { display:flex; flex-wrap:wrap; gap:8px; }
 .goods-name-list span { background:#f0f7f3; border:1px solid #d8e7df; padding:8px 12px; border-radius:8px; }
 @media(max-width:650px){.goods-management{grid-template-columns:1fr}.goods-analysis{padding:16px}.goods-picker .form-grid{grid-template-columns:1fr}}
+
+.incoming-summary-stats .detail-grid { grid-template-columns:repeat(2,minmax(0,1fr)); margin:18px 0 24px; }
+.charge-summary-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+.charge-summary-groups>section { min-width:0; padding:20px; border:1px solid #dce8e3; border-radius:14px; background:#fff; }
+.charge-summary-groups h3 { margin:0 0 12px; color:#21483e; font-size:16px; font-weight:800; }
+.charge-summary-row { display:flex; align-items:baseline; justify-content:space-between; gap:16px; padding:11px 0; border-bottom:1px solid #edf2ef; }
+.charge-summary-row span { color:#607b72; font-size:13px; }
+.charge-summary-row b { color:#193d33; font-size:16px; text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.charge-summary-row.is-total { border:0; border-radius:10px; background:#eaf6f0; padding:16px 12px; margin-top:12px; }
+.charge-summary-row.is-total span { color:#305b4e; font-weight:700; }
+.charge-summary-row.is-total b { font-size:22px; font-weight:800; color:#087f72; }
+.charge-summary-caption { display:block; margin-top:12px; color:#73877f; font-size:11px; line-height:1.5; }
+@media(max-width:700px){.charge-summary-groups{grid-template-columns:1fr}.charge-summary-groups>section{padding:16px}.charge-summary-row.is-total b{font-size:20px}}
+
+.charge-summary-row { flex-wrap:wrap; }
+.charge-summary-row b { white-space:nowrap; }
+.charge-summary-row.is-total { display:block; }
+.charge-summary-row.is-total span { display:block; }
+.charge-summary-row.is-total b { display:block; text-align:left; margin-top:8px; }

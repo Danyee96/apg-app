@@ -132,3 +132,5 @@ Classification IDs are separate from the original description and money. The mig
 Review and saved incoming details include quantity and bilty counts by category/subcategory. Individual bilty details and printouts include the subcategory. **Goods analytics** shows approved incoming goods by category with status/date filters; pending submissions enter totals only after approval. Custom and uncategorised quantities are retained in reports. Operations can view quantity analytics without godown totals.
 
 Checks: `python3 tests/goods_categories.py` and `python3 tests/goods_categories_browser.py` (browser environment as for print tests).
+
+Incoming summary separates Goods charges from Truck delivery. Total goods charges includes bilty, godown, loading and Suzuki. Charges after advance appears only when an advance exists. Bilty charges minus truck delivery excludes godown, loading, Suzuki and bonuses. Unused zero service/bonus lines and redundant subtotals are omitted from the summary and incoming print summary.

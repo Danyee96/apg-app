@@ -4571,5 +4571,9 @@ window.APG_TRANSLATIONS = {
   "Sunday": [
     "اتوار",
     "Itwar"
+  ],
+  "Truck delivery amount entered in shipment details. Bilty and godown charges are not included.": [
+    "کھیپ کی تفصیلات میں درج ٹرک ڈیلیوری کی رقم۔ اس میں بلٹی اور گودام کے چارجز شامل نہیں۔",
+    "Khep ki tafseelat mein darj truck delivery ki raqam. Is mein bilty aur godown ke charges shamil nahin."
   ]
 };

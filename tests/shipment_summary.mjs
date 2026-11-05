@@ -11,6 +11,10 @@ await page.locator('[data-view="dashboard"]').first().waitFor();
 const result=await page.evaluate(()=>{
  const item={bilty:'ORDER-TEST',qty:2,detail:'Cotton shoes',bilty_amount:20000,godown:7000,loading:0,suzuki:0,advance:0,total:27000,status:'pending'};
  const draft={...item};for(const key of ['bilty_amount','godown','loading','suzuki','advance']) draft[key]=String(item[key]/100);
+ const sidebarForm={kind:'incoming',header:{truck_amount:'123.45'},items:[draft]};
+ if(shipmentSidebarTotal(sidebarForm)!=='Rs 123.45')throw Error('Incoming sidebar must show only truck delivery amount');
+ sidebarForm.header.truck_amount='0';if(shipmentSidebarTotal(sidebarForm)!=='Rs 0.00')throw Error('Zero truck amount incorrectly replaced by charges');
+ if(shipmentSidebarTotal({...sidebarForm,kind:'booking'})!=='Rs 200.00')throw Error('Booking sidebar changed');
  const saved=shipmentBreakdown([item],'incoming',{truck_amount:10000});
  const review=shipmentBreakdown([draft],'incoming',{truck_amount:'100'},true);
  if(saved!==review)throw Error('Review and saved calculations differ');
@@ -29,7 +33,13 @@ const result=await page.evaluate(()=>{
  const balance=[...print.querySelectorAll('.slip-money-row')].find(el=>el.textContent.includes('Truck balance'));
  if(!balance?.textContent.includes('100.00'))throw Error('Print balance differs');
  const a4=buildA4Document(snapshot);if(a4.indexOf('<th>Quantity</th>')>a4.indexOf('<th>Goods</th>'))throw Error('A4 quantity order differs');
+ currentForm={...sidebarForm,header:{dated:today(),truck:'TRUCK-TEST',truck_amount:'123.45'},step:0};shipmentForm();
+ const truckInput=document.querySelector('#shipment-form [name="truck_amount"]');truckInput.value='456.78';truckInput.dispatchEvent(new Event('input',{bubbles:true}));
+ if(document.querySelector('#sum-total').textContent!=='Rs 456.78')throw Error('Truck total does not update when entered');
+ for(const step of [1,2]){currentForm.step=step;shipmentForm();if(document.querySelector('#sum-total').textContent!=='Rs 456.78')throw Error('Truck total lost between steps');if(document.querySelector('.summary-total span').textContent!=='Truck delivery / amount')throw Error('Incoming sidebar label incorrect');}
+ currentForm=null;
  session.profile.role='operations';session.permissions=['incoming.view'];
+ if(shipmentSidebarTotal({...sidebarForm,header:{truck_amount:'123.45'}})!=='Rs 123.45')throw Error('Operator cannot see entered truck amount');
  const restricted=shipmentBreakdown([item],'incoming',{truck_amount:10000});
  const restrictedRoot=document.createElement('div');restrictedRoot.innerHTML=restricted;
  if([...restrictedRoot.querySelectorAll('.detail-cell span')].some(el=>el.textContent==='Godown charges + Bilty charges'))throw Error('Restricted combined charges exposed');

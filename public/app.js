@@ -1483,6 +1483,11 @@ function shipmentAmountWarnings() {
   const warnings = currentForm.items.filter(item => Math.round(Number(item.advance || 0) * 100) > itemTotal(item));
   return warnings.length ? `<div class="note-box warning" role="status" style="margin-bottom:18px">${warnings.map(item => `Bilty ${esc(item.bilty)}: advance is greater than its bilty total.`).join("<br>")}<br>You can continue and save these amounts.</div>` : "";
 }
+function shipmentSidebarTotal(form) {
+  return form.kind === "booking"
+    ? goodsCash(form.items.reduce((sum, item) => sum + itemTotal(item, form.kind), 0), form.kind)
+    : cash(Math.round(Number(form.header.truck_amount || 0) * 100));
+}
 function shipmentForm() {
   let f = currentForm,
     h = f.header,
@@ -1514,7 +1519,7 @@ function shipmentForm() {
             shipmentBreakdown(f.items, f.kind, h, true) +
             shipmentDetailTable(f.items, f.kind, true) + (!booking ? goodsAnalyticsSection(f.items) : "") +
             `<div class="note-box" style="margin-top:20px">${isOperations() && !booking ? "Submitting sends this entry to Pending incoming goods. It will appear in goods and delivery searches only after super admin approval." : "Saving records the shipment and its bilties. It does not automatically post an accounting voucher."}</div>`
-    }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>${booking ? "Bilty totals" : "Godown charges + Bilty charges"}</span><b id="sum-total">${goodsCash(f.items.reduce((s, i) => s + itemTotal(i), 0), f.kind)}</b></div><p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Godown charges + Bilty charges is the combined subtotal. Loading and Suzuki charges are separate."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? (f.pendingId ? "Approve & save incoming goods" : isOperations() && !booking ? "Submit for approval" : "Save " + (booking ? "booking" : "incoming goods")) : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
+    }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>${booking ? "Bilty totals" : "Truck delivery / amount"}</span><b id="sum-total">${shipmentSidebarTotal(f)}</b></div><p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Truck delivery amount entered in shipment details. Bilty and godown charges are not included."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? (f.pendingId ? "Approve & save incoming goods" : isOperations() && !booking ? "Submit for approval" : "Save " + (booking ? "booking" : "incoming goods")) : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function draftBiltyList() {
@@ -3140,7 +3145,7 @@ document.addEventListener("input", (e) => {
     clearTimeout(deliveryLookupTimer);
     deliveryLookupTimer = setTimeout(fetchDeliveryBilty, 450);
   }
-  if (e.target.closest("#shipment-form") && currentForm?.step === 1) {
+  if (e.target.closest("#shipment-form") && currentForm?.step <= 1) {
     captureShipment();
     $("#sum-qty").textContent = num(
       currentForm.items.reduce((s, i) => s + Number(i.qty || 0), 0),
@@ -3151,9 +3156,7 @@ document.addEventListener("input", (e) => {
         0,
       ),
     );
-    $("#sum-total").textContent = goodsCash(
-      currentForm.items.reduce((s, i) => s + itemTotal(i), 0), currentForm.kind,
-    );
+    $("#sum-total").textContent = shipmentSidebarTotal(currentForm);
   }
   if (e.target.closest("#voucher-lines")) updateVoucherSummary();
 });

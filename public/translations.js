@@ -5063,5 +5063,41 @@ window.APG_TRANSLATIONS = {
   "Enter collected cash and submit it for admin approval.": [
     "وصول شدہ نقد رقم درج کریں اور ایڈمن کی منظوری کے لیے بھیجیں۔",
     "Wasool shuda naqad raqam darj karein aur admin ki manzoori ke liye bhejein."
+  ],
+  "Walk-in delivery": [
+    "فوری حوالگی اور وصولی",
+    "Fori hawalgi aur wasooli"
+  ],
+  "Standard delivery": [
+    "عام حوالگی",
+    "Aam hawalgi"
+  ],
+  "Delivery type": [
+    "حوالگی کا طریقہ",
+    "Hawalgi ka tareeqa"
+  ],
+  "Standard delivery · collect cash later": [
+    "عام حوالگی · رقم بعد میں وصول کریں",
+    "Aam hawalgi · raqam baad mein wasool karein"
+  ],
+  "Walk-in delivery · collect cash now": [
+    "فوری حوالگی · رقم ابھی وصول کریں",
+    "Fori hawalgi · raqam abhi wasool karein"
+  ],
+  "Continue to cash collection": [
+    "رقم کی وصولی پر جائیں",
+    "Raqam ki wasooli par jayein"
+  ],
+  "Walk-in delivery saved. Complete cash collection now.": [
+    "فوری حوالگی محفوظ ہو گئی۔ اب رقم کی وصولی مکمل کریں۔",
+    "Fori hawalgi mehfooz ho gayi. Ab raqam ki wasooli mukammal karein."
+  ],
+  "Choose a valid delivery type.": [
+    "حوالگی کا درست طریقہ منتخب کریں۔",
+    "Hawalgi ka durust tareeqa muntakhib karein."
+  ],
+  "Walk-in delivery requires cash receiving access.": [
+    "فوری حوالگی کے لیے نقد وصولی کی اجازت درکار ہے۔",
+    "Fori hawalgi ke liye naqad wasooli ki ijazat darkar hai."
   ]
 };

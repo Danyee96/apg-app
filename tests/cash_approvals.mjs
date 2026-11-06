@@ -14,14 +14,15 @@ try{
  });
  await login(ops,'ui-cash-ops','UI-cash-operator-2026');
  await ops.evaluate(item=>{selected.clear();selected.set(item.id,item);recordDelivery();},setup);
+ await ops.locator('#delivery-form [name="delivery_mode"]').selectOption('walkin');
  await ops.locator('#delivery-form [name="receiver"]').fill('Cash review receiver');
- await ops.getByRole('button',{name:'Save delivery',exact:true}).click();await ops.locator('#modal [data-action="receive-delivery-cash"]').waitFor();
- const id=await ops.evaluate(()=>recordPrintContext.data.id);assert.equal((await ops.evaluate(id=>api('delivery',null,{id}),id)).cash_summary.status,'awaiting_cash');
- await ops.locator('#modal [data-action="receive-delivery-cash"]').click();await ops.locator('#delivery-cash-form').waitFor();
+ await ops.getByRole('button',{name:'Continue to cash collection',exact:true}).click();await ops.locator('#delivery-cash-form').waitFor();
+ const id=await ops.evaluate(()=>cashReceivingInvoice.header.id);assert.equal((await ops.evaluate(id=>api('delivery',null,{id}),id)).delivery_mode,'walkin');
+ assert.ok((await ops.locator('#modal-title').innerText()).includes('Walk-in delivery'));
  assert.ok(await ops.locator('#delivery-cash-form [name="cash_account_id"] option').count()>0);
  await ops.locator('#delivery-cash-form [name^="bilty_received_"]').fill('200');
  await ops.getByRole('button',{name:'Submit cash for approval',exact:true}).click();await ops.getByRole('heading',{name:'Pending cash collections',exact:true}).waitFor();
- assert.ok((await ops.locator('#main').innerText()).includes('200.00'));
+ assert.ok((await ops.locator('#main').innerText()).includes('200.00'));assert.ok((await ops.locator('#main').innerText()).includes('Walk-in delivery'));
  assert.equal((await admin.evaluate(id=>api('delivery',null,{id}),id)).cash_summary.received,0);
  await ops.locator('#main [data-action="review-pending-cash"]').click();await ops.locator('#delivery-cash-form').waitFor();
  assert.equal(await ops.locator('#delivery-cash-form [type="submit"]').isDisabled(),true);
@@ -33,5 +34,5 @@ try{
  const invoice=await admin.evaluate(id=>api('delivery_cash_invoice',null,{id}),id);assert.equal(invoice.received,22000);assert.equal(invoice.outstanding,5000);assert.equal(invoice.receipts[0].created_by,'ui-cash-ops');
  assert.equal((await ops.evaluate(()=>api('pending_cash_collections'))).rows.length,0);
  await ops.locator('[data-action="close-modal"]').first().click();await ops.locator('#app-language').selectOption('ur');await ops.evaluate(()=>navigate('pending-cash'));assert.ok(await ops.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
- assert.deepEqual(errors,[]);console.log('PASS: mobile operator saves goods immediately, submits cash without posting, can view own read-only proposal; admin automatically sees pending cash, corrects and approves; ledger amount and original collector preserved; Urdu RTL.');
+ assert.deepEqual(errors,[]);console.log('PASS: mobile operator walk-in opens cash collection immediately, pending entry marked Walk-in delivery, submits cash without posting, can view own read-only proposal; admin automatically sees pending cash, corrects and approves; ledger amount and original collector preserved; Urdu RTL.');
 }finally{await browser.close();}

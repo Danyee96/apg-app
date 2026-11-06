@@ -2,9 +2,10 @@
 declare(strict_types=1);
 
 function migrate_delivery_cash(): void {
- if((one("SELECT value FROM meta WHERE key='delivery_cash_version'")['value']??'')==='3')return;
+ if((one("SELECT value FROM meta WHERE key='delivery_cash_version'")['value']??'')==='4')return;
  transaction(function(){
   if(!in_array('cash_workflow',array_column(query('PRAGMA table_info(deliveries)'),'name'),true))run('ALTER TABLE deliveries ADD COLUMN cash_workflow INTEGER NOT NULL DEFAULT 0');
+  if(!in_array('delivery_mode',array_column(query('PRAGMA table_info(deliveries)'),'name'),true))run("ALTER TABLE deliveries ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'standard'");
   run('CREATE TABLE IF NOT EXISTS delivery_cash_invoices(delivery_id INTEGER PRIMARY KEY REFERENCES deliveries(id),posted_voucher_id INTEGER REFERENCES vouchers(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
   run('CREATE TABLE IF NOT EXISTS delivery_cash_lines(delivery_item_id INTEGER PRIMARY KEY REFERENCES delivery_items(id),delivery_id INTEGER NOT NULL REFERENCES deliveries(id),account_id TEXT NOT NULL REFERENCES accounts(id),bilty TEXT NOT NULL,party_to TEXT NOT NULL DEFAULT \'\',bilty_due INTEGER NOT NULL,service_due INTEGER NOT NULL)');
   foreach(['bilty_amount','godown','advance'] as $column)if(!in_array($column,array_column(query('PRAGMA table_info(delivery_cash_lines)'),'name'),true))run('ALTER TABLE delivery_cash_lines ADD COLUMN '.$column.' INTEGER NOT NULL DEFAULT 0');
@@ -18,7 +19,7 @@ function migrate_delivery_cash(): void {
   run("CREATE TABLE IF NOT EXISTS cash_collection_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT,delivery_id INTEGER NOT NULL REFERENCES deliveries(id),submitted_by INTEGER NOT NULL,submitted_name TEXT NOT NULL,submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,status TEXT NOT NULL DEFAULT 'pending',payload TEXT NOT NULL,request_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,approved_by INTEGER,approved_at TEXT,receipt_id INTEGER REFERENCES delivery_cash_receipts(id),approved_payload TEXT)");
   run("CREATE UNIQUE INDEX IF NOT EXISTS cash_collection_pending_delivery ON cash_collection_submissions(delivery_id) WHERE status='pending'");
   run('CREATE INDEX IF NOT EXISTS cash_collection_submitter ON cash_collection_submissions(submitted_by,status)');
-  run("INSERT OR REPLACE INTO meta(key,value) VALUES('delivery_cash_version','3')");
+  run("INSERT OR REPLACE INTO meta(key,value) VALUES('delivery_cash_version','4')");
  });
 }
 function sync_delivery_cash_invoice(int $id): void {
@@ -122,7 +123,7 @@ function submit_delivery_cash(array $p,array $user): array {
 function delivery_cash_approval_routes(string $action,string $method,array $p,array $user): void {
  if($action==='pending_cash_collections'&&$method==='GET'){
   $where=" WHERE s.status='pending'";$args=[];if($user['role']!=='super_admin'){$where.=' AND s.submitted_by=?';$args[]=$user['id'];}
-  $result=paged('cash_collection_submissions s JOIN deliveries d ON d.id=s.delivery_id',$where,$args,'s.id,s.delivery_id,s.submitted_name,s.submitted_at,s.payload,d.reference,d.receiver','s.id DESC');
+  $result=paged('cash_collection_submissions s JOIN deliveries d ON d.id=s.delivery_id',$where,$args,'s.id,s.delivery_id,s.submitted_name,s.submitted_at,s.payload,d.reference,d.receiver,d.delivery_mode','s.id DESC');
   foreach($result['rows'] as &$row){$payload=json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR);unset($row['payload']);$row['dated']=$payload['dated'];$row['amount']=array_sum(array_map(fn($line)=>money($line,'bilty_received')+money($line,'service_received'),$payload['items']));$row['bilties']=count($payload['items']);}unset($row);response($result);
  }
  if($action==='cash_collection_submission'&&$method==='GET'){

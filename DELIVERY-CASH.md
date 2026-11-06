@@ -18,3 +18,7 @@ Checks (disposable database copies only):
 - `python3 tests/delivery_approvals.py`: Operations approval and duplicate reservations.
 
 Additional checks: `tests/cash_approvals.py` and `tests/cash_approvals_browser.py` cover immediate operator handover, no posting before approval, own submissions only, duplicate/replay/stale protection, admin correction, collector/approver provenance, discard and mobile Urdu RTL.
+
+## Walk-in delivery
+
+Authorized operators and super admin can select **Walk-in delivery · collect cash now** in the new-delivery form. Saving the handover opens the cash receiving screen immediately, carrying the saved bilties and charges. Super admin confirms the collection and posts it immediately; Operations submit the collection to the existing admin approval queue. A persisted `delivery_mode` marks walk-ins in the delivery list, cash invoice list, pending cash rows, review screen and printouts. Existing deliveries default to Standard delivery. Partial/unpaid amounts retain the same per-customer balance rules. Closing the cash screen leaves the saved handover awaiting cash, so it can be resumed without creating another delivery. Mode is set at creation, not silently changed while editing a saved entry.

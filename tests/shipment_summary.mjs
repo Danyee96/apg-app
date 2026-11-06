@@ -7,7 +7,7 @@ await page.goto(process.env.APG_TEST_URL);
 await page.locator('#f-username').fill('integration-review');
 await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
 await page.locator('#auth-form [type="submit"]').click();
-await page.locator('[data-view="dashboard"]').first().waitFor();
+await page.locator('.nav-link[data-view="navigation"]').first().waitFor();
 const result=await page.evaluate(()=>{
  const item={bilty:'ORDER-TEST',qty:2,detail:'Cotton shoes',bilty_amount:20000,godown:7000,loading:0,suzuki:0,advance:0,total:27000,status:'pending'};
  const draft={...item};for(const key of ['bilty_amount','godown','loading','suzuki','advance']) draft[key]=String(item[key]/100);

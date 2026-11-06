@@ -4943,5 +4943,9 @@ window.APG_TRANSLATIONS = {
   "Awaiting cash amounts are listed for collection. Customer ledgers update when cash receiving is confirmed.": [
     "وصولی کی منتظر رقوم یہاں درج ہیں۔ وصولی کی تصدیق پر گاہکوں کے لیجر اپ ڈیٹ ہوتے ہیں۔",
     "Wasooli ki muntazir raqoom yahan darj hain. Wasooli ki tasdeeq par gahakon ke ledger update hotay hain."
+  ],
+  "Open overview": [
+    "جائزہ کھولیں",
+    "Jaiza kholein"
   ]
 };

@@ -322,7 +322,6 @@ function navigationHub() {
       "Your working day",
       "Goods, people and the day ahead.",
       [
-        "dashboard",
         "overview",
         "incoming",
         "pending-incoming",
@@ -373,7 +372,7 @@ function navigationHub() {
       btn("Find a task", "command", false, "search"),
       "YOUR STARTING POINT",
     ) +
-    `<section class="hub-welcome"><div class="hub-person">${avatarMarkup(session.profile, true)}<div><span class="hero-label"><span class="dot"></span> WELCOME TO YOUR WORKSPACE</span><h2>${personalGreeting()},<br><span>${esc(displayName())}.</span></h2><p>Ready when you are. Choose where you’d like to go.</p><div class="hub-person-meta"><span>${icon("shield")}${esc(roleLabel(session.profile.role))}</span><span>${icon("pin")}Azad Pakistan Goods</span></div></div></div><div class="hub-day"><span class="section-kicker">MAKE TODAY A GOOD DAY</span><div class="hub-day-icon">${icon("calendar")}</div><b>${esc(longDate)}</b><span>Pakistan Standard Time</span><button class="btn hero-primary" data-view="dashboard">Open dashboard ${icon("arrow")}</button></div></section><div class="hub-tools"><div class="hub-search">${icon("search")}<input id="hub-search" type="search" placeholder="Find a tab or task…" aria-label="Find a workspace tab or task" autocomplete="off"><kbd>/</kbd></div><span id="hub-result-count" role="status">${count} places & tasks</span></div><div id="hub-content">${sections.map((section) => `<section class="hub-section"><div class="section-heading"><div><span class="section-kicker">${section.id.toUpperCase()}</span><h2>${section.title}</h2><p>${section.hint}</p></div><span class="hub-section-count">${section.items.length} tabs</span></div><div class="hub-grid">${section.items.map(([view, ic, title], i) => `<button class="hub-card ${view === "dashboard" ? "hub-card-featured" : ""}" data-view="${view}" data-hub-search="${esc((title + " " + descriptions[view]).toLowerCase())}"><div class="hub-card-top"><span class="tile-icon">${icon(ic)}</span><span class="hub-card-index">${String(i + 1).padStart(2, "0")}</span></div><h3>${esc(title)}</h3><p>${esc(descriptions[view])}</p><span class="hub-card-open">Open ${icon("arrow")}</span></button>`).join("")}</div></section>`).join("")}${tasks.length ? `<section class="hub-section"><div class="section-heading"><div><span class="section-kicker">STRAIGHT TO IT</span><h2>Quick actions</h2><p>Skip the extra steps and get things done.</p></div></div><div class="dashboard-grid">${tasks.map(([key, title, desc, ic, color]) => `<button class="dashboard-tile ${color}" data-dashboard="${key}" data-hub-search="${esc((title + " " + desc).toLowerCase())}"><span class="tile-icon">${icon(ic)}</span><span class="tile-copy"><b>${esc(title)}</b><small>${esc(desc)}</small></span><span class="tile-arrow">${icon("arrow")}</span></button>`).join("")}</div></section>` : ""}</div><div id="hub-no-results" class="empty" hidden>${icon("search")}<h3>No matching tabs or tasks.</h3><p>Try “delivery”, “customer”, “profile” or another task.</p></div><div class="data-note">${icon("shield")}<span>This page shows the tools available to your account. Your super admin manages access.</span></div>`
+    `<section class="hub-welcome"><div class="hub-person">${avatarMarkup(session.profile, true)}<div><span class="hero-label"><span class="dot"></span> WELCOME TO YOUR WORKSPACE</span><h2>${personalGreeting()},<br><span>${esc(displayName())}.</span></h2><p>Ready when you are. Choose where you’d like to go.</p><div class="hub-person-meta"><span>${icon("shield")}${esc(roleLabel(session.profile.role))}</span><span>${icon("pin")}Azad Pakistan Goods</span></div></div></div><div class="hub-day"><span class="section-kicker">MAKE TODAY A GOOD DAY</span><div class="hub-day-icon">${icon("calendar")}</div><b>${esc(longDate)}</b><span>Pakistan Standard Time</span>${can("overview.view") ? `<button class="btn hero-primary" data-view="overview">Open overview ${icon("arrow")}</button>` : ""}</div></section><div class="hub-tools"><div class="hub-search">${icon("search")}<input id="hub-search" type="search" placeholder="Find a tab or task…" aria-label="Find a workspace tab or task" autocomplete="off"><kbd>/</kbd></div><span id="hub-result-count" role="status">${count} places & tasks</span></div><div id="hub-content">${sections.map((section) => `<section class="hub-section"><div class="section-heading"><div><span class="section-kicker">${section.id.toUpperCase()}</span><h2>${section.title}</h2><p>${section.hint}</p></div><span class="hub-section-count">${section.items.length} tabs</span></div><div class="hub-grid">${section.items.map(([view, ic, title], i) => `<button class="hub-card ${view === "dashboard" ? "hub-card-featured" : ""}" data-view="${view}" data-hub-search="${esc((title + " " + descriptions[view]).toLowerCase())}"><div class="hub-card-top"><span class="tile-icon">${icon(ic)}</span><span class="hub-card-index">${String(i + 1).padStart(2, "0")}</span></div><h3>${esc(title)}</h3><p>${esc(descriptions[view])}</p><span class="hub-card-open">Open ${icon("arrow")}</span></button>`).join("")}</div></section>`).join("")}${tasks.length ? `<section class="hub-section"><div class="section-heading"><div><span class="section-kicker">STRAIGHT TO IT</span><h2>Quick actions</h2><p>Skip the extra steps and get things done.</p></div></div><div class="dashboard-grid">${tasks.map(([key, title, desc, ic, color]) => `<button class="dashboard-tile ${color}" data-dashboard="${key}" data-hub-search="${esc((title + " " + desc).toLowerCase())}"><span class="tile-icon">${icon(ic)}</span><span class="tile-copy"><b>${esc(title)}</b><small>${esc(desc)}</small></span><span class="tile-arrow">${icon("arrow")}</span></button>`).join("")}</div></section>` : ""}</div><div id="hub-no-results" class="empty" hidden>${icon("search")}<h3>No matching tabs or tasks.</h3><p>Try “delivery”, “customer”, “profile” or another task.</p></div><div class="data-note">${icon("shield")}<span>This page shows the tools available to your account. Your super admin manages access.</span></div>`
   );
 }
 document.addEventListener("input", (e) => {
@@ -433,7 +432,6 @@ function restrictedDashboard() {
 }
 const navs = [
   ["navigation", "grid", "Navigation"],
-  ["dashboard", "grid", "Dashboard"],
   ["overview", "grid", "Overview"],
   ["incoming", "incoming", "Incoming goods"],
   ["goods-analytics", "report", "Goods analytics"],
@@ -441,7 +439,7 @@ const navs = [
   ["pending-incoming", "clock", "Pending incoming goods"],
   ["pending-deliveries", "clock", "Pending delivery goods"],
   ["booking", "booking", "Bookings"],
-  ["deliveries", "truck", "Deliveries"],
+  ["deliveries", "truck", "Delivery goods"],
   ["delivery-cash", "wallet", "Delivery Cash Receiving"],
   ["customers", "users", "Customers"],
   ["accounts", "wallet", "Accounts & vouchers"],
@@ -459,26 +457,26 @@ function initialView() {
     ? requested
     : "navigation";
 }
+function sidebarNavigation() {
+  const link = view => {
+    const row=navs.find(([key])=>key===view);
+    if(!row||!canView(view))return '';
+    return `<button class="nav-link" data-view="${view}">${icon(row[1])}<span>${row[2]}</span>${view==='navigation'?'<small>HOME</small>':''}</button>`;
+  };
+  const group=(id,label,ic,views)=>{
+    const links=views.map(link).join('');if(!links)return '';
+    return `<details class="nav-group" id="${id}"><summary class="nav-link nav-group-toggle">${icon(ic)}<span>${label}</span><span class="nav-group-arrow">${icon('chevron')}</span></summary><div class="nav-submenu">${links}</div></details>`;
+  };
+  return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
+    group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
+    group('nav-delivery','Delivery goods','truck',['deliveries','pending-deliveries','delivery-cash'])+
+    ['booking','goods-analytics','goods-categories','customers'].map(link).join('')+
+    '<div class="nav-label">FINANCE & WORKSPACE</div>'+['accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
+}
 function shell() {
   document.title = "APG — Goods & accounts";
   $("#app").innerHTML =
-    `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="navigation"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><nav><div class="nav-label">OPERATIONS</div>${navs
-      .slice(0, 8)
-      .filter(([v]) => canView(v))
-      .map(
-        ([v, i, l]) =>
-          `<button class="nav-link" data-view="${v}">${icon(i)}<span>${l}</span>${v === "navigation" ? "<small>HOME</small>" : ""}</button>`,
-      )
-      .join("")}<div class="nav-label">FINANCE & WORKSPACE</div>${navs
-      .slice(7)
-      .filter(([v]) => canView(v))
-      .map(
-        ([v, i, l]) =>
-          `<button class="nav-link" data-view="${v}">${icon(i)}<span>${l}</span></button>`,
-      )
-      .join(
-        "",
-      )}</nav><div class="sidebar-bottom"><button class="sidebar-help" data-action="command">${icon("search")}<span>Find a task</span><kbd>⌘ K</kbd></button><div class="user">${avatarMarkup(session.profile)}<button class="user-identity" data-view="profile"><b>${esc(displayName())}</b><small>${esc(roleLabel(session.profile.role))}</small></button><button class="icon-btn" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></div></aside><div class="shell"><header class="topbar"><div class="buttons"><button class="icon-btn mobile-menu" data-action="menu" aria-controls="navigation" aria-expanded="false" aria-label="Open navigation">${icon("menu")}</button><div class="breadcrumbs"><span>Workspace</span>${icon("chevron")}<strong id="crumb">Dashboard</strong></div></div><div class="top-actions">${APG.picker()}<form id="global-search" class="search-global">${icon("search")}<input name="q" aria-label="Find a bilty" placeholder="Search a bilty, party or customer…"><button type="submit" aria-label="Search">${icon("arrow")}</button></form><button class="icon-btn command-trigger" data-action="command" title="Find a task (Ctrl or Command K)" aria-label="Find a task">${icon("grid")}</button><div class="date-chip">${icon("calendar")}<span>${fmtdate(today())}</span></div></div></header><main class="main" id="main" tabindex="-1"></main><footer class="app-footer"><span><span class="dot"></span> Azad Pakistan Goods</span><span>Goods in motion. Business in order.</span></footer></div>`;
+    `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="navigation"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><nav>${sidebarNavigation()}</nav><div class="sidebar-bottom"><button class="sidebar-help" data-action="command">${icon("search")}<span>Find a task</span><kbd>⌘ K</kbd></button><div class="user">${avatarMarkup(session.profile)}<button class="user-identity" data-view="profile"><b>${esc(displayName())}</b><small>${esc(roleLabel(session.profile.role))}</small></button><button class="icon-btn" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></div></aside><div class="shell"><header class="topbar"><div class="buttons"><button class="icon-btn mobile-menu" data-action="menu" aria-controls="navigation" aria-expanded="false" aria-label="Open navigation">${icon("menu")}</button><div class="breadcrumbs"><span>Workspace</span>${icon("chevron")}<strong id="crumb">Navigation</strong></div></div><div class="top-actions">${APG.picker()}<form id="global-search" class="search-global">${icon("search")}<input name="q" aria-label="Find a bilty" placeholder="Search a bilty, party or customer…"><button type="submit" aria-label="Search">${icon("arrow")}</button></form><button class="icon-btn command-trigger" data-action="command" title="Find a task (Ctrl or Command K)" aria-label="Find a task">${icon("grid")}</button><div class="date-chip">${icon("calendar")}<span>${fmtdate(today())}</span></div></div></header><main class="main" id="main" tabindex="-1"></main><footer class="app-footer"><span><span class="dot"></span> Azad Pakistan Goods</span><span>Goods in motion. Business in order.</span></footer></div>`;
   applyPermissions();
 }
 function toggleMenu(open) {
@@ -489,7 +487,7 @@ function toggleMenu(open) {
   sidebar?.classList.toggle("open", open && mobile);
   if (sidebar) sidebar.inert = mobile && !open;
   $(".mobile-menu")?.setAttribute("aria-expanded", String(open && mobile));
-  if (open && mobile) sidebar?.querySelector(".nav-link.active")?.focus();
+  if (open && mobile) {const active=sidebar?.querySelector(".nav-link.active"),group=active?.closest("details");(group&&!group.open?group.querySelector("summary"):active||sidebar?.querySelector(".nav-link"))?.focus();}
   else if (wasOpen && mobile) $(".mobile-menu")?.focus();
 }
 window
@@ -552,8 +550,9 @@ async function navigate(view, reset = true) {
         (view === "financial-detail" ? "financial-reports" : view),
     ),
   );
+  $$('.nav-group').forEach(group=>{const active=Boolean($('.nav-link.active[data-view]',group));group.classList.toggle('active',active);if(active)group.open=true;});
   toggleMenu(false);
-  $("#crumb").textContent =
+  $('#crumb').textContent =
     navs.find((n) => n[0] === view)?.[2] ||
     (view === "financial-detail"
       ? "Financial Reports"

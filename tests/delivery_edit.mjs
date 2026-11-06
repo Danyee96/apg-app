@@ -7,7 +7,7 @@ await page.goto(process.env.APG_TEST_URL);
 await page.locator('#f-username').fill('integration-review');
 await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
 await page.locator('#auth-form [type="submit"]').click();
-await page.locator('[data-view="dashboard"]').first().waitFor();
+await page.locator('.nav-link[data-view="navigation"]').first().waitFor();
 await page.evaluate(async()=>{
  const a=lookups.accounts.find(a=>a.customer && a.status==='A');const st=lookups.stations.find(s=>s.status==='A');
  for(let n=0;n<2;n++) await api('save_shipment',{kind:'incoming',dated:today(),station_id:st.id,truck:'MULTI-'+n,items:[{account_id:a.id,bilty:'MULTI-LOOKUP',qty:n+1,bilty_amount:'100',godown:'20',detail:'Parts '+n,party_to:'Party receiver '+n}]});

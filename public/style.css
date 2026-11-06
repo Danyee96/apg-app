@@ -4808,3 +4808,22 @@ html[data-language="roman"] .nav-link { font-size:11px; }
 /* Let translated labels wrap while each table keeps its own horizontal scrolling. */
 .grid-main > *, .form-layout > *, .profile-layout > *, .dashboard-workgrid > *, .dashboard-overview > * { min-width:0; }
 .panel-head > div, .quick > span, .permission-choice > span, .hub-person > div { min-width:0; }
+
+/* Permission-aware goods groups keep each destination in a single sidebar location. */
+.nav-group { margin:3px 0; }
+.nav-group > summary { cursor:pointer; list-style:none; user-select:none; }
+.nav-group > summary::-webkit-details-marker { display:none; }
+.nav-group > summary::marker { content:''; }
+.nav-group-toggle > span:not(.nav-group-arrow) { min-width:0; flex:1; }
+.nav-group-arrow { margin-inline-start:auto; display:flex; flex-shrink:0; }
+.nav-group-arrow svg { width:14px; height:14px; transition:transform .16s ease; }
+.nav-group[open] > summary .nav-group-arrow svg { transform:rotate(90deg); }
+html[dir="rtl"] .nav-group:not([open]) > summary .nav-group-arrow svg { transform:rotate(180deg); }
+.nav-group.active > summary { color:var(--blue); font-weight:650; }
+.nav-submenu { margin-inline-start:20px; padding-inline-start:8px; border-inline-start:1px solid var(--line); padding-bottom:4px; }
+.nav-submenu .nav-link { font-size:11px; gap:9px; padding:10px; min-height:39px; }
+.nav-submenu .nav-link > svg { width:15px; height:15px; flex-shrink:0; }
+.nav-group > summary:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+html[lang="ur"] .nav-submenu .nav-link { font-size:13px; }
+html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
+@media(prefers-reduced-motion:reduce) { .nav-group-arrow svg { transition:none; } }

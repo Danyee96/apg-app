@@ -7,7 +7,7 @@ await page.goto(process.env.APG_TEST_URL);
 await page.locator('#f-username').fill('integration-review');
 await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
 await page.locator('#auth-form [type="submit"]').click();
-await page.locator('[data-view="dashboard"]').first().waitFor();
+await page.locator('.nav-link[data-view="navigation"]').first().waitFor();
 await page.evaluate(async()=>{
  await api('save_user',{username:'browser-ops',full_name:'Browser Operator',role:'operations',active:1,permissions:['incoming.create'],password:'Browser-ops-only-2026'});
 });

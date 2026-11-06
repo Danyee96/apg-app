@@ -7,7 +7,7 @@ await page.goto(process.env.APG_TEST_URL);
 await page.locator('#f-username').fill('integration-review');
 await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);
 await page.locator('#auth-form [type="submit"]').click();
-await page.locator('[data-view="dashboard"]').first().waitFor();
+await page.locator('.nav-link[data-view="navigation"]').first().waitFor();
 await page.locator('#main [data-view="backups"]').click();
 await page.getByRole('heading',{name:'Backup / Restore',exact:true}).waitFor();
 assert.ok((await page.locator('#main').innerText()).includes('12:00 AM Pakistan time'));

@@ -20,7 +20,7 @@ await ops.evaluate(()=>{
  currentForm.header={dated:today(),station_id:String(st.id),truck:'OPS-BROWSER',truck_amount:'0',commission:'0',labour_bonus:'150.25',munshi_bonus:'75.50'};
  currentForm.items=[{...blankItem(),account_id:a.id,bilty:'OPS-BROWSER-1',qty:'2',bilty_amount:'200',godown:'70',detail:'Original goods'}];currentForm.step=1;shipmentForm();
 });
-assert.equal(await ops.locator('#sum-total').innerText(),'—');
+assert.equal(await ops.locator('#sum-total').innerText(),'Rs 0.00');
 await ops.locator('#shipment-form [type="submit"]').click();
 assert.ok(!(await ops.locator('#shipment-form').innerText()).includes('Godown charges total'));
 await ops.getByRole('button',{name:'Submit for approval',exact:true}).click();
@@ -49,7 +49,14 @@ await page.locator('[data-action="thermal-close"]').first().click();
 const id=await page.evaluate(()=>recordPrintContext.data.id);
 await ops.evaluate(async(id)=>{await showShipment(id);},id);
 assert.equal(await ops.locator('[data-action="edit-shipment"]').count(),0);
-assert.ok(!(await ops.locator('#modal').innerText()).includes('80.00'));
+assert.ok((await ops.locator('#modal .shipment-detail-table').innerText()).includes('80.00'));
+assert.ok(!(await ops.locator('#modal .shipment-breakdown .detail-grid').innerText()).includes('Godown charges total'));
+assert.ok((await ops.locator('#modal .shipment-detail-table').innerText()).includes('280.00'));
+await ops.getByRole('button',{name:'Print sheet',exact:true}).click();
+assert.ok((await ops.locator('#thermal-preview-sheet').innerText()).includes('280.00'));
+assert.ok((await ops.locator('#thermal-preview-sheet').innerText()).includes('80.00'));
+assert.ok(!(await ops.locator('#thermal-preview-sheet').innerText()).includes('Godown charges total'));
+await ops.locator('[data-action="thermal-close"]').first().click();
 const discardedId=await ops.evaluate(async()=>{
  const a=lookups.accounts.find(a=>a.customer&&a.status==='A');const st=lookups.stations.find(s=>s.status==='A');
  const pending=await api('save_shipment',{kind:'incoming',dated:today(),station_id:st.id,truck:'DISCARD-TEST',items:[{account_id:a.id,bilty:'DISCARD-1',qty:1,bilty_amount:'10'}]});

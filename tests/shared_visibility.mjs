@@ -24,9 +24,14 @@ try{
  await operator.locator('[name="receiver"]').fill('Shared visibility receiver');
  await operator.locator('#delivery-bilty-number').fill('SHARED-VISIBLE-BILTY');
  await operator.locator('[data-action="delivery-add"]').first().click();
+ const card=await operator.locator('.delivery-card').innerText();
+ assert.ok(card.includes('Godown charges')&&card.includes('70.00')&&card.includes('270.00'));
+ assert.ok((await operator.locator('#delivery-combined').innerText()).includes('270.00'));
  await operator.locator('[name^="bilty_received_"]').fill('270');
  await operator.locator('#delivery-form [type="submit"]').click();
  await operator.locator('[data-action="edit-delivery"], [data-action="print-dialog"]').first().waitFor();
+ const receipt=await operator.evaluate(()=>buildThermalRecord(recordPrintContext).html);
+ assert.ok(receipt.includes('70.00')&&receipt.includes('270.00')&&!receipt.includes('Charge summaries are restricted'));
  const deliveries=await admin.evaluate(()=>api('deliveries',null,{search:'SHARED-VISIBLE-BILTY'}));
  assert.equal(deliveries.rows.length,1);const delivery=deliveries.rows[0];
  assert.equal(delivery.recorded_by,'shared-operator');assert.equal(delivery.collected,27000);

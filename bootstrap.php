@@ -40,9 +40,9 @@ function migrate_incoming_approvals(): void {
 function operations_response(mixed $data,?string $kind=null): mixed {
  if(!is_array($data))return $data;
  $kind=$data['kind']??$kind??'incoming';
- if(isset($data['bilty'])||(($data['kind']??'')==='incoming'&&isset($data['reference']))){
-  if($kind==='incoming'){foreach(['godown','total','stored_total'] as $key)if(array_key_exists($key,$data))$data[$key]=null;$data['charges_restricted']=true;}
- }
+ // Operations may read individual bilty charges and delivery totals. Only an
+ // explicitly supplied incoming-shipment godown aggregate is withheld.
+ if($kind==='incoming'&&!isset($data['bilty']))foreach(['godown_total','godown_charges_total'] as $key)unset($data[$key]);
  foreach($data as $key=>$value)if(is_array($value))$data[$key]=operations_response($value,$kind);
  return $data;
 }

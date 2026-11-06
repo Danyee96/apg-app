@@ -155,7 +155,7 @@ const can = (permission) =>
   session?.profile?.role === "super_admin" ||
   (session?.permissions || []).includes(permission);
 const isOperations = () => session?.profile?.role === "operations";
-const goodsCash = (value, kind = "incoming") => isOperations() && kind === "incoming" ? "—" : cash(value);
+const goodsCash = (value, kind = "incoming") => cash(value);
 const isSuper = () => session?.profile?.role === "super_admin";
 const roleLabel = (role) =>
   ({
@@ -1320,13 +1320,12 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ...(!booking ? [["Labour Bonus", cash(cents(header.labour_bonus))], ["Munshi Bonus", cash(cents(header.munshi_bonus))]] : []),
     ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilty amounts less truck delivery", cash(sum("bilty_amount") - cents(header.truck_amount))]]),
   ];
-  if (isOperations() && !booking) metrics = metrics.filter(([label])=>!["Godown charges total","Godown charges + Bilty charges","All charges total","Charges less advance","Bilty amounts less truck delivery"].includes(label));
+  if (isOperations() && !booking) metrics = metrics.filter(([label])=>label!=="Godown charges total");
   return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Godown charges + Bilty charges combines those two charges. All charges also includes loading and Suzuki. Truck balance uses bilty amounts only, less truck delivery; godown is excluded."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
 }
 function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);
   let fields = kind === "booking" ? [["rent", "Rent"], ["loading", "Loading"], ["bilty_amount", "Bilty charges"], ["local_charge", "Local"]] : [["bilty_amount", "Bilty charges"], ["godown", "Godown"], ["loading", "Loading"], ["suzuki", "Suzuki"]];
-  if(isOperations() && kind === "incoming") fields = fields.filter(([key])=>key!=="godown");
   return `<div class="table-scroll"><table class="shipment-detail-table"><thead><tr><th>Bilty / customer</th><th>Qty</th><th>Goods type / description</th>${fields.map(([, label]) => `<th class="number">${label}</th>`).join("")}<th class="number">Bilty total</th><th class="number">Advance</th>${draft ? "" : "<th>Status</th>"}</tr></thead><tbody>${items.map(i => `<tr><td><strong>${esc(i.bilty)}</strong><small>${esc(i.customer || lookups.accounts.find(a => a.id === i.account_id)?.name || i.party_from || "—")}</small>${i.party_to ? `<small>To ${esc(i.party_to)}</small>` : ""}</td><td>${num(i.qty)}</td><td><strong>${esc(goodsTypeLabel(i)||i.detail||"—")}</strong>${i.detail && goodsTypeLabel(i) && i.detail!==goodsTypeLabel(i)?`<small>${esc(i.detail)}</small>`:""}${i.remarks ? `<small>${esc(i.remarks)}</small>` : ""}</td>${fields.map(([key]) => `<td class="number">${cash(cents(i[key]))}</td>`).join("")}<td class="number">${goodsCash(draft ? itemTotal(i) : i.total, kind)}</td><td class="number">${cash(cents(i.advance))}</td>${draft ? "" : `<td>${tag(i.status, i.status === "pending" ? "orange" : "green")}</td>`}</tr>`).join("")}</tbody></table></div>`;
 }
 async function showShipment(id) {
@@ -1347,7 +1346,7 @@ async function showShipment(id) {
       shipmentBreakdown(s.items, s.kind, s) +
       `<hr class="divider"><h2 style="margin-bottom:18px">Bilties (${s.items.length})</h2>` + shipmentDetailTable(s.items, s.kind) + (s.kind === "incoming" ? goodsAnalyticsSection(s.items) : ""),
     (can(s.kind + ".edit") && !(isOperations() && s.kind === "incoming") ? `<button class="btn primary" data-action="edit-shipment" data-id="${s.id}">${icon("edit")}Edit entry</button>` : "") +
-    (isOperations() && s.kind === "incoming" ? "" : btn("Print sheet", "print-dialog", false, "print")) +
+    btn("Print sheet", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
   recordPrintContext = { kind: "shipment", data: structuredClone(s) };
@@ -1374,7 +1373,7 @@ function showBilty(id) {
       ["City", i.city],
       ["Status", i.status],
       ["Bilty amount", cash(i.bilty_amount)],
-      ["Godown charges", isOperations() ? "—" : cash(i.godown)],
+      ["Godown charges", cash(i.godown)],
       ["Loading", cash(i.loading)],
       ["Suzuki kiraya", cash(i.suzuki)],
       ["Rent", cash(i.rent)],
@@ -1383,7 +1382,7 @@ function showBilty(id) {
       ["Advance", cash(i.advance)],
       ["Remarks", i.remarks],
     ]),
-    (isOperations() && i.kind === "incoming" ? "" : btn("Print bilty", "print-dialog", false, "print")) +
+    btn("Print bilty", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
   recordPrintContext = { kind: "bilty", data: structuredClone(i) };
@@ -1479,7 +1478,6 @@ function captureShipment() {
     Object.assign(currentForm.header, Object.fromEntries(new FormData(form)));
 }
 function shipmentAmountWarnings() {
-  if(isOperations() && currentForm.kind === "incoming") return "";
   const warnings = currentForm.items.filter(item => Math.round(Number(item.advance || 0) * 100) > itemTotal(item));
   return warnings.length ? `<div class="note-box warning" role="status" style="margin-bottom:18px">${warnings.map(item => `Bilty ${esc(item.bilty)}: advance is greater than its bilty total.`).join("<br>")}<br>You can continue and save these amounts.</div>` : "";
 }
@@ -1571,7 +1569,7 @@ function updateBiltyTotals() {
   let total = itemTotal(i),
     advance = Math.round(Number(i.advance || 0) * 100);
   const warning = $("#bilty-warning");
-  warning.hidden = advance <= total || (isOperations() && currentForm.kind === "incoming");
+  warning.hidden = advance <= total;
   warning.textContent = "Advance is greater than the bilty total. You can still save these amounts.";
   $("#bilty-live-total").textContent = goodsCash(total, currentForm.kind);
   $("#bilty-live-remaining").textContent = goodsCash(total - advance, currentForm.kind);
@@ -1747,7 +1745,7 @@ function deliveryFacts(rows) {
 function deliveryBiltyCard(r) {
   return `<section class="bilty-card delivery-card"><header class="delivery-card-head"><div><h3>Bilty ${esc(r.bilty)}</h3><p>${esc(r.customer || r.party_to || "—")}</p></div><button type="button" class="link" data-action="delivery-remove" data-id="${r.id}">Remove</button></header>
     ${deliveryFacts([["Party to",r.party_to||"—",true],["Station",r.station||"—"],["Arrival date",fmtdate(r.dated)],["Quantity",num(r.qty)],["Goods type / description",[goodsTypeLabel(r),r.detail!==goodsTypeLabel(r)?r.detail:""].filter(Boolean).join(" · ")||"Not recorded",true]])}
-    <div class="delivery-charge-breakdown">${deliveryFacts([["Bilty charges",cash(r.bilty_amount)],...(!isOperations()?[["Godown charges",cash(r.godown)]]:[]),["Advance",cash(r.advance)],["Arrival loading + Suzuki",cash(r.loading+r.suzuki)]])}</div>
+    <div class="delivery-charge-breakdown">${deliveryFacts([["Bilty charges",cash(r.bilty_amount)],["Godown charges",cash(r.godown)],["Advance",cash(r.advance)],["Arrival loading + Suzuki",cash(r.loading+r.suzuki)]])}</div>
     <div class="delivery-total-banner"><span>Bilty total</span><strong>${goodsCash(r.total)}</strong></div>
     <div class="delivery-input-section"><h4>Service charges</h4><div class="form-grid">${field("loading_"+r.id,"Loading charge (Rs)",(r.loading/100).toFixed(2),"number",'required min="0" step="0.01"')}${field("suzuki_"+r.id,"Suzuki charge (Rs)",(r.suzuki/100).toFixed(2),"number",'required min="0" step="0.01"')}</div></div>
     <div class="delivery-input-section"><h4>Cash collection</h4><div class="form-grid">${field("discount_"+r.id,"Discount (Rs)","0","number",'min="0" step="0.01"',true)}${field("bilty_received_"+r.id,"Bilty cash received (Rs)","0","number",'min="0" step="0.01"')}${field("service_received_"+r.id,"Loading / Suzuki received (Rs)","0","number",'min="0" step="0.01"')}</div></div>
@@ -1806,7 +1804,7 @@ function updateDeliveryWarnings() {
     const amount = (key) => Math.round(Number(data[key + "_" + r.id] || 0) * 100);
     const line = form.querySelector(`[data-delivery-totals="${r.id}"]`);
     if(line) line.innerHTML = `<div><span>Total charges</span><strong>${goodsCash(Number(r.total||0)+amount("loading")+amount("suzuki"))}</strong></div><div><span>Cash recorded</span><strong>${cash(amount("bilty_received")+amount("service_received"))}</strong></div>`;
-    if (!isOperations() && amount("discount") + amount("bilty_received") > Math.max(0, r.total - r.advance))
+    if (amount("discount") + amount("bilty_received") > Math.max(0, r.total - r.advance))
       warnings.push("Bilty " + r.bilty + ": cash plus discount is greater than the remaining bilty amount.");
     if (amount("service_received") > amount("loading") + amount("suzuki"))
       warnings.push("Bilty " + r.bilty + ": service cash is greater than loading plus Suzuki charges.");
@@ -1814,7 +1812,7 @@ function updateDeliveryWarnings() {
   const sum = (key) => [...selected.values()].reduce((n, r) => n + Number(r[key] || 0), 0);
   const entered = (key) => [...selected.values()].reduce((n, r) => n + Math.round(Number(data[key + "_" + r.id] || 0) * 100), 0);
   $("#delivery-combined").innerHTML = `<div class="delivery-summary-head"><h3>Delivery totals</h3><span>${num(selected.size)} bilties · Quantity ${num(sum("qty"))}</span></div>` + deliveryFacts([
-    ["Bilty charges",cash(sum("bilty_amount"))],...(!isOperations()?[["Godown charges",cash(sum("godown"))]]:[]),
+    ["Bilty charges",cash(sum("bilty_amount"))],["Godown charges",cash(sum("godown"))],
     ["Bilties total",goodsCash(sum("total"))],["Advance",cash(sum("advance"))],
     ["Loading",cash(entered("loading"))],["Suzuki",cash(entered("suzuki"))],["Discount",cash(entered("discount"))],
     ["Total charges",goodsCash(sum("total")+entered("loading")+entered("suzuki"))],
@@ -1919,7 +1917,6 @@ function originalBiltyTotal(i, kind) {
     : Number(i.bilty_amount || 0) + Number(i.godown || 0);
 }
 function buildThermalRecord(context) {
-  if(isOperations() && (context.kind === "delivery" || ["shipment","bilty"].includes(context.kind) && context.data.kind === "incoming")) context = {kind:"generic",data:{title:"Incoming goods",content:slipNote("Charge summaries are restricted for Operations.")}};
   const d = context.data;
   let title = "",
     reference = "",
@@ -3521,7 +3518,7 @@ async function usersPage() {
       )
       .join(
         "",
-      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Operations incoming goods require super admin approval; incoming charge summaries and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
+      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Operations incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
   );
 }
 function permissionChecklist(selected) {

@@ -44,9 +44,9 @@ def check(base,database,password):
  row=db.execute('SELECT * FROM incoming_submissions WHERE id=?',(pending_id,)).fetchone();assert row['status']=='approved' and row['shipment_id']==saved['id'] and row['approved_by'] is not None
  assert json.loads(row['payload'])['items'][0]['godown']=='70'
  approved=admin.call('shipment',params={'id':saved['id']});assert approved['labour_bonus']==17575 and approved['munshi_bonus']==7550;assert approved['truck']=='ADMIN-CORRECTED' and approved['items'][0]['godown']==8000 and approved['items'][0]['qty']==3
- restricted=ops.call('shipment',params={'id':saved['id']});assert restricted['items'][0]['godown'] is None and restricted['items'][0]['total'] is None and restricted['items'][0]['stored_total'] is None
- listed=ops.call('shipments',params={'kind':'incoming','search':'ADMIN-CORRECTED'});assert listed['rows'][0]['total'] is None
- bilty=ops.call('bilties',params={'kind':'incoming','bilty_exact':'PENDING-TEST'})['rows'][0];assert bilty['godown'] is None and bilty['total'] is None
+ restricted=ops.call('shipment',params={'id':saved['id']});assert restricted['items'][0]['godown']==8000 and restricted['items'][0]['total']==28000 and restricted['items'][0]['stored_total']==28000
+ listed=ops.call('shipments',params={'kind':'incoming','search':'ADMIN-CORRECTED'});assert listed['rows'][0]['total']==28000
+ bilty=ops.call('bilties',params={'kind':'incoming','bilty_exact':'PENDING-TEST'})['rows'][0];assert bilty['godown']==8000 and bilty['total']==28000
  ops.call('save_shipment',{**approval,'id':saved['id'],'pending_id':None},status=403)
  assert not ops.call('pending_incoming')['rows'] and not admin.call('pending_incoming')['rows']
  # Discard removes only pending work and races safely with approval.
@@ -62,5 +62,5 @@ def check(base,database,password):
  assert db.execute('SELECT count(*) FROM shipments').fetchone()[0]==before_discard
  assert db.execute("SELECT count(*) FROM audit WHERE action='discarded' AND entity='incoming_submission' AND entity_id=?",(str(discarded),)).fetchone()[0]==1
  assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
- db.close();print('Operations submissions isolated; own queue visibility; super-only review/approval; edited approval; retry protection; source retention; server charge redaction passed.')
+ db.close();print('Operations submissions isolated; own queue visibility; super-only review/approval; edited approval; retry protection; source retention; individual godown charges and correct totals available without changing approval permissions.')
 if __name__=='__main__':main(check)

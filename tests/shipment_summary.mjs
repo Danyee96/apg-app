@@ -42,8 +42,9 @@ const result=await page.evaluate(()=>{
  if(shipmentSidebarTotal({...sidebarForm,header:{truck_amount:'123.45'}})!=='Rs 123.45')throw Error('Operator cannot see entered truck amount');
  const restricted=shipmentBreakdown([item],'incoming',{truck_amount:10000});
  const restrictedRoot=document.createElement('div');restrictedRoot.innerHTML=restricted;
- if([...restrictedRoot.querySelectorAll('.detail-cell span')].some(el=>el.textContent==='Godown charges + Bilty charges'))throw Error('Restricted combined charges exposed');
- if(restricted.includes('Bilty amounts less truck delivery'))throw Error('Restricted summary exposed');
+ if([...restrictedRoot.querySelectorAll('.detail-cell span')].some(el=>el.textContent==='Godown charges total'))throw Error('Incoming godown aggregate exposed');
+ if(!restricted.includes('270.00'))throw Error('Operator combined totals incorrectly hidden');
+ if(!restricted.includes('Bilty amounts less truck delivery'))throw Error('Unrelated truck balance incorrectly hidden');
  return true;
 });assert.ok(result);
 console.log('Quantity/description columns aligned; saved/review/thermal/A4 truck balance excludes godown; Operations restriction retained.');

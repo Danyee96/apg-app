@@ -4599,5 +4599,9 @@ window.APG_TRANSLATIONS = {
   "Search delivery, bilty, party, receiver or mobile…": [
     "حوالگی، بلٹی، پارٹی، وصول کنندہ یا موبائل تلاش کریں…",
     "Hawalgi, bilty, party, wasool kuninda ya mobile talash karein…"
+  ],
+  "Permissions are checked on the server for every request. Operations incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.": [
+    "ہر درخواست پر سرور اختیارات چیک کرتا ہے۔ آپریشنز کی آمد کے لیے سپر ایڈمن کی منظوری ضروری ہے؛ اس کردار کے لیے آنے والی کھیپ کے گودام چارجز کا مجموعہ اور براہِ راست ترمیم محدود ہیں۔ انفرادی بلٹی اور حوالگی کے چارجز نظر آتے ہیں۔ اکاؤنٹ بند کرنے یا پاس ورڈ بدلنے سے موجودہ سیشن ختم ہو جاتے ہیں۔",
+    "Har darkhwast par server ikhtiyarat check karta hai. Operations ki aamad ke liye super admin ki manzoori zaroori hai; is kirdar ke liye aanay wali khep ke godown charges ka majmooa aur barah e raast tarmeem mehdood hain. Infiradi bilty aur hawalgi ke charges nazar aatay hain. Account band karnay ya password badalnay se mojooda sessions khatam ho jatay hain."
   ]
 };

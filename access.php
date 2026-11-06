@@ -144,6 +144,10 @@ function access_routes(string $action,string $method,array $p,array $user): void
  }
 }
 function authorize_action(string $action,string $method,array $p,array $user): void {
+ if($action==='pending_deliveries'){if($user['role']==='super_admin'||($user['role']==='operations'&&can_access($user,'deliveries.view')))return;fail('Pending delivery goods is unavailable to this account.',403);}
+ if(in_array($action,['delivery_submission','discard_delivery_submission'],true)){if($user['role']==='super_admin')return;fail('Only the super admin can review delivery submissions.',403);}
+ if($action==='save_delivery'&&!empty($p['pending_id'])&&$user['role']!=='super_admin')fail('Only the super admin can approve delivery goods.',403);
+
  if($action==='workspace_changes'){if($user['role']!=='super_admin')fail('Only the super admin can monitor workspace changes.',403);return;}
  if($action==='backup_restore'){if($user['role']!=='super_admin')fail('Only the super admin can restore backups.',403);return;}
  if($action==='pending_incoming'){if($user['role']==='super_admin'||($user['role']==='operations'&&can_access($user,'incoming.view')))return;fail('Pending incoming goods is unavailable to this account.',403);}

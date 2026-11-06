@@ -187,6 +187,7 @@ function canView(view) {
   };
   if (view === "goods-categories") return isSuper();
   if (view === "goods-analytics") return can("incoming.view");
+  if (view === "pending-deliveries") return isSuper() || (isOperations() && can("deliveries.view"));
   if (view === "pending-incoming") return isSuper() || (isOperations() && can("incoming.view"));
   if (view === "users") return isSuper();
   if (view === "reports")
@@ -251,7 +252,7 @@ function actionAllowed(action, el) {
         ? "ledger.view"
         : "reports.view",
     );
-  if (action.startsWith("report-") && canView(action.slice(7)) === false)
+  if (action.startsWith("report-") && canView(action.slice(8)) === false)
     return false;
   return can(map[action]);
 }
@@ -299,6 +300,7 @@ function navigationHub() {
     "goods-categories": "Add main goods categories and their subcategories.",
     "goods-analytics": "Compare goods quantities by category and subcategory.",
     "pending-incoming": "Incoming goods awaiting super admin review and approval.",
+    "pending-deliveries": "Delivery goods awaiting super admin review and approval.",
     booking: "Manage outgoing shipments and their bilties.",
     deliveries: "Review handovers, receivers and cash collected.",
     customers: "Find customer accounts and contact details.",
@@ -322,6 +324,7 @@ function navigationHub() {
         "overview",
         "incoming",
         "pending-incoming",
+        "pending-deliveries",
         "goods-analytics",
         "booking",
         "deliveries",
@@ -433,6 +436,7 @@ const navs = [
   ["goods-analytics", "report", "Goods analytics"],
   ["goods-categories", "box", "Goods categories"],
   ["pending-incoming", "clock", "Pending incoming goods"],
+  ["pending-deliveries", "clock", "Pending delivery goods"],
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Deliveries"],
   ["customers", "users", "Customers"],
@@ -455,7 +459,7 @@ function shell() {
   document.title = "APG — Goods & accounts";
   $("#app").innerHTML =
     `<button class="nav-scrim" data-action="close-menu" aria-label="Close navigation" tabindex="-1"></button><aside class="sidebar" id="navigation" aria-label="Main navigation"><a class="brand" href="#" data-view="navigation"><div class="brand-mark">${icon("box")}</div><div><b>APG<span>.</span></b><small>AZAD PAKISTAN GOODS</small></div></a><nav><div class="nav-label">OPERATIONS</div>${navs
-      .slice(0, 7)
+      .slice(0, 8)
       .filter(([v]) => canView(v))
       .map(
         ([v, i, l]) =>
@@ -584,6 +588,9 @@ async function render() {
         break;
       case "backups":
         html = await backupsPage();
+        break;
+      case "pending-deliveries":
+        html = await pendingDeliveries();
         break;
       case "pending-incoming":
         html = await pendingIncoming();
@@ -797,7 +804,7 @@ async function bilties() {
 }
 function biltyTable(rows, selectable = false) {
   return rows.length
-    ? `<div class="table-scroll"><table><thead><tr>${selectable ? "<th>Select</th>" : ""}<th>Bilty / date</th><th>Customer / party to</th><th>Station</th><th class="number">Qty</th><th class="number">Bilty total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr>${selectable ? `<td><input class="row-check" type="checkbox" aria-label="Select bilty ${esc(r.bilty)}" data-select="${r.id}" ${selected.has(r.id) ? "checked" : ""}></td>` : ""}<td><button class="link" data-action="bilty" data-id="${r.id}">${esc(r.bilty || "No number")}</button><small>${fmtdate(r.dated)}</small></td><td><strong>${esc(r.customer || r.party_from || "Not recorded")}</strong><small>To ${esc(r.party_to || "—")}</small></td><td>${esc(r.station || "—")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.total)}</td><td>${tag(r.status === "delivered" ? "Delivered" : "Pending", r.status === "delivered" ? "green" : "orange")}</td><td><button class="icon-btn" data-action="bilty" data-id="${r.id}" aria-label="Open bilty ${esc(r.bilty)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
+    ? `<div class="table-scroll"><table><thead><tr>${selectable ? "<th>Select</th>" : ""}<th>Bilty / date</th><th>Customer / party to</th><th>Station</th><th class="number">Qty</th><th class="number">Bilty total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr>${selectable ? `<td><input class="row-check" type="checkbox" aria-label="Select bilty ${esc(r.bilty)}" data-select="${r.id}" ${r.delivery_submission_id ? 'disabled title="Awaiting delivery approval"' : ""} ${selected.has(r.id) ? "checked" : ""}></td>` : ""}<td><button class="link" data-action="bilty" data-id="${r.id}">${esc(r.bilty || "No number")}</button><small>${fmtdate(r.dated)}</small></td><td><strong>${esc(r.customer || r.party_from || "Not recorded")}</strong><small>To ${esc(r.party_to || "—")}</small></td><td>${esc(r.station || "—")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.total)}</td><td>${tag(r.delivery_submission_id ? "Awaiting delivery approval" : r.status === "delivered" ? "Delivered" : "Pending", r.status === "delivered" ? "green" : "orange")}</td><td><button class="icon-btn" data-action="bilty" data-id="${r.id}" aria-label="Open bilty ${esc(r.bilty)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
     : empty();
 }
 async function deliveries() {
@@ -1283,6 +1290,17 @@ function restoreBackupForm(id) {
   const backup=backupData.rows.find(row=>row.id===id);if(!backup)throw Error("Backup unavailable. Refresh the list.");
   modal("Restore backup",backup.created_local,`<form id="backup-restore-form"><input type="hidden" name="backup_id" value="${esc(id)}"><div class="note-box warning">Current database records will be replaced with this snapshot. A manual safety backup will be created first. All users will be signed out. Your current super admin password stays valid.</div><div class="form-grid" style="margin-top:18px">${field("password","Current super admin password","","password",'required autocomplete="current-password"',true)}${field("confirmation","Type RESTORE to confirm","","text",'required pattern="RESTORE" autocomplete="off"',true)}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel","close-modal")}<button class="btn primary" type="submit">Restore selected backup</button></div></form>`);
 }
+async function pendingDeliveries() {
+  const data=await api('pending_deliveries',null,{page:state.page});listData=data;
+  return head('Pending delivery goods',isSuper()?'Review, correct and approve submitted deliveries.':'Your submitted deliveries appear here until the super admin approves them.',btn('Refresh','refresh',false,'refresh'))+
+    `<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Submitted by</th><th>Date</th><th>Receiver</th><th>Bilties</th><th>Cash recorded</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-DL-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td>${num(row.item_count)}</td><td>${cash(row.cash)}</td><td>${isSuper()?`<button class="btn primary" data-action="review-pending-delivery" data-id="${row.id}">Review & approve</button> <button class="btn" data-action="discard-pending-delivery" data-id="${row.id}">Discard entry</button>`:tag('Awaiting approval','orange')}</td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No delivery goods awaiting approval.')}${pagination(data)}</section>`;
+}
+async function reviewPendingDelivery(id) {
+  const submission=await api('delivery_submission',null,{id});
+  const values={...submission.payload};delete values.items;selected.clear();
+  for(const row of submission.items){selected.set(row.id,row);const proposed=submission.payload.items.find(line=>line.id===row.id);for(const key of ['loading','suzuki','discount','bilty_received','service_received'])values[key+'_'+row.id]=proposed[key];}
+  recordDelivery(values,{pending_id:submission.id,pending_version:submission.version,reference:'PENDING-DL-'+submission.id});
+}
 async function pendingIncoming() {
   const data = await api("pending_incoming", null, { page: state.page });
   listData = data;
@@ -1765,17 +1783,18 @@ function recordDelivery(values = {}, edit = null) {
   deliveryEdit = edit;
   let rows = [...selected.values()];
   modal(
-    edit ? "Edit delivery · " + esc(edit.reference) : "Delivery goods & counter cash",
+    edit?.pending_id ? "Approve delivery goods · " + esc(edit.reference) : edit ? "Edit delivery · " + esc(edit.reference) : "Delivery goods & counter cash",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map(deliveryBiltyCard).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
+    `<form id="delivery-form">${isOperations() && !edit ? '<div class="note-box">Submit this delivery for super admin approval. Goods stay awaiting delivery until approval; cash and charges are not posted before approval.</div>' : ""}<div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map(deliveryBiltyCard).join("")}<div class="note-box warning">Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting.</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}${isOperations() ? "Submit for approval" : "Save delivery"}</button></div></form>`,
   );
   const form = $("#delivery-form");
-  if(edit){$(".delivery-lookup",form).hidden=true;$$('[data-action="delivery-remove"]',form).forEach(button=>button.remove());$('button[type="submit"]',form).innerHTML=icon("check")+"Save changes";}
+  if(edit){$(".delivery-lookup",form).hidden=true;$$('[data-action="delivery-remove"]',form).forEach(button=>button.remove());$('button[type="submit"]',form).innerHTML=icon("check")+(edit.pending_id ? "Approve & save delivery" : "Save changes");}
   for (const [name, value] of Object.entries(values)) {
     const input = form.elements.namedItem(name);
     if (input) input.value = value;
   }
   updateDeliveryWarnings();
+  modalSnapshot = modalValues();
 }
 let deliveryMatches = new Map(), deliveryLookupSequence = 0, deliveryLookupTimer;
 function deliveryValues() { return Object.fromEntries(new FormData($("#delivery-form"))); }
@@ -1791,7 +1810,7 @@ async function fetchDeliveryBilty() {
     const result = await api("bilties", null, { kind: "incoming", status: "pending", bilty_exact: number });
     if (sequence !== deliveryLookupSequence || !document.contains(box) || input.value.trim() !== number) return;
     deliveryMatches = new Map(result.rows.map(row => [row.id, row]));
-    box.innerHTML = result.rows.map(row => `<div class="delivery-match"><div><strong>Bilty ${esc(row.bilty)} · ${esc(row.customer || row.party_to || "—")}</strong><small><b>Party to:</b> ${esc(row.party_to || "—")}</small><small>${esc(row.station || "—")} · ${fmtdate(row.dated)} · ${esc(row.reference)} · Qty ${num(row.qty)} · ${cash(row.total)}</small><small>${esc(row.detail || "")}</small></div><button type="button" class="btn" data-action="delivery-add" data-id="${row.id}" ${selected.has(row.id) ? "disabled" : ""}>${selected.has(row.id) ? "Added" : "Add bilty"}</button></div>`).join("") || "No pending incoming bilty matches this number.";
+    box.innerHTML = result.rows.map(row => `<div class="delivery-match"><div><strong>Bilty ${esc(row.bilty)} · ${esc(row.customer || row.party_to || "—")}</strong><small><b>Party to:</b> ${esc(row.party_to || "—")}</small><small>${esc(row.station || "—")} · ${fmtdate(row.dated)} · ${esc(row.reference)} · Qty ${num(row.qty)} · ${cash(row.total)}</small><small>${esc(row.detail || "")}</small></div><button type="button" class="btn" data-action="delivery-add" data-id="${row.id}" ${selected.has(row.id) || row.delivery_submission_id ? "disabled" : ""}>${row.delivery_submission_id ? "Awaiting delivery approval" : selected.has(row.id) ? "Added" : "Add bilty"}</button></div>`).join("") || "No pending incoming bilty matches this number.";
     if(result.total > result.rows.length) box.insertAdjacentHTML("beforeend", '<p class="note">Many arrivals share this number. Use the pending goods list to choose an older arrival.</p>');
   } catch (error) { if (sequence === deliveryLookupSequence && document.contains(box)) box.textContent = error.message; }
 }
@@ -2972,7 +2991,7 @@ async function action(name, el) {
       break;
     case "delivery-add": {
       const row = deliveryMatches.get(Number(el.dataset.id));
-      if (!row || selected.has(row.id)) break;
+      if (!row || row.delivery_submission_id || selected.has(row.id)) break;
       if (selected.size >= 1000) throw Error("Save this batch before adding more bilties.");
       const values = deliveryValues();
       selected.set(row.id, row);
@@ -2997,6 +3016,13 @@ async function action(name, el) {
       break;
     case "bilty":
       showBilty(el.dataset.id);
+      break;
+    case "review-pending-delivery":
+      await reviewPendingDelivery(el.dataset.id);
+      break;
+    case "discard-pending-delivery":
+      if(!confirm(APG.t("Discard this pending delivery? The bilties will be available for delivery again.")))break;
+      await api('discard_delivery_submission',{id:Number(el.dataset.id)});await render();toast('Pending delivery discarded.');
       break;
     case "record-delivery":
       recordDelivery();
@@ -3334,7 +3360,7 @@ async function submitForm(form, submitter) {
         loading: data["loading_" + r.id],
         suzuki: data["suzuki_" + r.id],
       }));
-      let r = await api(deliveryEdit ? "update_delivery" : "save_delivery", {
+      let r = await api(deliveryEdit?.id ? "update_delivery" : "save_delivery", {
         ...(deliveryEdit || {}),
         dated: data.dated,
         receiver: data.receiver,
@@ -3346,6 +3372,7 @@ async function submitForm(form, submitter) {
       deliveryEdit=null;
       selected.clear();
       closeModal();
+      if(r.pending){await navigate("pending-deliveries");toast(r.reference + " submitted for approval.");break;}
       await navigate("deliveries");
       toast(r.reference + " saved." + (r.warnings?.length ? " Warning: " + r.warnings.join(" ") : ""));
       await showDelivery(r.id);

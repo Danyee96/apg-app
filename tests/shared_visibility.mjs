@@ -19,7 +19,7 @@ try{
  await admin.evaluate(()=>refreshSharedWorkspace());
  await admin.locator(`[data-action="review-incoming"][data-id="${pending.id}"]`).waitFor();
  const saved=await admin.evaluate(p=>api('save_shipment',p),{...payload,pending_id:pending.id});
- await admin.evaluate(async()=>{await navigate('deliveries');await refreshSharedWorkspace();});
+ await admin.evaluate(async()=>{await navigate('pending-deliveries');await refreshSharedWorkspace();});
  await operator.evaluate(()=>{selected.clear();recordDelivery();});
  await operator.locator('[name="receiver"]').fill('Shared visibility receiver');
  await operator.locator('#delivery-bilty-number').fill('SHARED-VISIBLE-BILTY');
@@ -29,12 +29,25 @@ try{
  assert.ok((await operator.locator('#delivery-combined').innerText()).includes('270.00'));
  await operator.locator('[name^="bilty_received_"]').fill('270');
  await operator.locator('#delivery-form [type="submit"]').click();
- await operator.locator('[data-action="edit-delivery"], [data-action="print-dialog"]').first().waitFor();
+ await operator.getByRole('heading',{name:'Pending delivery goods',exact:true}).waitFor();
+ assert.equal((await admin.evaluate(()=>api('deliveries',null,{search:'SHARED-VISIBLE-BILTY'}))).rows.length,0);
+ await admin.locator('[data-action="review-pending-delivery"]').first().waitFor({timeout:25000});
+ await admin.locator('[data-action="review-pending-delivery"]').first().click();
+ await admin.locator('#delivery-form').waitFor();
+ assert.equal(await admin.locator('.delivery-card').count(),1);
+ assert.equal(await admin.locator('.delivery-lookup').isVisible(),false);
+ assert.equal(await admin.locator('#delivery-form [name="receiver"]').inputValue(),'Shared visibility receiver');
+ await admin.locator('#delivery-form [name="receiver"]').fill('Admin corrected receiver');
+ await admin.getByRole('button',{name:'Approve & save delivery',exact:true}).click();
+ await admin.locator('[data-action="print-dialog"]').first().waitFor();
+ const approvedId=await admin.evaluate(()=>recordPrintContext.data.id);
+ await operator.evaluate(id=>showDelivery(id),approvedId);
  const receipt=await operator.evaluate(()=>buildThermalRecord(recordPrintContext).html);
  assert.ok(receipt.includes('70.00')&&receipt.includes('270.00')&&!receipt.includes('Charge summaries are restricted'));
+ await admin.locator('[data-action="close-modal"]').first().click();
  const deliveries=await admin.evaluate(()=>api('deliveries',null,{search:'SHARED-VISIBLE-BILTY'}));
  assert.equal(deliveries.rows.length,1);const delivery=deliveries.rows[0];
- assert.equal(delivery.recorded_by,'shared-operator');assert.equal(delivery.collected,27000);
+ assert.equal(delivery.recorded_by,'shared-operator');assert.equal(delivery.collected,27000);assert.equal(delivery.receiver,'Admin corrected receiver');
  assert.equal((await admin.evaluate(id=>api('delivery',null,{id}),delivery.id)).items[0].godown,7000);
  await admin.locator(`[data-action="delivery"][data-id="${delivery.id}"]`).first().waitFor({timeout:25000});
  assert.ok((await admin.locator('#main').innerText()).includes('Recorded by: shared-operator'));
@@ -49,5 +62,5 @@ try{
  await admin.evaluate(async()=>{currentForm=null;await navigate('deliveries');await showDelivery(Number(document.querySelector('[data-action="delivery"]').dataset.id));});
  await admin.evaluate(()=>refreshSharedWorkspace());assert.ok(await admin.locator('#modal').isVisible());
  assert.deepEqual(errors,[]);
- console.log('PASS: separate Operations/Admin sessions; pending entry and delivery shared; bilty search and actor visible; admin refresh, clear filters, complete amounts; unfinished form and open receipt preserved; monitor endpoint denied to operator.');
+ console.log('PASS: separate Operations/Admin sessions; pending incoming and delivery approval queues shared; operator delivery held until admin approval; corrected approval UI; bilty search and actor visible; admin refresh, clear filters, complete amounts; unfinished form and open receipt preserved; monitor endpoint denied to operator.');
 }finally{await browser.close();}

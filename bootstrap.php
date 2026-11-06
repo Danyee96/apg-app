@@ -72,3 +72,16 @@ function delivery_snapshot(int $id): array {
 }
 
 require_once __DIR__.'/goods.php';
+
+function migrate_delivery_approvals(): void {
+ if(one("SELECT value FROM meta WHERE key='delivery_approvals_version'"))return;
+ transaction(function(){
+  run("CREATE TABLE IF NOT EXISTS delivery_submissions(id INTEGER PRIMARY KEY AUTOINCREMENT,submitted_by INTEGER NOT NULL,submitted_name TEXT NOT NULL,submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,status TEXT NOT NULL DEFAULT 'pending',payload TEXT NOT NULL,approved_by INTEGER,approved_at TEXT,delivery_id INTEGER UNIQUE,approved_payload TEXT)");
+  run('CREATE TABLE IF NOT EXISTS delivery_submission_items(item_id INTEGER PRIMARY KEY REFERENCES items(id),submission_id INTEGER NOT NULL REFERENCES delivery_submissions(id))');
+  run('CREATE INDEX IF NOT EXISTS delivery_submission_items_submission ON delivery_submission_items(submission_id)');
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('delivery_approvals_version','1')");
+ });
+}
+function delivery_submission_version(array $submission): string {
+ return shipment_version(['submission'=>$submission,'items'=>query('SELECT i.*,s.dated arrival_date FROM delivery_submission_items r JOIN items i ON i.id=r.item_id JOIN shipments s ON s.id=i.shipment_id WHERE r.submission_id=? ORDER BY i.id',[$submission['id']])]);
+}

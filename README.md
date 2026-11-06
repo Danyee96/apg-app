@@ -140,3 +140,11 @@ Super admin can rename main goods categories and subcategories from Goods catego
 The language switcher offers **English**, **Urdu** (RTL), and **Roman Urdu** (LTR), with the choice remembered in this browser. Switching preserves unfinished forms; business names and entered descriptions remain as saved. See [LANGUAGES.md](LANGUAGES.md) for terminology, layout and regression checks.
 
 Super admin shares all saved deliveries and operator submissions on the same installation. Shared admin views check for workspace changes every 20 seconds and when returning to the tab; refresh waits while editing, selecting goods, or viewing an open record/print preview. Deliveries includes a Refresh button, visible active-filter guidance with Clear filters, the recording username, and searches by delivery reference, receiver, mobile, bilty, party, or customer. Local and live installations have separate databases. Check: `python3 tests/shared_visibility.py` with the browser environment configured as for print tests.
+
+### Operations delivery approval
+
+Operations users with Record deliveries now submit to **Pending delivery goods**, rather than completing the delivery immediately. They see their own pending submissions; super admin sees all. Review & approve opens the full delivery form with the proposed receiver, date, loading/Suzuki charges, discounts and cash. Super admin can correct these fields and select **Approve & save delivery**, or discard an entry from the queue.
+
+Pending submissions do not change goods status, service charges, saved delivery records or recorded cash totals. A unique per-bilty reservation prevents duplicate submissions and direct delivery while approval is pending. Approval revalidates current goods, date and a version of the submission/current items, creates the delivery atomically, marks the goods delivered, and releases reservations. Discard releases reservations without delivering the goods. Original submitted and approved payloads, submitter, approver and audit events are retained. Existing deliveries are unchanged. Other roles retain their assigned delivery behavior. Both Urdu and Roman Urdu cover the new workflow.
+
+Checks: `python3 tests/delivery_approvals.py` and `python3 tests/shared_visibility.py` (browser environment as for print tests).

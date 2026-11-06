@@ -4603,5 +4603,81 @@ window.APG_TRANSLATIONS = {
   "Permissions are checked on the server for every request. Operations incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.": [
     "ہر درخواست پر سرور اختیارات چیک کرتا ہے۔ آپریشنز کی آمد کے لیے سپر ایڈمن کی منظوری ضروری ہے؛ اس کردار کے لیے آنے والی کھیپ کے گودام چارجز کا مجموعہ اور براہِ راست ترمیم محدود ہیں۔ انفرادی بلٹی اور حوالگی کے چارجز نظر آتے ہیں۔ اکاؤنٹ بند کرنے یا پاس ورڈ بدلنے سے موجودہ سیشن ختم ہو جاتے ہیں۔",
     "Har darkhwast par server ikhtiyarat check karta hai. Operations ki aamad ke liye super admin ki manzoori zaroori hai; is kirdar ke liye aanay wali khep ke godown charges ka majmooa aur barah e raast tarmeem mehdood hain. Infiradi bilty aur hawalgi ke charges nazar aatay hain. Account band karnay ya password badalnay se mojooda sessions khatam ho jatay hain."
+  ],
+  "Pending delivery goods": [
+    "منظوری کے منتظر حوالگی کے اندراجات",
+    "Manzoori ke muntazir hawalgi ke indrajat"
+  ],
+  "Delivery goods awaiting super admin review and approval.": [
+    "مال کی حوالگی کے اندراجات جو سپر ایڈمن کی منظوری کے منتظر ہیں۔",
+    "Maal ki hawalgi ke indrajat jo super admin ki manzoori ke muntazir hain."
+  ],
+  "Review, correct and approve submitted deliveries.": [
+    "بھیجی گئی حوالگیوں کا جائزہ لیں، درست کریں اور منظور کریں۔",
+    "Bheji gayi hawalgiyon ka jaiza lein, durust karein aur manzoor karein."
+  ],
+  "Your submitted deliveries appear here until the super admin approves them.": [
+    "آپ کی بھیجی گئی حوالگیاں سپر ایڈمن کی منظوری تک یہاں رہیں گی۔",
+    "Aap ki bheji gayi hawalgiyan super admin ki manzoori tak yahan rahein gi."
+  ],
+  "No delivery goods awaiting approval.": [
+    "حوالگی کا کوئی اندراج منظوری کا منتظر نہیں۔",
+    "Hawalgi ka koi indraj manzoori ka muntazir nahin."
+  ],
+  "Approve delivery goods": [
+    "مال کی حوالگی منظور کریں",
+    "Maal ki hawalgi manzoor karein"
+  ],
+  "Approve & save delivery": [
+    "حوالگی منظور کر کے محفوظ کریں",
+    "Hawalgi manzoor kar ke mehfooz karein"
+  ],
+  "Submit this delivery for super admin approval. Goods stay awaiting delivery until approval; cash and charges are not posted before approval.": [
+    "یہ حوالگی سپر ایڈمن کی منظوری کے لیے بھیجیں۔ منظوری تک مال زیرِ انتظار رہے گا؛ نقد وصولی اور چارجز بھی منظوری کے بعد درج ہوں گے۔",
+    "Yeh hawalgi super admin ki manzoori ke liye bhejein. Manzoori tak maal zer e intizar rahay ga; naqad wasooli aur charges bhi manzoori ke baad darj hon ge."
+  ],
+  "Awaiting delivery approval": [
+    "حوالگی کی منظوری کا منتظر",
+    "Hawalgi ki manzoori ka muntazir"
+  ],
+  "Discard this pending delivery? The bilties will be available for delivery again.": [
+    "کیا یہ زیرِ انتظار حوالگی مسترد کر دیں؟ بلٹیاں دوبارہ حوالگی کے لیے دستیاب ہو جائیں گی۔",
+    "Kya yeh zer e intizar hawalgi mustarad kar dein? Biltyan dobara hawalgi ke liye dastiyab ho jayein gi."
+  ],
+  "Pending delivery discarded.": [
+    "زیرِ انتظار حوالگی مسترد کر دی گئی۔",
+    "Zer e intizar hawalgi mustarad kar di gayi."
+  ],
+  "Pending delivery entry not found.": [
+    "حوالگی کا زیرِ انتظار اندراج نہیں ملا۔",
+    "Hawalgi ka zer e intizar indraj nahin mila."
+  ],
+  "This bilty is already awaiting delivery approval.": [
+    "یہ بلٹی پہلے ہی حوالگی کی منظوری کی منتظر ہے۔",
+    "Yeh bilty pehle hi hawalgi ki manzoori ki muntazir hai."
+  ],
+  "This delivery submission is no longer pending.": [
+    "یہ حوالگی اب منظوری کی منتظر نہیں۔",
+    "Yeh hawalgi ab manzoori ki muntazir nahin."
+  ],
+  "This delivery submission changed. Reopen it before approving.": [
+    "اس حوالگی میں تبدیلی ہوئی ہے۔ منظوری سے پہلے دوبارہ کھولیں۔",
+    "Is hawalgi mein tabdeeli hui hai. Manzoori se pehle dobara kholein."
+  ],
+  "Keep the original bilties in this delivery submission.": [
+    "اس حوالگی کی اصل بلٹیاں برقرار رکھیں۔",
+    "Is hawalgi ki asal biltyan barqarar rakhein."
+  ],
+  "Only the super admin can approve delivery goods.": [
+    "مال کی حوالگی صرف سپر ایڈمن منظور کر سکتا ہے۔",
+    "Maal ki hawalgi sirf super admin manzoor kar sakta hai."
+  ],
+  "Only the super admin can review delivery submissions.": [
+    "حوالگی کے اندراجات کا جائزہ صرف سپر ایڈمن لے سکتا ہے۔",
+    "Hawalgi ke indrajat ka jaiza sirf super admin le sakta hai."
+  ],
+  "Pending delivery goods is unavailable to this account.": [
+    "اس اکاؤنٹ کو منظوری کے منتظر حوالگی کے اندراجات کی رسائی نہیں۔",
+    "Is account ko manzoori ke muntazir hawalgi ke indrajat ki rasai nahin."
   ]
 };

@@ -185,10 +185,10 @@ function canView(view) {
     backups: "backups.create",
     archive: "archive.view",
   };
-  if (view === "delivery-cash") return isSuper();
+  if (view === "delivery-cash" || view === "pending-cash") return isSuper() || (isOperations() && can('deliveries.create'));
   if (view === "goods-categories") return isSuper();
   if (view === "goods-analytics") return can("incoming.view");
-  if (view === "pending-deliveries") return isSuper() || (isOperations() && can("deliveries.view"));
+  if (view === "pending-deliveries") return isSuper();
   if (view === "pending-incoming") return isSuper() || (isOperations() && can("incoming.view"));
   if (view === "users") return isSuper();
   if (view === "reports")
@@ -305,6 +305,7 @@ function navigationHub() {
     booking: "Manage outgoing shipments and their bilties.",
     deliveries: "Review handovers, receivers and cash collected.",
     "delivery-cash": "Receive delivery cash and track customer balances.",
+    "pending-cash": "Cash collections awaiting admin approval.",
     customers: "Find customer accounts and contact details.",
     accounts: "Review vouchers, receipts, payments and journals.",
     reports: "Open goods registers, directories and account views.",
@@ -325,11 +326,11 @@ function navigationHub() {
         "overview",
         "incoming",
         "pending-incoming",
-        "pending-deliveries",
         "goods-analytics",
         "booking",
         "deliveries",
         "delivery-cash",
+        "pending-cash",
         "customers",
       ],
     ],
@@ -441,6 +442,7 @@ const navs = [
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Delivery goods"],
   ["delivery-cash", "wallet", "Delivery Cash Receiving"],
+  ["pending-cash", "clock", "Pending cash collections"],
   ["customers", "users", "Customers"],
   ["accounts", "wallet", "Accounts & vouchers"],
   ["reports", "report", "Reports"],
@@ -469,7 +471,7 @@ function sidebarNavigation() {
   };
   return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
-    group('nav-delivery','Delivery goods','truck',['deliveries','pending-deliveries','delivery-cash'])+
+    group('nav-delivery','Delivery goods','truck',['deliveries','delivery-cash','pending-cash'])+
     ['booking','goods-analytics','goods-categories','customers'].map(link).join('')+
     '<div class="nav-label">FINANCE & WORKSPACE</div>'+['accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
 }
@@ -601,6 +603,9 @@ async function render() {
       case "incoming":
       case "booking":
         html = await shipments();
+        break;
+      case "pending-cash":
+        html=await pendingCashCollections();
         break;
       case "delivery-cash":
         html = await deliveryCashPage();
@@ -1424,7 +1429,7 @@ async function showDelivery(id) {
     ]) +
       `<hr class="divider"><div class="table-scroll"><table><thead><tr><th>Bilty</th><th>Customer / party</th><th class="number">Discount</th><th class="number">Bilty cash</th><th class="number">Service cash</th></tr></thead><tbody>${d.items.map((i) => `<tr><td>${esc(i.bilty)}</td><td>${esc(i.customer || "—")}<small>Party to: ${esc(i.party_to || "—")}</small></td><td class="number">${cash(i.discount)}</td><td class="number">${cash(i.bilty_received)}</td><td class="number">${cash(i.service_received)}</td></tr>`).join("")}</tbody></table></div><div class="summary-total"><span>Total cash recorded</span><b>${cash(d.items.reduce((s, i) => s + i.bilty_received + i.service_received, 0))}</b></div>${d.cash_summary ? `<section class="shipment-breakdown">${deliveryFacts([["Cash status",cashStatus(d.cash_summary.status)],["Amount due",cash(d.cash_summary.due)],["Customer balance",cash(d.cash_summary.outstanding)],["Customer credit",cash(d.cash_summary.credit)]])}</section>` : ""}`,
     (can("deliveries.edit") ? `<button class="btn primary" data-action="edit-delivery" data-id="${d.id}">${icon("edit")}Edit delivery</button>` : "") +
-    (isSuper() && d.cash_workflow ? `<button class="btn primary" data-action="receive-delivery-cash" data-id="${d.id}">Delivery Cash Receiving</button>` : "") +
+    ((isSuper() || isOperations() && can("deliveries.create")) && d.cash_workflow ? `<button class="btn primary" data-action="receive-delivery-cash" data-id="${d.id}">Delivery Cash Receiving</button>` : "") +
     btn("Print receipt", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
@@ -1792,7 +1797,7 @@ function recordDelivery(values = {}, edit = null) {
   modal(
     edit?.pending_id ? "Approve delivery goods · " + esc(edit.reference) : edit ? "Edit delivery · " + esc(edit.reference) : "Delivery goods",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form">${isOperations() && !edit ? '<div class="note-box">Submit this delivery for super admin approval. Goods stay awaiting delivery until approval; cash and charges are not posted before approval.</div>' : ""}<div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map(deliveryBiltyCard).join("")}<div class="note-box">${edit?.id && !edit.cash_workflow ? "Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting." : "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving after approval. Any unpaid amount stays against the bilty’s customer."}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}${isOperations() ? "Submit for approval" : "Save delivery"}</button></div></form>`,
+    `<form id="delivery-form">${isOperations() && !edit ? '<div class="note-box">Save the delivery goods now. Any cash you collect will be submitted separately for admin approval.</div>' : ""}<div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider"><div class="delivery-lookup"><label for="delivery-bilty-number">Add by bilty number</label><div class="buttons"><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button></div><div id="delivery-matches" role="status" aria-live="polite"></div><p class="note">Fetch a bilty, choose its arrival, and add another. All rows save under one delivery.</p></div><div id="delivery-combined" class="shipment-breakdown"></div>${rows.map(deliveryBiltyCard).join("")}<div class="note-box">${edit?.id && !edit.cash_workflow ? "Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting." : "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving after approval. Any unpaid amount stays against the bilty’s customer."}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
   const form = $("#delivery-form");
   if(edit){$(".delivery-lookup",form).hidden=true;$$('[data-action="delivery-remove"]',form).forEach(button=>button.remove());$('button[type="submit"]',form).innerHTML=icon("check")+(edit.pending_id ? "Approve & save delivery" : "Save changes");}
@@ -3041,6 +3046,13 @@ async function action(name, el) {
       $('#delivery-cash-form [name="bilty_received_'+line.delivery_item_id+'"]').value=amount(bilty);
       $('#delivery-cash-form [name="service_received_'+line.delivery_item_id+'"]').value=amount(due-bilty);updateCashReceivingTotals();break;
     }
+    case "review-pending-cash":
+      await reviewPendingCash(el.dataset.id);
+      break;
+    case "discard-pending-cash":
+      if(!confirm(APG.t('Discard this pending cash collection? No customer or cash balances will change.')))break;
+      await api('discard_cash_collection',{id:Number(el.dataset.id)});await render();toast('Pending cash collection discarded.');
+      break;
     case "receive-delivery-cash":
       await receiveDeliveryCash(el.dataset.id);
       break;
@@ -3405,8 +3417,10 @@ async function submitForm(form, submitter) {
       const invoice=cashReceivingInvoice,items=invoice.lines.map(line=>({id:line.delivery_item_id,bilty_received:data['bilty_received_'+line.delivery_item_id],service_received:data['service_received_'+line.delivery_item_id]}));
       const total=items.reduce((sum,line)=>sum+Number(line.bilty_received||0)+Number(line.service_received||0),0);
       if(!total&&!confirm(APG.t('No cash entered. Leave the full unpaid amount on the customer account?')))break;
-      await api('receive_delivery_cash',{delivery_id:invoice.header.id,version:invoice.version,request_key:cashReceivingKey,dated:data.dated,cash_account_id:data.cash_account_id,notes:data.notes,items});
-      closeModal();await navigate('delivery-cash');toast('Delivery cash recorded. Customer balances updated.');await receiveDeliveryCash(invoice.header.id);
+      const result=await api(cashReview?'approve_cash_collection':'receive_delivery_cash',{delivery_id:invoice.header.id,version:invoice.version,request_key:cashReceivingKey,...(cashReview?{pending_id:cashReview.id,pending_version:cashReview.version}:{}),dated:data.dated,cash_account_id:data.cash_account_id,notes:data.notes,items});
+      cashReview=null;closeModal();
+      if(result.pending){await navigate('pending-cash');toast('Cash collection submitted for admin approval.');break;}
+      await navigate('delivery-cash');toast('Delivery cash recorded. Customer balances updated.');await receiveDeliveryCash(invoice.header.id);
       break;
     }
     case "voucher-form": {
@@ -3941,29 +3955,37 @@ function updateHandoverTotals(form) {
  $('#delivery-combined').innerHTML=`<h3>Delivery totals</h3>${deliveryFacts([['Bilties',num(selected.size)],['Quantity',num([...selected.values()].reduce((sum,row)=>sum+Number(row.qty||0),0))]])}<div class="delivery-total-banner"><span>Amount due at cash receiving</span><strong>${cash(due)}</strong></div>`;
  $('#delivery-warning').hidden=true;
 }
-let cashMode='invoices',cashStatusFilter='',cashReceivingInvoice=null,cashReceivingKey='';
-function cashStatus(status){return {awaiting_cash:'Awaiting cash',customer_due:'Customer balance due',customer_credit:'Customer credit',paid:'Paid'}[status]||status;}
+let cashMode='invoices',cashStatusFilter='',cashReceivingInvoice=null,cashReceivingKey='',cashReview=null;
+function cashStatus(status){return {pending_approval:'Pending cash approval',awaiting_cash:'Awaiting cash',customer_due:'Customer balance due',customer_credit:'Customer credit',paid:'Paid'}[status]||status;}
 async function deliveryCashPage(){
- const tabs=`<div class="buttons backup-tabs"><button class="btn ${cashMode==='invoices'?'primary':''}" data-action="cash-mode" data-value="invoices">Delivery invoices</button><button class="btn ${cashMode==='customers'?'primary':''}" data-action="cash-mode" data-value="customers">Customer balances</button></div>`;
+ if(!isSuper())cashMode='invoices';
+ const tabs=`<div class="buttons backup-tabs"><button class="btn ${cashMode==='invoices'?'primary':''}" data-action="cash-mode" data-value="invoices">Delivery invoices</button>${isSuper()?`<button class="btn ${cashMode==='customers'?'primary':''}" data-action="cash-mode" data-value="customers">Customer balances</button>`:''}</div>`;
  if(cashMode==='customers'){
   const data=await api('delivery_customer_balances',null,{search:state.search});listData=data;
   return head('Delivery Cash Receiving','Unpaid delivery amounts by customer and Party to.')+tabs+`<p class="note">Awaiting cash amounts are listed for collection. Customer ledgers update when cash receiving is confirmed.</p><section class="panel" style="margin-top:18px">${searchBar('Search customer or party…')}<div class="table-scroll"><table><thead><tr><th>Customer</th><th>Party to</th><th>Bilties</th><th>Amount due</th><th>Cash received</th><th>Customer balance</th><th>Customer credit</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>${esc(row.customer)}<small>${esc(row.account_id)}</small></td><td>${esc(row.party_to||'—')}</td><td>${num(row.bilties)}</td><td>${cash(row.due)}</td><td>${cash(row.received)}</td><td><strong>${cash(Math.max(0,row.balance))}</strong>${row.awaiting_cash?`<small>Awaiting cash: ${cash(row.awaiting_cash)}</small>`:''}</td><td>${cash(Math.max(0,-row.balance))}</td><td><button class="btn" data-action="report-ledger" data-id="${esc(row.account_id)}">View ledger</button></td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No outstanding delivery balances.')}</section>`;
  }
  const data=await api('delivery_cash_list',null,params({status:cashStatusFilter}));listData=data;state.page=data.page;
- return head('Delivery Cash Receiving','Record cash after handover. Part payments leave a traceable balance against each customer.',btn('Refresh','refresh',false,'refresh'))+tabs+`<div class="metrics" style="margin-top:18px">${[['Amount due',data.stats.due],['Cash received',data.stats.received],['Customer balance',data.stats.outstanding],['Customer credit',data.stats.credit]].map(([label,value])=>`<div class="metric"><span>${label}</span><strong>${cash(value)}</strong></div>`).join('')}</div><section class="panel">${searchBar('Search delivery, bilty or customer…',`<select id="cash-status" class="filter" aria-label="Cash status">${[['','All statuses'],['awaiting','Awaiting cash'],['outstanding','Customer balance due'],['paid','Paid / credit']].map(([value,label])=>`<option value="${value}" ${cashStatusFilter===value?'selected':''}>${label}</option>`).join('')}</select>`,true)}<div class="table-scroll"><table><thead><tr><th>Delivery</th><th>Date</th><th>Receiver</th><th>Amount due</th><th>Cash received</th><th>Customer balance</th><th>Status</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>${esc(row.reference)}<small>${num(row.bilties)} bilties</small></td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td>${cash(row.due)}</td><td>${cash(row.received)}</td><td><strong>${cash(row.outstanding)}</strong>${row.credit?`<small>Customer credit: ${cash(row.credit)}</small>`:''}</td><td>${tag(cashStatus(!row.receipts?'awaiting_cash':row.outstanding>0?'customer_due':row.credit>0?'customer_credit':'paid'))}</td><td><button class="btn primary" data-action="receive-delivery-cash" data-id="${row.id}">Receive / view cash</button></td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No delivery cash invoices yet.')}${pagination(data)}</section><p class="note">Only deliveries created with the new cash flow appear here. Earlier receipts remain unchanged in Deliveries.</p>`;
+ return head('Delivery Cash Receiving',isOperations()?'Enter collected cash and submit it for admin approval.':'Record cash after handover. Part payments leave a traceable balance against each customer.',btn('Refresh','refresh',false,'refresh'))+tabs+`<div class="metrics" style="margin-top:18px">${[['Amount due',data.stats.due],['Cash received',data.stats.received],['Customer balance',data.stats.outstanding],['Customer credit',data.stats.credit]].map(([label,value])=>`<div class="metric"><span>${label}</span><strong>${cash(value)}</strong></div>`).join('')}</div><section class="panel">${searchBar('Search delivery, bilty or customer…',`<select id="cash-status" class="filter" aria-label="Cash status">${[['','All statuses'],['awaiting','Awaiting cash'],['outstanding','Customer balance due'],['paid','Paid / credit']].map(([value,label])=>`<option value="${value}" ${cashStatusFilter===value?'selected':''}>${label}</option>`).join('')}</select>`,true)}<div class="table-scroll"><table><thead><tr><th>Delivery</th><th>Date</th><th>Receiver</th><th>Amount due</th><th>Cash received</th><th>Customer balance</th><th>Status</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>${esc(row.reference)}<small>${num(row.bilties)} bilties</small></td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td>${cash(row.due)}</td><td>${cash(row.received)}</td><td><strong>${cash(row.outstanding)}</strong>${row.credit?`<small>Customer credit: ${cash(row.credit)}</small>`:''}</td><td>${tag(cashStatus(row.pending_cash?'pending_approval':!row.receipts?'awaiting_cash':row.outstanding>0?'customer_due':row.credit>0?'customer_credit':'paid'))}</td><td><button class="btn primary" data-action="receive-delivery-cash" data-id="${row.id}">Receive / view cash</button></td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No delivery cash invoices yet.')}${pagination(data)}</section><p class="note">Only deliveries created with the new cash flow appear here. Earlier receipts remain unchanged in Deliveries.</p>`;
 }
-async function receiveDeliveryCash(id){
- const invoice=await api('delivery_cash_invoice',null,{id});cashReceivingInvoice=invoice;cashReceivingKey=crypto.randomUUID();
- const accounts=lookups.accounts.filter(row=>row.status==='A'&&(/^1-(101|106)-/.test(row.id))),defaultAccount=accounts.find(row=>row.id.startsWith('1-101-'))?.id||accounts[0]?.id||'';
- modal('Delivery Cash Receiving · '+esc(invoice.header.reference),esc(invoice.header.receiver),`<div class="delivery-total-banner">${deliveryFacts([['Amount due',cash(invoice.due)],['Cash received',cash(invoice.received)],['Customer balance',cash(invoice.outstanding)],['Customer credit',cash(invoice.credit)]])}</div><form id="delivery-cash-form"><div class="form-grid">${field('dated','Received date',today(),'date','required')}${selectField('cash_account_id','Cash / bank account',accounts.map(row=>[row.id,row.name]),defaultAccount)}${field('notes','Notes','','text','maxlength="500"',true)}</div>${invoice.lines.map(line=>`<section class="bilty-card"><h3>Bilty ${esc(line.bilty)}</h3><p><strong>${esc(line.customer)}</strong> · ${esc(line.account_id)}</p><p>Party to: ${esc(line.party_to||'—')}</p>${deliveryFacts([['Bilty amount due',cash(line.bilty_due)],['Service charges',cash(line.service_due)],['Cash received',cash(line.bilty_received+line.service_received)],['Customer balance',cash(Math.max(0,line.balance))],['Customer credit',cash(Math.max(0,-line.balance))]])}<div class="buttons"><button type="button" class="btn" data-action="cash-pay-full" data-id="${line.delivery_item_id}">Paid in full</button><button type="button" class="btn" data-action="cash-pay-none" data-id="${line.delivery_item_id}">No payment</button></div><div class="form-grid">${field('bilty_received_'+line.delivery_item_id,'Bilty cash received (Rs)','0','number','min="0" step="0.01"')}${field('service_received_'+line.delivery_item_id,'Loading / Suzuki received (Rs)','0','number','min="0" step="0.01"')}</div><div data-cash-line-feedback="${line.delivery_item_id}" class="delivery-line-totals" aria-live="polite"></div></section>`).join('')}<div id="cash-collect-summary" class="shipment-breakdown" aria-live="polite"></div><div class="note-box">Any amount not collected stays on the selected bilty customer’s account. You can collect it later here. Amounts above the balance create customer credit.</div><div id="form-error" class="error" hidden></div><div class="form-actions">${btn('Close','close-modal')}<button class="btn primary" type="submit">Record cash / leave balance on account</button></div></form><hr><h3>Collection history</h3>${invoice.receipts.map(receipt=>`<div class="summary-row"><span>${fmtdate(receipt.dated)} · ${esc(receipt.created_by)}<small>${esc(receipt.cash_account||'Customer account')} · ${esc(receipt.notes)}</small></span><strong>${cash(receipt.amount)}</strong></div>`).join('')||'<p class="note">No cash recorded yet.</p>'}`);
+async function receiveDeliveryCash(id,review=null){
+ const invoice=await api('delivery_cash_invoice',null,{id});if(invoice.pending_cash&&!review){if(isSuper()||invoice.pending_cash.submitted_name===session.user)return reviewPendingCash(invoice.pending_cash.id);toast('A cash collection is already awaiting approval for this delivery.');return;}cashReview=review;cashReceivingInvoice=invoice;cashReceivingKey=crypto.randomUUID();
+ const accounts=invoice.cash_accounts||lookups.accounts.filter(row=>row.status==='A'&&(/^1-(101|106)-/.test(row.id))),defaultAccount=accounts.find(row=>row.id.startsWith('1-101-'))?.id||accounts[0]?.id||'';
+ modal((review?'Pending cash collection · ':'Delivery Cash Receiving · ')+esc(invoice.header.reference),esc(invoice.header.receiver),`${review?`<div class="note-box">Submitted by: ${esc(review.submitted_name)}. Pending approval; these amounts are not posted yet.</div>`:isOperations()?'<div class="note-box">Submit the collected cash for admin approval. Customer and cash balances update only after approval.</div>':''}<div class="delivery-total-banner">${deliveryFacts([['Amount due',cash(invoice.due)],['Cash received',cash(invoice.received)],['Customer balance',cash(invoice.outstanding)],['Customer credit',cash(invoice.credit)]])}</div><form id="delivery-cash-form"><div class="form-grid">${field('dated','Received date',today(),'date','required')}${selectField('cash_account_id','Cash / bank account',accounts.map(row=>[row.id,row.name]),defaultAccount)}${field('notes','Notes','','text','maxlength="500"',true)}</div>${invoice.lines.map(line=>`<section class="bilty-card"><h3>Bilty ${esc(line.bilty)}</h3><p><strong>${esc(line.customer)}</strong> · ${esc(line.account_id)}</p><p>Party to: ${esc(line.party_to||'—')}</p>${deliveryFacts([['Bilty amount due',cash(line.bilty_due)],['Service charges',cash(line.service_due)],['Cash received',cash(line.bilty_received+line.service_received)],['Customer balance',cash(Math.max(0,line.balance))],['Customer credit',cash(Math.max(0,-line.balance))]])}<div class="buttons"><button type="button" class="btn" data-action="cash-pay-full" data-id="${line.delivery_item_id}">Paid in full</button><button type="button" class="btn" data-action="cash-pay-none" data-id="${line.delivery_item_id}">No payment</button></div><div class="form-grid">${field('bilty_received_'+line.delivery_item_id,'Bilty cash received (Rs)','0','number','min="0" step="0.01"')}${field('service_received_'+line.delivery_item_id,'Loading / Suzuki received (Rs)','0','number','min="0" step="0.01"')}</div><div data-cash-line-feedback="${line.delivery_item_id}" class="delivery-line-totals" aria-live="polite"></div></section>`).join('')}<div id="cash-collect-summary" class="shipment-breakdown" aria-live="polite"></div><div class="note-box">Any amount not collected stays on the selected bilty customer’s account. You can collect it later here. Amounts above the balance create customer credit.</div><div id="form-error" class="error" hidden></div><div class="form-actions">${btn('Close','close-modal')}<button class="btn primary" type="submit">${review?'Approve cash collection':isOperations()?'Submit cash for approval':'Record cash / leave balance on account'}</button></div></form><hr><h3>Collection history</h3>${invoice.receipts.map(receipt=>`<div class="summary-row"><span>${fmtdate(receipt.dated)} · ${esc(receipt.created_by)}<small>${esc(receipt.cash_account||'Customer account')} · ${esc(receipt.notes)}</small></span><strong>${cash(receipt.amount)}</strong></div>`).join('')||'<p class="note">No cash recorded yet.</p>'}`);
+ if(review){const form=$('#delivery-cash-form');for(const [name,value] of Object.entries(review.payload)){if(name==='items')continue;const input=form.elements.namedItem(name);if(input)input.value=value;}for(const line of review.payload.items)for(const key of ['bilty_received','service_received']){const input=form.elements.namedItem(key+'_'+line.id);if(input)input.value=line[key];}if(!isSuper()){$$('input,select,button[data-action="cash-pay-full"],button[data-action="cash-pay-none"],button[type="submit"]',form).forEach(input=>input.disabled=true);$('button[type="submit"]',form).textContent='Awaiting approval';}}
  updateCashReceivingTotals();modalSnapshot=modalValues();
  recordPrintContext={kind:'generic',data:{title:'Delivery cash statement',content:slipText('Delivery',invoice.header.reference)+slipText('Receiver',invoice.header.receiver)+invoice.lines.map(line=>slipEntry('Bilty '+line.bilty,slipText('Customer',line.customer)+slipText('Party to',line.party_to)+slipMoney('Amount due',line.bilty_due+line.service_due)+slipMoney('Cash received',line.bilty_received+line.service_received)+slipMoney('Customer balance',line.balance))).join('')+invoice.receipts.map(receipt=>slipEntry('Collection '+receipt.id,slipText('Date',fmtdate(receipt.dated))+slipText('Cash / bank account',receipt.cash_account)+slipMoney('Cash received',receipt.amount))).join('')}};
  $('#modal').insertAdjacentHTML('beforeend',`<div class="modal-footer">${btn('Print cash statement','print-dialog',false,'print')}</div>`);
 }
 function updateCashReceivingTotals(){
- const form=$('#delivery-cash-form');if(!form||!cashReceivingInvoice)return;const values=Object.fromEntries(new FormData(form));let received=0,outstanding=0,credit=0;
+ const form=$('#delivery-cash-form');if(!form||!cashReceivingInvoice)return;const values=Object.fromEntries([...form.elements].filter(input=>input.name).map(input=>[input.name,input.value]));let received=0,outstanding=0,credit=0;
  for(const row of cashReceivingInvoice.lines){const amount=Math.round(Number(values['bilty_received_'+row.delivery_item_id]||0)*100)+Math.round(Number(values['service_received_'+row.delivery_item_id]||0)*100);received+=amount;outstanding+=Math.max(0,row.balance-amount);credit+=Math.max(0,amount-row.balance);const el=$('[data-cash-line-feedback="'+row.delivery_item_id+'"]',form);if(el)el.innerHTML=deliveryFacts([['After this collection',row.balance-amount<0?'Customer credit':row.balance-amount===0?'Paid in full':amount>0?'Part payment':'Unpaid'],['Remaining customer balance',cash(Math.max(0,row.balance-amount))]]);}
  $('#cash-collect-summary').innerHTML=deliveryFacts([['Cash receiving now',cash(received)],['Remaining customer balance',cash(outstanding)],['Customer credit',cash(credit)]]);
 }
 document.addEventListener('input',event=>{if(event.target.closest('#delivery-cash-form'))updateCashReceivingTotals();});
 document.addEventListener('change',event=>{if(event.target.id==='cash-status'){cashStatusFilter=event.target.value;state.page=0;render();}});
+
+async function pendingCashCollections(){
+ const data=await api('pending_cash_collections',null,{page:state.page});listData=data;
+ return head('Pending cash collections',isSuper()?'Review operator cash collections before posting customer and cash balances.':'Your cash submissions stay here until admin approval.',btn('Refresh','refresh',false,'refresh'))+`<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Delivery</th><th>Submitted by</th><th>Date</th><th>Receiver</th><th>Cash submitted</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-CASH-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.reference)}</td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td><strong>${cash(row.amount)}</strong></td><td><button class="btn primary" data-action="review-pending-cash" data-id="${row.id}">${isSuper()?'Review & approve':'View submission'}</button>${isSuper()?` <button class="btn" data-action="discard-pending-cash" data-id="${row.id}">Discard entry</button>`:''}</td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No cash collections awaiting approval.')}${pagination(data)}</section>`;
+}
+async function reviewPendingCash(id){const review=await api('cash_collection_submission',null,{id});await receiveDeliveryCash(review.delivery_id,review);}

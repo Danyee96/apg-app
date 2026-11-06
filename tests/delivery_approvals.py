@@ -23,7 +23,10 @@ def check(base,database,password):
  items=admin.call('shipment',params={'id':shipment['id']})['items'];db=sqlite3.connect(database);db.row_factory=sqlite3.Row
  before=db.execute('select count(*) from deliveries').fetchone()[0]
  payload={'dated':'2026-11-06','receiver':'Proposed receiver','mobile':'12345','items':[{'id':items[0]['id'],'loading':'50','suzuki':'30','discount':'10','bilty_received':'0','service_received':'0'}]}
- pending=ops.call('save_delivery',payload,status=201);assert pending['pending']
+ # Preserve review support for submissions created before the cash-only approval flow.
+ actor=db.execute('select id from users where username=?',('delivery-ops-0',)).fetchone()[0]
+ pending_id=db.execute('insert into delivery_submissions(submitted_by,submitted_name,payload) values(?,?,?)',(actor,'delivery-ops-0',json.dumps(payload))).lastrowid
+ db.execute('insert into delivery_submission_items(item_id,submission_id) values(?,?)',(items[0]['id'],pending_id));db.commit();pending={'id':pending_id,'pending':True}
  assert db.execute('select count(*) from deliveries').fetchone()[0]==before
  row=db.execute('select status,loading,suzuki from items where id=?',(items[0]['id'],)).fetchone();assert tuple(row)==('pending',1000,0)
  assert not admin.call('deliveries',params={'search':'DEL-APPROVAL-0'})['rows']
@@ -44,10 +47,10 @@ def check(base,database,password):
  stored=db.execute('select * from delivery_submissions where id=?',(pending['id'],)).fetchone();assert stored['status']=='approved' and json.loads(stored['payload'])['receiver']=='Proposed receiver' and json.loads(stored['approved_payload'])['receiver']=='Admin corrected receiver'
  assert admin.call('deliveries',params={'search':saved['reference']})['rows'][0]['recorded_by']=='delivery-ops-0'
  assert not ops.call('pending_deliveries')['rows'];assert db.execute('select count(*) from delivery_submission_items').fetchone()[0]==0
- discarded=ops.call('save_delivery',{**payload,'items':[{**payload['items'][0],'id':items[1]['id']}]},status=201)
+ discard_payload={**payload,'items':[{**payload['items'][0],'id':items[1]['id']}]};discard_id=db.execute('insert into delivery_submissions(submitted_by,submitted_name,payload) values(?,?,?)',(actor,'delivery-ops-0',json.dumps(discard_payload))).lastrowid;db.execute('insert into delivery_submission_items(item_id,submission_id) values(?,?)',(items[1]['id'],discard_id));db.commit();discarded={'id':discard_id}
  admin.call('discard_delivery_submission',{'id':discarded['id']});admin.call('discard_delivery_submission',{'id':discarded['id']},status=409)
  assert db.execute('select status from items where id=?',(items[1]['id'],)).fetchone()[0]=='pending'
  ops.call('save_delivery',{**payload,'items':[{**payload['items'][0],'id':items[1]['id']}]},status=201)
  assert db.execute('pragma integrity_check').fetchone()[0]=='ok';assert not db.execute('pragma foreign_key_check').fetchall();db.close()
- print('PASS: operator delivery queued with no goods/cash mutation; own queue access; duplicate reservation prevention; super-only review/approve/discard; stale correction detection; atomic approval and retry; corrected receipt; original payload/audit; discard releases reservation.')
+ print('PASS: older queued goods entries remain reviewable with no premature goods/cash mutation; own queue access; duplicate reservation prevention; super-only review/approve/discard; stale correction detection; atomic approval and retry; corrected receipt; original payload/audit; discard releases reservation.')
 if __name__=='__main__':main(check)

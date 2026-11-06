@@ -4947,5 +4947,121 @@ window.APG_TRANSLATIONS = {
   "Open overview": [
     "جائزہ کھولیں",
     "Jaiza kholein"
+  ],
+  "Pending cash collections": [
+    "منظوری کے منتظر نقد وصولیاں",
+    "Manzoori ke muntazir naqad wasooliyan"
+  ],
+  "Pending cash approval": [
+    "نقد وصولی کی منظوری باقی ہے",
+    "Naqad wasooli ki manzoori baqi hai"
+  ],
+  "Cash collections awaiting admin approval.": [
+    "نقد وصولیاں جو ایڈمن کی منظوری کی منتظر ہیں۔",
+    "Naqad wasooliyan jo admin ki manzoori ki muntazir hain."
+  ],
+  "Pending cash collection": [
+    "منظوری کی منتظر نقد وصولی",
+    "Manzoori ki muntazir naqad wasooli"
+  ],
+  "Review operator cash collections before posting customer and cash balances.": [
+    "گاہکوں اور کیش کے کھاتوں میں اندراج سے پہلے آپریٹر کی وصولیوں کا جائزہ لیں۔",
+    "Gahakon aur cash ke khaton mein indraj se pehle operator ki wasooliyon ka jaiza lein."
+  ],
+  "Your cash submissions stay here until admin approval.": [
+    "آپ کی بھیجی گئی وصولیاں ایڈمن کی منظوری تک یہاں رہیں گی۔",
+    "Aap ki bheji gayi wasooliyan admin ki manzoori tak yahan rahein gi."
+  ],
+  "Cash submitted": [
+    "منظوری کے لیے بھیجی گئی رقم",
+    "Manzoori ke liye bheji gayi raqam"
+  ],
+  "View submission": [
+    "بھیجا گیا اندراج دیکھیں",
+    "Bheja gaya indraj dekhein"
+  ],
+  "No cash collections awaiting approval.": [
+    "کوئی نقد وصولی منظوری کی منتظر نہیں۔",
+    "Koi naqad wasooli manzoori ki muntazir nahin."
+  ],
+  "Approve cash collection": [
+    "نقد وصولی منظور کریں",
+    "Naqad wasooli manzoor karein"
+  ],
+  "Submit cash for approval": [
+    "نقد وصولی منظوری کے لیے بھیجیں",
+    "Naqad wasooli manzoori ke liye bhejein"
+  ],
+  "Save the delivery goods now. Any cash you collect will be submitted separately for admin approval.": [
+    "مال کی حوالگی ابھی محفوظ کریں۔ وصول کی گئی نقد رقم الگ سے ایڈمن کی منظوری کے لیے بھیجی جائے گی۔",
+    "Maal ki hawalgi abhi mehfooz karein. Wasool ki gayi naqad raqam alag se admin ki manzoori ke liye bheji jaye gi."
+  ],
+  "Submit the collected cash for admin approval. Customer and cash balances update only after approval.": [
+    "وصول شدہ رقم ایڈمن کی منظوری کے لیے بھیجیں۔ گاہک اور کیش کے بیلنس منظوری کے بعد ہی بدلیں گے۔",
+    "Wasool shuda raqam admin ki manzoori ke liye bhejein. Gahak aur cash ke balance manzoori ke baad hi badlein ge."
+  ],
+  "Pending approval; these amounts are not posted yet.": [
+    "منظوری باقی ہے؛ یہ رقوم ابھی کھاتوں میں درج نہیں ہوئیں۔",
+    "Manzoori baqi hai; yeh raqoom abhi khaton mein darj nahin hueen."
+  ],
+  "Submitted by:": [
+    "بھیجنے والا:",
+    "Bhejnay wala:"
+  ],
+  "Cash collection submitted for admin approval.": [
+    "نقد وصولی ایڈمن کی منظوری کے لیے بھیج دی گئی۔",
+    "Naqad wasooli admin ki manzoori ke liye bhej di gayi."
+  ],
+  "Discard this pending cash collection? No customer or cash balances will change.": [
+    "کیا یہ زیرِ انتظار نقد وصولی مسترد کر دیں؟ گاہک یا کیش کا کوئی بیلنس نہیں بدلے گا۔",
+    "Kya yeh zer e intizar naqad wasooli mustarad kar dein? Gahak ya cash ka koi balance nahin badlay ga."
+  ],
+  "Pending cash collection discarded.": [
+    "زیرِ انتظار نقد وصولی مسترد کر دی گئی۔",
+    "Zer e intizar naqad wasooli mustarad kar di gayi."
+  ],
+  "A cash collection is awaiting approval. Review or discard it before changing charges.": [
+    "نقد وصولی کی منظوری باقی ہے۔ چارجز بدلنے سے پہلے اس کا جائزہ لیں یا مسترد کریں۔",
+    "Naqad wasooli ki manzoori baqi hai. Charges badalnay se pehle is ka jaiza lein ya mustarad karein."
+  ],
+  "A cash collection is already awaiting approval for this delivery.": [
+    "اس حوالگی کی نقد وصولی پہلے ہی منظوری کی منتظر ہے۔",
+    "Is hawalgi ki naqad wasooli pehle hi manzoori ki muntazir hai."
+  ],
+  "Only the super admin can approve cash collections.": [
+    "نقد وصولیاں صرف سپر ایڈمن منظور کر سکتا ہے۔",
+    "Naqad wasooliyan sirf super admin manzoor kar sakta hai."
+  ],
+  "Delivery cash access is not available to this account.": [
+    "اس اکاؤنٹ کو حوالگی کی نقد وصولی کی رسائی نہیں۔",
+    "Is account ko hawalgi ki naqad wasooli ki rasai nahin."
+  ],
+  "Pending cash collection not found.": [
+    "منظوری کی منتظر نقد وصولی نہیں ملی۔",
+    "Manzoori ki muntazir naqad wasooli nahin mili."
+  ],
+  "This cash submission is not available to your account.": [
+    "یہ نقد وصولی آپ کے اکاؤنٹ کے لیے دستیاب نہیں۔",
+    "Yeh naqad wasooli aap ke account ke liye dastiyab nahin."
+  ],
+  "This cash collection is no longer pending.": [
+    "یہ نقد وصولی اب منظوری کی منتظر نہیں۔",
+    "Yeh naqad wasooli ab manzoori ki muntazir nahin."
+  ],
+  "This cash submission changed. Reopen it before approving.": [
+    "اس نقد وصولی میں تبدیلی ہوئی ہے۔ منظوری سے پہلے دوبارہ کھولیں۔",
+    "Is naqad wasooli mein tabdeeli hui hai. Manzoori se pehle dobara kholein."
+  ],
+  "The cash submission belongs to a different delivery.": [
+    "یہ نقد وصولی دوسری حوالگی کی ہے۔",
+    "Yeh naqad wasooli doosri hawalgi ki hai."
+  ],
+  "This cash collection was discarded. Reopen the invoice to submit again.": [
+    "یہ نقد وصولی مسترد ہو چکی ہے۔ دوبارہ بھیجنے کے لیے بل دوبارہ کھولیں۔",
+    "Yeh naqad wasooli mustarad ho chuki hai. Dobara bhejnay ke liye bill dobara kholein."
+  ],
+  "Enter collected cash and submit it for admin approval.": [
+    "وصول شدہ نقد رقم درج کریں اور ایڈمن کی منظوری کے لیے بھیجیں۔",
+    "Wasool shuda naqad raqam darj karein aur admin ki manzoori ke liye bhejein."
   ]
 };

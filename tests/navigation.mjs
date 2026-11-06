@@ -9,7 +9,7 @@ try {
  // Brand and the persistent home link intentionally both go home; each actual menu entry appears once.
  const menuViews=await page.locator('#navigation nav [data-view]').evaluateAll(rows=>rows.map(row=>row.dataset.view));assert.equal(new Set(menuViews).size,menuViews.length);
  assert.deepEqual(await page.locator('#nav-incoming [data-view]').evaluateAll(rows=>rows.map(row=>row.dataset.view)),['incoming','pending-incoming']);
- assert.deepEqual(await page.locator('#nav-delivery [data-view]').evaluateAll(rows=>rows.map(row=>row.dataset.view)),['deliveries','pending-deliveries','delivery-cash']);
+ assert.deepEqual(await page.locator('#nav-delivery [data-view]').evaluateAll(rows=>rows.map(row=>row.dataset.view)),['deliveries','delivery-cash','pending-cash']);
  assert.equal(await page.locator('#nav-delivery').evaluate(el=>el.open),false);
  await page.locator('#nav-delivery > summary').focus();await page.keyboard.press('Enter');assert.equal(await page.locator('#nav-delivery').evaluate(el=>el.open),true);
  await page.locator('#nav-delivery [data-view="delivery-cash"]').click();await page.locator('#main h1').filter({hasText:'Delivery Cash Receiving'}).waitFor();
@@ -24,7 +24,7 @@ try {
  await page.locator('.mobile-menu').click();await page.waitForTimeout(250);await page.screenshot({path:'/private/tmp/apg-grouped-nav-urdu.png'});
  await page.evaluate(async()=>{await api('save_user',{username:'nav-operator',full_name:'Navigation operator',role:'operations',active:1,permissions:['incoming.create','deliveries.create'],password:'Nav-operator-test-2026'});});
  const ops=await browser.newPage();await ops.goto(process.env.APG_TEST_URL);await ops.locator('#f-username').fill('nav-operator');await ops.locator('#f-password').fill('Nav-operator-test-2026');await ops.locator('#auth-form [type="submit"]').click();await ops.locator('.nav-link[data-view="navigation"]').waitFor();
- assert.equal(await ops.locator('#nav-delivery [data-view="delivery-cash"]').count(),0);assert.equal(await ops.locator('#nav-delivery [data-view="pending-deliveries"]').count(),1);
+ assert.equal(await ops.locator('#nav-delivery [data-view="delivery-cash"]').count(),1);assert.equal(await ops.locator('#nav-delivery [data-view="pending-deliveries"]').count(),0);
  await ops.evaluate(()=>{session.profile.role='custom';session.permissions=[];shell();});assert.equal(await ops.locator('.nav-group').count(),0);
- assert.deepEqual(errors,[]);console.log('PASS: no Dashboard or duplicate menu entries; incoming/delivery dropdowns; keyboard toggle; active group opens; mobile Urdu RTL navigation; cash menu restricted to super admin; empty groups omitted.');
+ assert.deepEqual(errors,[]);console.log('PASS: no Dashboard or duplicate menu entries; incoming/delivery dropdowns; keyboard toggle; active group opens; mobile Urdu RTL navigation; operator cash entry available with delivery permission; empty groups omitted.');
 }finally{await browser.close();}

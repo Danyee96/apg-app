@@ -4575,5 +4575,29 @@ window.APG_TRANSLATIONS = {
   "Truck delivery amount entered in shipment details. Bilty and godown charges are not included.": [
     "کھیپ کی تفصیلات میں درج ٹرک ڈیلیوری کی رقم۔ اس میں بلٹی اور گودام کے چارجز شامل نہیں۔",
     "Khep ki tafseelat mein darj truck delivery ki raqam. Is mein bilty aur godown ke charges shamil nahin."
+  ],
+  "Refresh": [
+    "تازہ کریں",
+    "Taaza karein"
+  ],
+  "All users’ saved deliveries are visible here. Updates appear automatically while this screen is idle.": [
+    "تمام صارفین کی محفوظ حوالگیاں یہاں نظر آتی ہیں۔ اس صفحے پر کام نہ ہو رہا ہو تو تازہ اندراجات خود نظر آ جائیں گے۔",
+    "Tamam sarifeen ki mehfooz hawalgiyan yahan nazar aati hain. Is safhay par kaam na ho raha ho to taaza indrajat khud nazar aa jayein ge."
+  ],
+  "Filters are active. Clear them to see all deliveries.": [
+    "فلٹر لگے ہوئے ہیں۔ تمام حوالگیاں دیکھنے کے لیے فلٹر ہٹائیں۔",
+    "Filter lagay huay hain. Tamam hawalgiyan dekhnay ke liye filter hatayein."
+  ],
+  "Clear filters": [
+    "فلٹر ہٹائیں",
+    "Filter hatayein"
+  ],
+  "Recorded by:": [
+    "درج کرنے والا:",
+    "Darj karnay wala:"
+  ],
+  "Search delivery, bilty, party, receiver or mobile…": [
+    "حوالگی، بلٹی، پارٹی، وصول کنندہ یا موبائل تلاش کریں…",
+    "Hawalgi, bilty, party, wasool kuninda ya mobile talash karein…"
   ]
 };

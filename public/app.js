@@ -808,9 +808,9 @@ async function deliveries() {
     head(
       "Deliveries",
       "A clear record of every handover and amount collected.",
-      btn("Deliver goods", "delivery-new", true, "plus"),
+      btn("Refresh", "refresh", false, "refresh") + btn("Deliver goods", "delivery-new", true, "plus"),
     ) +
-    `<section class="panel">${searchBar("Search delivery, receiver or mobile…", "", true)}<div class="table-scroll"><table><thead><tr><th>Delivery</th><th>Date</th><th>Receiver</th><th>Bilties</th><th class="number">Cash recorded</th><th></th></tr></thead><tbody>${d.rows.map((r) => `<tr><td><button class="link" data-action="delivery" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.receiver)}</strong><small>${esc(r.mobile || "")}</small></td><td>${num(r.item_count)}</td><td class="number">${cash(r.collected)}</td><td><button class="icon-btn" data-action="delivery" data-id="${r.id}" aria-label="Open delivery">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty() : ""}${pagination(d)}</section>`
+    `${isSuper() ? '<p class="note">All users’ saved deliveries are visible here. Updates appear automatically while this screen is idle.</p>' : ""}${state.search || state.from || state.to ? `<div class="note-box warning">Filters are active. Clear them to see all deliveries. ${btn("Clear filters", "clear-delivery-filters")}</div>` : ""}<section class="panel">${searchBar("Search delivery, bilty, party, receiver or mobile…", "", true)}<div class="table-scroll"><table><thead><tr><th>Delivery</th><th>Date</th><th>Receiver</th><th>Bilties</th><th class="number">Cash recorded</th><th></th></tr></thead><tbody>${d.rows.map((r) => `<tr><td><button class="link" data-action="delivery" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}${isSuper() && r.recorded_by ? `<small>Recorded by: ${esc(r.recorded_by)}</small>` : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.receiver)}</strong><small>${esc(r.mobile || "")}</small></td><td>${num(r.item_count)}</td><td class="number">${cash(r.collected)}</td><td><button class="icon-btn" data-action="delivery" data-id="${r.id}" aria-label="Open delivery">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty() : ""}${pagination(d)}</section>`
   );
 }
 async function accounts() {
@@ -2883,6 +2883,11 @@ async function action(name, el) {
       session = await api("session");
       auth();
       break;
+    case "clear-delivery-filters":
+      state.search = state.from = state.to = "";
+      state.page = 0;
+      await render();
+      break;
     case "refresh":
       render();
       break;
@@ -3844,3 +3849,30 @@ document.addEventListener("focusout",event=>{
 });
 
 window.addEventListener("apg-language-change", () => { if (thermalSnapshot) updateThermalPage(); });
+
+// Refresh shared admin views after changes from another account. Never replace a draft or open record.
+let workspaceRevision = null, workspaceRefreshBusy = false;
+function workspaceRefreshSafe() {
+  return session?.user && isSuper() && !document.hidden && !currentForm && !selected.size &&
+    !$('#modal').open && !$('#print-preview').open &&
+    !document.activeElement?.closest('input,textarea,select,[contenteditable="true"]');
+}
+async function refreshSharedWorkspace() {
+  if (workspaceRefreshBusy || !workspaceRefreshSafe()) return;
+  workspaceRefreshBusy = true;
+  const view = state.view, request = requestID;
+  try {
+    const change = await api('workspace_changes');
+    if (!workspaceRefreshSafe() || state.view !== view || requestID !== request) return;
+    if (workspaceRevision !== change.revision) {
+      await refreshLookups();
+      if (!workspaceRefreshSafe() || state.view !== view || requestID !== request) return;
+      workspaceRevision = change.revision;
+      await render();
+    }
+  } catch { /* A temporary offline connection is retried on the next check. */ }
+  finally { workspaceRefreshBusy = false; }
+}
+setInterval(refreshSharedWorkspace, 20000);
+window.addEventListener('focus', refreshSharedWorkspace);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSharedWorkspace(); });

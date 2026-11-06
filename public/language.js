@@ -6,7 +6,7 @@
   let language = 'en';
   try { const saved = localStorage.getItem('apg.language'); if (supported.has(saved)) language = saved; } catch {}
   const textSources = new WeakMap(), attributeSources = new WeakMap(), dataValues = new Set();
-  const dataKeys = new Set(['name','full_name','username','customer','party_to','party_from','receiver','driver','detail','description','remarks','memo','address','urdu_address','urdu_name','station','truck','email','mobile','phone','goods_type','goods_custom','goods_category_name','goods_subcategory_name','submitted_name','job_title','about']);
+  const dataKeys = new Set(['name','full_name','username','customer','party_to','party_from','receiver','driver','detail','description','remarks','memo','address','urdu_address','urdu_name','station','truck','email','mobile','phone','goods_type','goods_custom','goods_category_name','goods_subcategory_name','submitted_name','recorded_by','job_title','about']);
   function remember(value, key = '') {
     if (Array.isArray(value)) { value.forEach(item => remember(item, key)); return; }
     if (value && typeof value === 'object') { Object.entries(value).forEach(([k,v]) => remember(v,k)); return; }

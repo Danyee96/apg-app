@@ -27,7 +27,7 @@ try{
  const card=await operator.locator('.delivery-card').innerText();
  assert.ok(card.includes('Godown charges')&&card.includes('70.00')&&card.includes('270.00'));
  assert.ok((await operator.locator('#delivery-combined').innerText()).includes('270.00'));
- await operator.locator('[name^="bilty_received_"]').fill('270');
+ assert.equal(await operator.locator('[name^="bilty_received_"]').count(),0);
  await operator.locator('#delivery-form [type="submit"]').click();
  await operator.getByRole('heading',{name:'Pending delivery goods',exact:true}).waitFor();
  assert.equal((await admin.evaluate(()=>api('deliveries',null,{search:'SHARED-VISIBLE-BILTY'}))).rows.length,0);
@@ -44,10 +44,11 @@ try{
  await operator.evaluate(id=>showDelivery(id),approvedId);
  const receipt=await operator.evaluate(()=>buildThermalRecord(recordPrintContext).html);
  assert.ok(receipt.includes('70.00')&&receipt.includes('270.00')&&!receipt.includes('Charge summaries are restricted'));
+ assert.equal((await operator.evaluate(()=>api('delivery',null,{id:recordPrintContext.data.id}))).cash_summary.status,'awaiting_cash');
  await admin.locator('[data-action="close-modal"]').first().click();
  const deliveries=await admin.evaluate(()=>api('deliveries',null,{search:'SHARED-VISIBLE-BILTY'}));
  assert.equal(deliveries.rows.length,1);const delivery=deliveries.rows[0];
- assert.equal(delivery.recorded_by,'shared-operator');assert.equal(delivery.collected,27000);assert.equal(delivery.receiver,'Admin corrected receiver');
+ assert.equal(delivery.recorded_by,'shared-operator');assert.equal(delivery.collected,0);assert.equal(delivery.receiver,'Admin corrected receiver');
  assert.equal((await admin.evaluate(id=>api('delivery',null,{id}),delivery.id)).items[0].godown,7000);
  await admin.locator(`[data-action="delivery"][data-id="${delivery.id}"]`).first().waitFor({timeout:25000});
  assert.ok((await admin.locator('#main').innerText()).includes('Recorded by: shared-operator'));

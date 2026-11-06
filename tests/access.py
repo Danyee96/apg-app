@@ -73,7 +73,7 @@ def check_access(base, database, password):
     delivery_id=create('delivery-clerk',['deliveries.create'])
     clerk=Client();clerk.login('delivery-clerk',test_password)
     item=clerk.call('shipment',params={'id':arrival_id})['items'][0]
-    clerk.call('save_delivery',{'dated':'2026-11-01','receiver':'Access test receiver','items':[{'id':item['id'],'bilty_received':'1'}]},status=201)
+    clerk.call('save_delivery',{'dated':'2026-11-01','receiver':'Access test receiver','items':[{'id':item['id']}]},status=201)
     clerk.call('vouchers',status=403)
     checks.append('delivery permission grants required goods views and permits handover without accounting access')
 

@@ -28,7 +28,7 @@ def check(base,database,password):
  for kind in ['incoming','booking']:
   new={'kind':kind,'dated':'2026-11-02','station_id':station,'truck':'EDIT-TEST','labour_bonus':'12.34','munshi_bonus':'5.67','items':[{'account_id':account,'bilty':'EDIT-1','qty':1,'bilty_amount':'100','advance':'200'}]}
   created=call('save_shipment',new,status=201);s=call('shipment',params={'id':created['id']});item=s['items'][0]['id']
-  if kind=='incoming':call('save_delivery',{'dated':'2026-11-02','receiver':'Edit test','items':[{'id':item,'bilty_received':'100','service_received':'0'}]},status=201);s=call('shipment',params={'id':created['id']})
+  if kind=='incoming':call('save_delivery',{'dated':'2026-11-02','receiver':'Edit test','items':[{'id':item,'bilty_received':'0','service_received':'0'}]},status=201);s=call('shipment',params={'id':created['id']})
   p=payload(s);p['truck']='CORRECTED';p['labour_bonus']='15.25';p['munshi_bonus']='7.75';p['items'][0]['detail']='Corrected goods';p['items'][0]['bilty_amount']='150'
   db.execute("UPDATE users SET role='manager' WHERE username='integration-review'");db.commit()
   call('save_shipment',p,status=403)

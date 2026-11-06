@@ -17,16 +17,16 @@ def check(base,database,password):
  customer=db.execute("SELECT id FROM accounts WHERE customer=1 AND status='A' LIMIT 1").fetchone()[0];station=db.execute("SELECT id FROM stations WHERE status='A' LIMIT 1").fetchone()[0]
  shipment=call('save_shipment',{'kind':'incoming','dated':'2026-11-04','station_id':station,'truck':'DELIVERY-EDIT','items':[{'account_id':customer,'bilty':'EDIT-D1','party_to':'Recipient','qty':2,'bilty_amount':'100','godown':'20','loading':'10'}]},status=201)
  item=call('shipment',params={'id':shipment['id']})['items'][0]
- created=call('save_delivery',{'dated':'2026-11-04','receiver':'Original receiver','items':[{'id':item['id'],'bilty_received':'100','service_received':'10'}]},status=201)
+ created=call('save_delivery',{'dated':'2026-11-04','receiver':'Original receiver','items':[{'id':item['id'],'bilty_received':'0','service_received':'0'}]},status=201)
  d=call('delivery',params={'id':created['id']})
- edit={'id':d['id'],'version':d['version'],'dated':d['dated'],'receiver':'Corrected receiver','mobile':'03000000000','cnic':'123','remarks':'Correction','items':[{'id':item['id'],'loading':'15.25','suzuki':'5.75','discount':'50','bilty_received':'650','service_received':'150'}]}
+ edit={'id':d['id'],'version':d['version'],'dated':d['dated'],'receiver':'Corrected receiver','mobile':'03000000000','cnic':'123','remarks':'Correction','items':[{'id':item['id'],'loading':'15.25','suzuki':'5.75','discount':'50','bilty_received':'0','service_received':'0'}]}
  db.execute("UPDATE users SET role='custom',permissions=? WHERE username='integration-review'",(json.dumps(['deliveries.create','deliveries.view','incoming.view']),));db.commit()
  call('update_delivery',edit,status=403)
  db.execute("UPDATE users SET permissions=? WHERE username='integration-review'",(json.dumps(['deliveries.edit','deliveries.view','incoming.view']),));db.commit()
- result=call('update_delivery',edit);assert len(result['warnings'])==2
+ result=call('update_delivery',edit);assert not result['warnings']
  call('update_delivery',edit,status=409)
  updated=call('delivery',params={'id':d['id']});assert updated['reference']==d['reference'] and updated['receiver']=='Corrected receiver'
- assert (updated['items'][0]['loading'],updated['items'][0]['suzuki'],updated['items'][0]['bilty_received'],updated['items'][0]['discount'])==(1525,575,65000,5000)
+ assert (updated['items'][0]['loading'],updated['items'][0]['suzuki'],updated['items'][0]['bilty_received'],updated['items'][0]['discount'])==(1525,575,0,5000)
  assert db.execute('SELECT loading FROM items WHERE id=?',(item['id'],)).fetchone()[0]==1000
  assert db.execute('SELECT status FROM items WHERE id=?',(item['id'],)).fetchone()[0]=='delivered'
  assert db.execute('SELECT count(*) FROM delivery_revisions WHERE delivery_id=?',(d['id'],)).fetchone()[0]==1

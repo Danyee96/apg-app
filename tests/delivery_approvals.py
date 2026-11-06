@@ -22,7 +22,7 @@ def check(base,database,password):
  shipment=admin.call('save_shipment',{'kind':'incoming','dated':'2026-11-06','station_id':station,'truck':'DELIVERY-APPROVAL','items':[{'account_id':account,'bilty':f'DEL-APPROVAL-{n}','qty':2,'bilty_amount':'200','godown':'70','loading':'10'} for n in range(2)]},status=201)
  items=admin.call('shipment',params={'id':shipment['id']})['items'];db=sqlite3.connect(database);db.row_factory=sqlite3.Row
  before=db.execute('select count(*) from deliveries').fetchone()[0]
- payload={'dated':'2026-11-06','receiver':'Proposed receiver','mobile':'12345','items':[{'id':items[0]['id'],'loading':'50','suzuki':'30','discount':'10','bilty_received':'260','service_received':'80'}]}
+ payload={'dated':'2026-11-06','receiver':'Proposed receiver','mobile':'12345','items':[{'id':items[0]['id'],'loading':'50','suzuki':'30','discount':'10','bilty_received':'0','service_received':'0'}]}
  pending=ops.call('save_delivery',payload,status=201);assert pending['pending']
  assert db.execute('select count(*) from deliveries').fetchone()[0]==before
  row=db.execute('select status,loading,suzuki from items where id=?',(items[0]['id'],)).fetchone();assert tuple(row)==('pending',1000,0)
@@ -36,11 +36,11 @@ def check(base,database,password):
  admin.call('save_delivery',{**approval,'items':[{**approval['items'][0],'id':items[1]['id']}]},status=422)
  db.execute('update items set remarks=? where id=?',('Concurrent correction',items[0]['id']));db.commit()
  admin.call('save_delivery',approval,status=409)
- review=admin.call('delivery_submission',params={'id':pending['id']});approval['pending_version']=review['version'];approval['items'][0]['service_received']='90'
+ review=admin.call('delivery_submission',params={'id':pending['id']});approval['pending_version']=review['version'];approval['items'][0]['loading']='90'
  saved=admin.call('save_delivery',approval,status=201);admin.call('save_delivery',approval,status=409)
  assert db.execute('select count(*) from deliveries').fetchone()[0]==before+1
  assert db.execute('select status from items where id=?',(items[0]['id'],)).fetchone()[0]=='delivered'
- delivery=ops.call('delivery',params={'id':saved['id']});assert delivery['receiver']=='Admin corrected receiver';assert delivery['items'][0]['service_received']==9000;assert delivery['items'][0]['godown']==7000
+ delivery=ops.call('delivery',params={'id':saved['id']});assert delivery['receiver']=='Admin corrected receiver';assert delivery['items'][0]['service_received']==0;assert delivery['items'][0]['loading']==9000;assert delivery['items'][0]['godown']==7000
  stored=db.execute('select * from delivery_submissions where id=?',(pending['id'],)).fetchone();assert stored['status']=='approved' and json.loads(stored['payload'])['receiver']=='Proposed receiver' and json.loads(stored['approved_payload'])['receiver']=='Admin corrected receiver'
  assert admin.call('deliveries',params={'search':saved['reference']})['rows'][0]['recorded_by']=='delivery-ops-0'
  assert not ops.call('pending_deliveries')['rows'];assert db.execute('select count(*) from delivery_submission_items').fetchone()[0]==0

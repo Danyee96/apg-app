@@ -4679,5 +4679,269 @@ window.APG_TRANSLATIONS = {
   "Pending delivery goods is unavailable to this account.": [
     "اس اکاؤنٹ کو منظوری کے منتظر حوالگی کے اندراجات کی رسائی نہیں۔",
     "Is account ko manzoori ke muntazir hawalgi ke indrajat ki rasai nahin."
+  ],
+  "Delivery Cash Receiving": [
+    "حوالگی کی نقد وصولی",
+    "Hawalgi ki naqad wasooli"
+  ],
+  "Receive delivery cash and track customer balances.": [
+    "حوالگی کی رقم وصول کریں اور گاہکوں کے بقایا جات دیکھیں۔",
+    "Hawalgi ki raqam wasool karein aur gahakon ke baqaya jaat dekhein."
+  ],
+  "Delivery goods": [
+    "مال کی حوالگی",
+    "Maal ki hawalgi"
+  ],
+  "Delivery handover": [
+    "مال کی حوالگی کی پرچی",
+    "Maal ki hawalgi ki parchi"
+  ],
+  "Delivery invoices": [
+    "حوالگی کے بل",
+    "Hawalgi ke bill"
+  ],
+  "Customer balances": [
+    "گاہکوں کے بقایا جات",
+    "Gahakon ke baqaya jaat"
+  ],
+  "Customer balance": [
+    "گاہک کا بقایا",
+    "Gahak ka baqaya"
+  ],
+  "Customer credit": [
+    "گاہک کی زائد جمع رقم",
+    "Gahak ki zayed jama raqam"
+  ],
+  "Customer balance due": [
+    "گاہک کے ذمے بقایا",
+    "Gahak ke zimmay baqaya"
+  ],
+  "Customer credit:": [
+    "گاہک کی زائد جمع رقم:",
+    "Gahak ki zayed jama raqam:"
+  ],
+  "Amount due": [
+    "واجب الادا رقم",
+    "Wajib ul ada raqam"
+  ],
+  "Amount due at cash receiving": [
+    "وصولی کے وقت واجب الادا رقم",
+    "Wasooli ke waqt wajib ul ada raqam"
+  ],
+  "Bilty amount due": [
+    "بلٹی کی واجب الادا رقم",
+    "Bilty ki wajib ul ada raqam"
+  ],
+  "Awaiting cash": [
+    "رقم کی وصولی باقی ہے",
+    "Raqam ki wasooli baqi hai"
+  ],
+  "Cash status": [
+    "وصولی کی حیثیت",
+    "Wasooli ki haisiyat"
+  ],
+  "Paid": [
+    "ادا ہو گیا",
+    "Ada ho gaya"
+  ],
+  "Paid in full": [
+    "مکمل ادائیگی",
+    "Mukammal adaigi"
+  ],
+  "Part payment": [
+    "جزوی ادائیگی",
+    "Juzwi adaigi"
+  ],
+  "Unpaid": [
+    "ادائیگی باقی",
+    "Adaigi baqi"
+  ],
+  "No payment": [
+    "کوئی ادائیگی نہیں",
+    "Koi adaigi nahin"
+  ],
+  "Paid / credit": [
+    "ادا شدہ / زائد جمع",
+    "Ada shuda / zayed jama"
+  ],
+  "After this collection": [
+    "اس وصولی کے بعد",
+    "Is wasooli ke baad"
+  ],
+  "Cash receiving now": [
+    "اب وصول ہونے والی رقم",
+    "Ab wasool honay wali raqam"
+  ],
+  "Remaining customer balance": [
+    "گاہک کا باقی بقایا",
+    "Gahak ka baqi baqaya"
+  ],
+  "Cash / bank account": [
+    "کیش / بینک کھاتہ",
+    "Cash / bank khata"
+  ],
+  "Collection history": [
+    "وصولیوں کی تفصیل",
+    "Wasooliyon ki tafseel"
+  ],
+  "No cash recorded yet.": [
+    "ابھی نقد وصولی درج نہیں ہوئی۔",
+    "Abhi naqad wasooli darj nahin hui."
+  ],
+  "Customer account": [
+    "گاہک کا کھاتہ",
+    "Gahak ka khata"
+  ],
+  "Record cash / leave balance on account": [
+    "وصولی درج کریں / بقایا کھاتے میں رکھیں",
+    "Wasooli darj karein / baqaya khatay mein rakhein"
+  ],
+  "Receive / view cash": [
+    "رقم وصول کریں / تفصیل دیکھیں",
+    "Raqam wasool karein / tafseel dekhein"
+  ],
+  "Print cash statement": [
+    "وصولی کی تفصیل پرنٹ کریں",
+    "Wasooli ki tafseel print karein"
+  ],
+  "Delivery cash statement": [
+    "حوالگی کی وصولی کا گوشوارہ",
+    "Hawalgi ki wasooli ka goshwara"
+  ],
+  "Cash receiving": [
+    "رقم کی وصولی",
+    "Raqam ki wasooli"
+  ],
+  "Collection": [
+    "وصولی",
+    "Wasooli"
+  ],
+  "Recorded previously": [
+    "پہلے سے درج",
+    "Pehle se darj"
+  ],
+  "Search delivery, bilty or customer…": [
+    "حوالگی، بلٹی یا گاہک تلاش کریں…",
+    "Hawalgi, bilty ya gahak talash karein…"
+  ],
+  "Search customer or party…": [
+    "گاہک یا پارٹی تلاش کریں…",
+    "Gahak ya party talash karein…"
+  ],
+  "Unpaid delivery amounts by customer and Party to.": [
+    "گاہک اور وصول کنندہ پارٹی کے لحاظ سے حوالگی کے بقایا جات۔",
+    "Gahak aur wasool kuninda party ke lihaz se hawalgi ke baqaya jaat."
+  ],
+  "Record cash after handover. Part payments leave a traceable balance against each customer.": [
+    "حوالگی کے بعد رقم وصول کریں۔ جزوی ادائیگی پر باقی رقم متعلقہ گاہک کے ذمے رہے گی۔",
+    "Hawalgi ke baad raqam wasool karein. Juzwi adaigi par baqi raqam mutaliqa gahak ke zimmay rahay gi."
+  ],
+  "No outstanding delivery balances.": [
+    "حوالگی کا کوئی بقایا نہیں۔",
+    "Hawalgi ka koi baqaya nahin."
+  ],
+  "No delivery cash invoices yet.": [
+    "ابھی حوالگی کی وصولی کے لیے کوئی بل نہیں۔",
+    "Abhi hawalgi ki wasooli ke liye koi bill nahin."
+  ],
+  "Only deliveries created with the new cash flow appear here. Earlier receipts remain unchanged in Deliveries.": [
+    "یہاں نئے طریقے سے درج حوالگیاں نظر آتی ہیں۔ پرانی رسیدیں حوالگیوں کی فہرست میں برقرار ہیں۔",
+    "Yahan naye tareeqay se darj hawalgiyan nazar aati hain. Purani raseedein hawalgiyon ki fehrist mein barqarar hain."
+  ],
+  "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving after approval. Any unpaid amount stays against the bilty’s customer.": [
+    "یہاں صرف مال کی حوالگی محفوظ کریں۔ منظوری کے بعد رقم حوالگی کی نقد وصولی میں الگ وصول ہو گی۔ غیر ادا شدہ رقم بلٹی کے گاہک کے ذمے رہے گی۔",
+    "Yahan sirf maal ki hawalgi mehfooz karein. Manzoori ke baad raqam hawalgi ki naqad wasooli mein alag wasool ho gi. Ghair ada shuda raqam bilty ke gahak ke zimmay rahay gi."
+  ],
+  "Any amount not collected stays on the selected bilty customer’s account. You can collect it later here. Amounts above the balance create customer credit.": [
+    "غیر وصول شدہ رقم متعلقہ بلٹی کے گاہک کے کھاتے میں باقی رہے گی، جسے بعد میں یہاں وصول کیا جا سکتا ہے۔ بقایا سے زائد وصولی گاہک کی زائد جمع رقم بنے گی۔",
+    "Ghair wasool shuda raqam mutaliqa bilty ke gahak ke khatay mein baqi rahay gi, jisay baad mein yahan wasool kiya ja sakta hai. Baqaya se zayed wasooli gahak ki zayed jama raqam banay gi."
+  ],
+  "No cash entered. Leave the full unpaid amount on the customer account?": [
+    "کوئی نقد رقم درج نہیں۔ کیا پوری واجب الادا رقم گاہک کے کھاتے میں رکھ دیں؟",
+    "Koi naqad raqam darj nahin. Kya poori wajib ul ada raqam gahak ke khatay mein rakh dein?"
+  ],
+  "Delivery cash recorded. Customer balances updated.": [
+    "حوالگی کی وصولی درج ہو گئی۔ گاہکوں کے بقایا جات اپ ڈیٹ ہو گئے۔",
+    "Hawalgi ki wasooli darj ho gayi. Gahakon ke baqaya jaat update ho gaye."
+  ],
+  "Cash processing has started. You can correct receiver details and remarks; invoiced amounts and the handover date stay locked.": [
+    "رقم کی کارروائی شروع ہو چکی ہے۔ وصول کنندہ کی تفصیلات اور ریمارکس درست کر سکتے ہیں؛ بل کی رقوم اور حوالگی کی تاریخ تبدیل نہیں ہوں گی۔",
+    "Raqam ki karwai shuru ho chuki hai. Wasool kuninda ki tafseelat aur remarks durust kar saktay hain; bill ki raqoom aur hawalgi ki tareekh tabdeel nahin hon gi."
+  ],
+  "Record cash in Delivery Cash Receiving after saving the handover.": [
+    "حوالگی محفوظ کرنے کے بعد حوالگی کی نقد وصولی میں رقم درج کریں۔",
+    "Hawalgi mehfooz karnay ke baad hawalgi ki naqad wasooli mein raqam darj karein."
+  ],
+  "Only the super admin can receive delivery cash.": [
+    "حوالگی کی رقم صرف سپر ایڈمن وصول کر سکتا ہے۔",
+    "Hawalgi ki raqam sirf super admin wasool kar sakta hai."
+  ],
+  "Delivery cash invoice not found.": [
+    "حوالگی کی وصولی کا بل نہیں ملا۔",
+    "Hawalgi ki wasooli ka bill nahin mila."
+  ],
+  "This cash invoice changed. Reopen it before collecting.": [
+    "اس بل میں تبدیلی ہوئی ہے۔ وصولی سے پہلے دوبارہ کھولیں۔",
+    "Is bill mein tabdeeli hui hai. Wasooli se pehle dobara kholein."
+  ],
+  "Cash receiving date cannot be earlier than delivery or a previous collection.": [
+    "وصولی کی تاریخ حوالگی یا پچھلی وصولی سے پہلے نہیں ہو سکتی۔",
+    "Wasooli ki tareekh hawalgi ya pichhli wasooli se pehle nahin ho sakti."
+  ],
+  "Choose an active cash or bank account.": [
+    "فعال کیش یا بینک کھاتہ منتخب کریں۔",
+    "Faal cash ya bank khata muntakhib karein."
+  ],
+  "Include every invoice bilty once.": [
+    "بل کی ہر بلٹی صرف ایک بار شامل کریں۔",
+    "Bill ki har bilty sirf aik baar shamil karein."
+  ],
+  "A cash line does not belong to this delivery.": [
+    "وصولی کی کوئی سطر اس حوالگی کی نہیں ہے۔",
+    "Wasooli ki koi satar is hawalgi ki nahin hai."
+  ],
+  "Enter an amount for this additional collection.": [
+    "اس اضافی وصولی کے لیے رقم درج کریں۔",
+    "Is izafi wasooli ke liye raqam darj karein."
+  ],
+  "Cash processing has started. Delivery charges and customer allocations are locked.": [
+    "رقم کی کارروائی شروع ہو چکی ہے۔ حوالگی کے چارجز اور گاہکوں کی تقسیم تبدیل نہیں ہو سکتی۔",
+    "Raqam ki karwai shuru ho chuki hai. Hawalgi ke charges aur gahakon ki taqseem tabdeel nahin ho sakti."
+  ],
+  "Cash processing has started. The handover date is locked.": [
+    "رقم کی کارروائی شروع ہو چکی ہے۔ حوالگی کی تاریخ تبدیل نہیں ہو سکتی۔",
+    "Raqam ki karwai shuru ho chuki hai. Hawalgi ki tareekh tabdeel nahin ho sakti."
+  ],
+  "This cash request key was already used for different values.": [
+    "یہ وصولی نمبر پہلے دوسری رقوم کے لیے استعمال ہو چکا ہے۔",
+    "Yeh wasooli number pehle doosri raqoom ke liye istemal ho chuka hai."
+  ],
+  "Invalid cash receipt request key.": [
+    "وصولی کی درخواست کا نمبر درست نہیں۔",
+    "Wasooli ki darkhwast ka number durust nahin."
+  ],
+  "Incoming goods and bookings do not post vouchers automatically. Delivery Cash Receiving creates linked customer charges and cash receipts. Use manual vouchers for other accounting transactions.": [
+    "آنے والے مال اور بکنگ سے واؤچر خود نہیں بنتے۔ حوالگی کی نقد وصولی گاہک کے چارجز اور وصولی کے منسلک واؤچرز بناتی ہے۔ دوسرے معاملات کے لیے دستی واؤچر استعمال کریں۔",
+    "Aanay walay maal aur booking se voucher khud nahin bantay. Hawalgi ki naqad wasooli gahak ke charges aur wasooli ke munsalik vouchers banati hai. Doosray muamlaat ke liye dasti voucher istemal karein."
+  ],
+  "Historical balances require reconciliation. Delivery Cash Receiving posts linked customer charges and cash receipts.": [
+    "پرانے بیلنس کی پڑتال ضروری ہے۔ حوالگی کی نقد وصولی گاہک کے چارجز اور نقد وصولی کے منسلک واؤچرز درج کرتی ہے۔",
+    "Puranay balance ki partaal zaroori hai. Hawalgi ki naqad wasooli gahak ke charges aur naqad wasooli ke munsalik vouchers darj karti hai."
+  ],
+  "Historical statements and balances require reconciliation. New delivery collections are recorded through Delivery Cash Receiving.": [
+    "پرانے گوشواروں اور بیلنس کی پڑتال ضروری ہے۔ نئی حوالگیوں کی وصولی حوالگی کی نقد وصولی میں درج ہوتی ہے۔",
+    "Puranay goshwaron aur balance ki partaal zaroori hai. Nayi hawalgiyon ki wasooli hawalgi ki naqad wasooli mein darj hoti hai."
+  ],
+  "Historical balances require reconciliation. Entries without dates or account codes cannot form complete dated account balances. New delivery collections create linked vouchers.": [
+    "پرانے بیلنس کی پڑتال ضروری ہے۔ تاریخ یا کھاتہ نمبر کے بغیر مکمل تاریخ وار بیلنس نہیں بن سکتا۔ نئی حوالگیوں کی وصولی سے منسلک واؤچرز بنتے ہیں۔",
+    "Puranay balance ki partaal zaroori hai. Tareekh ya khata number ke baghair mukammal tareekh waar balance nahin ban sakta. Nayi hawalgiyon ki wasooli se munsalik vouchers bantay hain."
+  ],
+  "Goods handovers and cash collection are separate. Delivery Cash Receiving creates linked accounting vouchers.": [
+    "مال کی حوالگی اور نقد وصولی الگ ہیں۔ حوالگی کی نقد وصولی منسلک حسابی واؤچرز بناتی ہے۔",
+    "Maal ki hawalgi aur naqad wasooli alag hain. Hawalgi ki naqad wasooli munsalik hisaabi vouchers banati hai."
+  ],
+  "Awaiting cash amounts are listed for collection. Customer ledgers update when cash receiving is confirmed.": [
+    "وصولی کی منتظر رقوم یہاں درج ہیں۔ وصولی کی تصدیق پر گاہکوں کے لیجر اپ ڈیٹ ہوتے ہیں۔",
+    "Wasooli ki muntazir raqoom yahan darj hain. Wasooli ki tasdeeq par gahakon ke ledger update hotay hain."
   ]
 };

@@ -290,7 +290,7 @@ $item=one("SELECT i.*,s.kind,s.dated FROM items i JOIN shipments s ON s.id=i.shi
  if($action==='stations'&&$method==='GET')response(query('SELECT * FROM stations ORDER BY name'));
  if($action==='save_station'&&$method==='POST'){$name=text($p,'name',100,true);$id=(int)($p['id']??0);transaction(function()use($p,$name,$id){if($id){if(!one('SELECT id FROM stations WHERE id=?',[$id]))throw new InvalidArgumentException('Station not found.');run('UPDATE stations SET name=?,address=? WHERE id=?',[$name,text($p,'address',300),$id]);}else{run('INSERT INTO stations(name,address) VALUES(?,?)',[$name,text($p,'address',300)]);$id=(int)db()->lastInsertId();}audit('saved','station',$id);});response(['ok'=>true]);}
  if($action==='backup_list'&&$method==='GET')response(backup_dashboard());
- if($action==='backup'&&$method==='POST'){set_time_limit(0);$result=create_workspace_backup();response([...$result,'filename'=>$result['backup']['id'].'.sqlite','message'=>'Verified backup saved.']);}
+ if($action==='backup'&&$method==='POST'){set_time_limit(0);$result=create_workspace_backup();response([...$result,'filename'=>backup_filename($result['backup']),'message'=>'Verified backup saved.']);}
  if($action==='backup_restore'&&$method==='POST'){
   if(text($p,'confirmation',20)!=='RESTORE')fail('Type RESTORE to confirm.');
   if(!password_verify(text($p,'password',128,true),$current['password']))fail('Current password is incorrect.');

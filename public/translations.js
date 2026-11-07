@@ -5099,5 +5099,33 @@ window.APG_TRANSLATIONS = {
   "Walk-in delivery requires cash receiving access.": [
     "فوری حوالگی کے لیے نقد وصولی کی اجازت درکار ہے۔",
     "Fori hawalgi ke liye naqad wasooli ki ijazat darkar hai."
+  ],
+  "Compressed · Database size": [
+    "کمپریس شدہ · ڈیٹابیس کا اصل حجم",
+    "Compress shuda · database ka asal hajam"
+  ],
+  "Uncompressed": [
+    "بغیر کمپریشن",
+    "Baghair compression"
+  ],
+  "Compressed backup is damaged. Restore was stopped.": [
+    "کمپریس شدہ بیک اپ خراب ہے۔ بحالی روک دی گئی ہے۔",
+    "Compress shuda backup kharab hai. Bahali rok di gayi hai."
+  ],
+  "Decompressed backup checksum mismatch. Restore was stopped.": [
+    "کھولے گئے بیک اپ کی تصدیق نہیں ہوئی۔ بحالی روک دی گئی ہے۔",
+    "Kholay gaye backup ki tasdeeq nahin hui. Bahali rok di gayi hai."
+  ],
+  "Decompressed backup size does not match. Restore was stopped.": [
+    "کھولے گئے بیک اپ کا حجم مطابقت نہیں رکھتا۔ بحالی روک دی گئی ہے۔",
+    "Kholay gaye backup ka hajam mutabiqat nahin rakhta. Bahali rok di gayi hai."
+  ],
+  "Compressed backup has unexpected trailing data.": [
+    "کمپریس شدہ بیک اپ کے آخر میں غیر متوقع ڈیٹا ہے۔",
+    "Compress shuda backup ke aakhir mein ghair mutawaqqa data hai."
+  ],
+  "Not enough free space to verify and restore this backup.": [
+    "اس بیک اپ کی جانچ اور بحالی کے لیے جگہ کافی نہیں۔",
+    "Is backup ki jaanch aur bahali ke liye jagah kafi nahin."
   ]
 };

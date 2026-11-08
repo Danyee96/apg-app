@@ -5276,5 +5276,6 @@ window.APG_TRANSLATIONS = {
   "Wait for customer balances to load before saving.": ["محفوظ کرنے سے پہلے گاہک کے بقایا کی تفصیل آنے دیں۔", "Save karne se pehle gahak ke baqaya ki tafseel aane dein."],
   "Customer balances changed. Refresh balances and try again.": ["گاہک کے بقایا میں تبدیلی ہوئی ہے۔ بقایا تازہ کریں اور دوبارہ کوشش کریں۔", "Gahak ke baqaya mein tabdeeli hui hai. Baqaya taza karein aur dobara koshish karein."],
   "Previous balance cash": ["پچھلے بقایا کی نقد وصولی", "Pichlay baqaya ki naqad wasooli"],
-  "Previous balance collections": ["پچھلے بقایا کی وصولیاں", "Pichlay baqaya ki wasooliyan"]
+  "Previous balance collections": ["پچھلے بقایا کی وصولیاں", "Pichlay baqaya ki wasooliyan"],
+  "Current bilty + previous balance": ["موجودہ بلٹی کا بقایا + پچھلا بقایا", "Maujooda bilty ka baqaya + pichla baqaya"]
 };

@@ -22,7 +22,7 @@ try {
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);
  assert.equal(await page.locator('.u-bilty-grid th').filter({hasText:/^Received to date$/}).count(),0);
  assert.deepEqual(await page.locator('[data-u-previous-balance]').allTextContents(),['Rs 200','Rs 200']);
- assert.deepEqual(await page.locator('[data-u-total-receivable]').allTextContents(),['Rs 900','Rs 1,400']);
+ assert.deepEqual(await page.locator('[data-u-total-receivable] > strong').allTextContents(),['Rs 900','Rs 1,400']);assert.deepEqual(await page.locator('.u-receivable-breakdown').allTextContents(),['700 + 200','1,200 + 200']);
  assert.equal(await page.locator('[data-u-total="previous_balance"]').innerText(),'Rs 200');
  assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 2,100');
  const align=await page.evaluate(()=>[...document.querySelectorAll('[data-u-bilty-row]')].map(row=>{const right=document.querySelector('[data-u-service-row="'+row.dataset.uBiltyRow+'"]');return Math.abs(row.getBoundingClientRect().top-right.getBoundingClientRect().top);}));assert.ok(align.every(delta=>delta<2));

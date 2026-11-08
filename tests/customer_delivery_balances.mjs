@@ -29,15 +29,15 @@ try {
  await page.locator('#delivery-form [name^="loading_"]').first().fill('0');
  await page.locator('#delivery-form [name="delivery_mode"]').selectOption('walkin');
  await page.waitForFunction(()=>document.querySelector('#delivery-prior-balances [data-combined-customer-due]')?.textContent.includes('7,000.00'));
- await page.locator('#delivery-form [name^="bilty_received_"]').first().fill('1000');
+ await page.locator('#delivery-form [name^="walkin_received_"]').first().fill('1000');
  assert.ok((await page.locator('[data-combined-customer-remaining]').innerText()).includes('6,000.00'));
  await page.locator('#delivery-prior-balances [data-action="previous-bilty-details"]').click();
  await page.locator('#customer-balance-dialog tbody tr').waitFor();
  const prior=await page.locator('#customer-balance-dialog').innerText();assert.ok(prior.includes('OLD-UNPAID-1'));assert.ok(prior.includes('2,000.00'));assert.ok(!prior.includes('CURRENT-A'));
  await page.locator('[data-action="close-customer-dues"]').click();
  assert.equal(await page.locator('#delivery-form [name="receiver"]').inputValue(),'Keep my delivery details');
- assert.equal(await page.locator('#delivery-form [name^="bilty_received_"]').first().inputValue(),'1000');
- await page.locator('#delivery-form [name^="bilty_received_"]').first().fill('0');
+ assert.equal(await page.locator('#delivery-form [name^="walkin_received_"]').first().inputValue(),'1000');
+ await page.locator('#delivery-form [name^="walkin_received_"]').first().fill('0');
  const response=page.waitForResponse(r=>r.url().includes('action=save_delivery')&&r.request().method()==='POST');await page.locator('#delivery-form [type="submit"]').click();const saved=await (await response).json();await page.locator('#modal [data-action="edit-delivery"]').waitFor();
  const checked=await page.evaluate(async({setup,id})=>{
   const dues=await api('delivery_customer_dues',{account_ids:[setup.customer,setup.customer],exclude_delivery_id:id,details:true});

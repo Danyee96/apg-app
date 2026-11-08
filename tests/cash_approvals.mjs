@@ -17,7 +17,7 @@ try{
  await ops.locator('#delivery-form [name="delivery_mode"]').selectOption('walkin');
  await ops.locator('#delivery-form [name="receiver"]').fill('Cash review receiver');
  assert.ok(await ops.locator('#delivery-form [name="walkin_cash_account"] option').count()>0);
- await ops.locator('#delivery-form [name^="bilty_received_"]').fill('200');
+ await ops.locator('#delivery-form [name^="walkin_received_"]').fill('200');
  const savedResponse=ops.waitForResponse(r=>r.url().includes('action=save_delivery')&&r.request().method()==='POST');
  await ops.getByRole('button',{name:'Save delivery & submit cash',exact:true}).click();
  const saved=await (await savedResponse).json(),id=saved.id;assert.equal(saved.pending_cash,true);

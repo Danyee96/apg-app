@@ -4937,3 +4937,12 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
  .customer-prior-balances .delivery-total-banner > span { flex-basis:100%; }
  .customer-prior-balances .delivery-total-banner > strong { width:100%; white-space:nowrap; font-size:24px; direction:ltr; unicode-bidi:isolate; }
 }
+
+.walkin-receivables { border:1px solid #d7e5dd; border-radius:10px; margin-top:14px; }
+.walkin-receivables table { min-width:640px; font-size:13px; }
+.walkin-receivables td,.walkin-receivables th { padding:12px; }
+.walkin-receivables input { width:125px; padding:10px; border:1px solid #cbded2; border-radius:8px; font:inherit; font-weight:700; text-align:end; direction:ltr; background:#fff; }
+.walkin-receivables small { display:block; margin-top:5px; color:#6b8076; }
+.walkin-receivables .number { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.walkin-receivables tfoot { background:#e5f2e9; font-weight:800; }
+.walkin-cash-section > .note { margin-top:12px; }

@@ -1781,11 +1781,11 @@ function deliveryRowInput(row,key,label,value) {
   return `<input name="${key}_${row.id}" id="f-${key}_${row.id}" aria-label="${esc(label)}" data-money="true" inputmode="decimal" type="number" min="0" step="0.01" required value="${esc(value)}">`;
 }
 function deliveryBiltyRow(r,index) {
-  const legacy=deliveryEntryCash(),money=(key,label,value)=>`<td class="delivery-edit-cell">${deliveryRowInput(r,key,label,value)}${deliveryWalkin&&key==='bilty_received'?`<button type="button" class="link walkin-pay-full" data-action="walkin-pay-full" data-id="${r.id}">Paid in full</button>`:''}</td>`;
+  const legacy=deliveryLegacyCash(),money=(key,label,value)=>`<td class="delivery-edit-cell">${deliveryRowInput(r,key,label,value)}</td>`;
   return `<tr class="delivery-entry-row" data-delivery-row="${r.id}"><td class="delivery-row-index">${index+1}</td><th scope="row"><strong>${esc(r.bilty)}</strong><small>${esc(r.station||"—")} · ${fmtdate(r.dated)}</small></th><td class="delivery-party-cell"><strong>${esc(r.customer||"—")}</strong><small>Party to: ${esc(r.party_to||"—")}</small></td><td class="delivery-goods-cell">${esc([goodsTypeLabel(r),r.detail!==goodsTypeLabel(r)?r.detail:""].filter(Boolean).join(" · ")||"Not recorded")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.bilty_amount)}</td><td class="number">${cash(r.godown)}</td><td class="number"><strong>${cash(Number(r.bilty_amount||0)+Number(r.godown||0))}</strong></td><td class="number">${cash(r.advance)}</td>${money('discount','Discount (Rs)','0')}${money('loading','Loading charge (Rs)',(Number(r.loading||0)/100).toFixed(2))}${money('suzuki','Suzuki charge (Rs)',(Number(r.suzuki||0)/100).toFixed(2))}${legacy?money('bilty_received','Bilty cash received (Rs)','0')+money('service_received','Loading / Suzuki received (Rs)','0'):''}<td class="number delivery-row-total" data-delivery-totals="${r.id}"></td><td>${deliveryEdit?'':`<button type="button" class="icon-btn" data-action="delivery-remove" data-id="${r.id}" aria-label="Remove bilty ${esc(r.bilty)}" title="Remove">${icon('close')}</button>`}</td></tr>`;
 }
 function deliveryEntryTable(rows) {
- const legacy=deliveryEntryCash(),columns=legacy?16:14;
+ const legacy=deliveryLegacyCash(),columns=legacy?16:14;
  return `<section class="delivery-entry-section"><header class="delivery-entry-heading"><div><h3 id="delivery-entry-title">Delivery items</h3></div>${deliveryEdit?'':'<button type="button" class="btn" data-action="delivery-next-row">'+icon('plus')+'Add row</button>'}</header><div class="delivery-grid-scroll" role="region" aria-label="Delivery items" tabindex="0"><table class="delivery-entry-table" aria-labelledby="delivery-entry-title"><thead><tr>${['#','Bilty / arrival','Customer / Party to','Goods type / description','Quantity','Bilty charges','Godown charges','Bilty + godown total','Advance','Discount','Loading','Suzuki',...(legacy?['Bilty cash received','Service cash received']:[]),'Row total',''].map(label=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.map(deliveryBiltyRow).join('')}<tr class="delivery-lookup delivery-draft-row" ${deliveryEdit?'hidden':''}><td>${rows.length+1}</td><td colspan="${columns-1}"><div class="delivery-row-lookup"><label for="delivery-bilty-number">Next bilty number</label><input id="delivery-bilty-number" placeholder="Enter bilty number…" autocomplete="off" maxlength="40"><button type="button" class="btn" data-action="delivery-fetch">Fetch details</button><span>One matching arrival fills the row automatically.</span></div><div id="delivery-matches" role="status" aria-live="polite"></div></td></tr></tbody><tfoot><tr><th colspan="4" scope="row">Column totals</th>${['qty','bilty_amount','godown','bilty_godown','advance','discount','loading','suzuki',...(legacy?['bilty_received','service_received']:[]),'due'].map(key=>`<td class="number" data-delivery-column="${key}"></td>`).join('')}<td></td></tr></tfoot></table></div></section>`;
 }
 function addDeliveryRow(row) {
@@ -1794,10 +1794,21 @@ function addDeliveryRow(row) {
  const values=deliveryValues();selected.set(row.id,row);++deliveryLookupSequence;
  recordDelivery(values);const input=$('[name="loading_'+row.id+'"]');if(input){input.focus();input.select();}
 }
-function walkinCashFields() {
+function walkinAmounts(row,values) {
+ const money=key=>Math.round(Number(values[key+'_'+row.id]||0)*100);
+ const biltyDue=Number(row.bilty_amount||0)+Number(row.godown||0)-Number(row.advance||0)-money('discount'),serviceDue=money('loading')+money('suzuki'),received=money('walkin_received');
+ const bilty=Math.min(received,Math.max(0,biltyDue));
+ return {due:biltyDue+serviceDue,received,bilty_received:bilty,service_received:received-bilty};
+}
+function allocateWalkinTotal(value) {
+ const form=$('#delivery-form');if(!form||!deliveryWalkin)return;
+ const values=deliveryValues(),rows=[...selected.values()];let remaining=Math.max(0,Math.round(Number(value||0)*100));
+ rows.forEach((row,index)=>{const due=Math.max(0,walkinAmounts(row,values).due),received=index===rows.length-1?remaining:Math.min(remaining,due);form.elements.namedItem('walkin_received_'+row.id).value=amount(received);remaining-=received;});
+}
+function walkinCashFields(rows) {
  const accounts=lookups.cash_accounts||lookups.accounts.filter(row=>row.status==='A'&&/^1-(101|106)-/.test(row.id));
  const account=accounts.find(row=>row.id.startsWith('1-101-'))?.id||accounts[0]?.id||'';
- return `<section class="walkin-cash-section"><div class="delivery-summary-head"><h3>Walk-in cash collection</h3><span>${isOperations()?'Cash requires admin approval':'Saved together with this delivery'}</span></div><div class="form-grid">${selectField('walkin_cash_account','Cash / bank account',accounts.map(row=>[row.id,row.name]),account)}${field('walkin_cash_notes','Collection notes','','text','maxlength="500"')}</div></section>`;
+ return `<section class="walkin-cash-section"><div class="delivery-summary-head"><div><h3>Walk-in cash collection</h3><span>${isOperations()?'Cash requires admin approval':'Saved together with this delivery'}</span></div><button type="button" class="btn" data-action="walkin-pay-all">Receive full amount</button></div><div class="form-grid three">${selectField('walkin_cash_account','Cash / bank account',accounts.map(row=>[row.id,row.name]),account)}${field('walkin_total_received','Total cash received (Rs)','0','number','min="0" step="0.01" required')}${field('walkin_cash_notes','Collection notes','','text','maxlength="500"')}</div><p class="note">Total cash is allocated from top to bottom. Adjust a row to specify who paid; any extra becomes credit on the last bilty.</p><div class="table-scroll walkin-receivables"><table><thead><tr><th>Bilty / Customer</th><th>Receivable</th><th>Cash received</th><th>Remaining balance</th><th></th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${esc(row.bilty)}</strong><small>${esc(row.customer||'—')} · ${esc(row.party_to||'—')}</small></td><td class="number" data-walkin-due="${row.id}"></td><td>${deliveryRowInput(row,'walkin_received','Cash received (Rs)','0')}</td><td class="number" data-walkin-balance="${row.id}"></td><td><button type="button" class="link" data-action="walkin-pay-full" data-id="${row.id}">Paid in full</button></td></tr>`).join('')}</tbody><tfoot><tr><th>Totals</th><td class="number" data-walkin-total-due></td><td class="number" data-walkin-total-received></td><td class="number" data-walkin-total-balance></td><td></td></tr></tfoot></table></div></section>`;
 }
 let deliveryEdit = null;
 async function editDelivery(id) {
@@ -1816,7 +1827,7 @@ function recordDelivery(values = {}, edit = null) {
   modal(
     edit?.pending_id ? "Approve delivery goods · " + esc(edit.reference) : edit ? "Edit delivery · " + esc(edit.reference) : "Delivery goods",
     rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><input type="hidden" name="walkin_request_key" value="${esc(values.walkin_request_key||crypto.randomUUID())}">${isOperations() && !edit ? '<div class="note-box">Save the delivery goods now. Any cash you collect requires admin approval.</div>' : ""}<div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${!edit && canView('delivery-cash') ? selectField('delivery_mode','Delivery type',[['standard','Standard delivery · collect cash later'],['walkin','Walk-in delivery · collect cash now']],'standard') : ""}${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider">${deliveryEntryTable(rows)}${deliveryWalkin?walkinCashFields():''}<div id="delivery-combined" class="shipment-breakdown" aria-live="polite"></div><section id="delivery-prior-balances" class="customer-prior-balances" data-customer-balance-context data-context="handover" data-exclude="${edit?.id||0}" hidden></section><div class="note-box">${deliveryWalkin?"Enter cash received against each bilty above. Any unpaid amount stays on that customer’s account.":edit?.id && !edit.cash_workflow ? "Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting." : "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving. Operator cash collections require admin approval. Any unpaid amount stays against the bilty’s customer."}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
+    `<form id="delivery-form"><input type="hidden" name="walkin_request_key" value="${esc(values.walkin_request_key||crypto.randomUUID())}">${isOperations() && !edit ? '<div class="note-box">Save the delivery goods now. Any cash you collect requires admin approval.</div>' : ""}<div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${!edit && canView('delivery-cash') ? selectField('delivery_mode','Delivery type',[['standard','Standard delivery · collect cash later'],['walkin','Walk-in delivery · collect cash now']],'standard') : ""}${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider">${deliveryEntryTable(rows)}<div id="delivery-combined" class="shipment-breakdown" aria-live="polite"></div><section id="delivery-prior-balances" class="customer-prior-balances" data-customer-balance-context data-context="handover" data-exclude="${edit?.id||0}" hidden></section>${deliveryWalkin?walkinCashFields(rows):''}<div class="note-box">${deliveryWalkin?"Enter the total cash in the collection section. Any unpaid amount stays on the customer’s account.":edit?.id && !edit.cash_workflow ? "Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting." : "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving. Operator cash collections require admin approval. Any unpaid amount stays against the bilty’s customer."}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
   );
   $("#modal").classList.add("delivery-dialog");
   const form = $("#delivery-form");
@@ -3023,10 +3034,11 @@ async function action(name, el) {
       break;
     case "walkin-pay-full": {
       const row=selected.get(Number(el.dataset.id)),form=$('#delivery-form');if(!row||!form)break;
-      const values=deliveryValues(),money=key=>Math.round(Number(values[key+'_'+row.id]||0)*100);
-      form.elements.namedItem('bilty_received_'+row.id).value=(Math.max(0,Number(row.bilty_amount||0)+Number(row.godown||0)-Number(row.advance||0)-money('discount'))/100).toFixed(2);
-      form.elements.namedItem('service_received_'+row.id).value=((money('loading')+money('suzuki'))/100).toFixed(2);
-      updateDeliveryWarnings();break;
+      form.elements.namedItem('walkin_received_'+row.id).value=amount(Math.max(0,walkinAmounts(row,deliveryValues()).due));updateDeliveryWarnings();break;
+    }
+    case "walkin-pay-all": {
+      const values=deliveryValues(),total=[...selected.values()].reduce((sum,row)=>sum+Math.max(0,walkinAmounts(row,values).due),0);
+      allocateWalkinTotal(amount(total));updateDeliveryWarnings();break;
     }
     case "delivery-next-row":
       $("#delivery-bilty-number")?.focus();
@@ -3234,7 +3246,7 @@ document.addEventListener("input", (e) => {
     customerSuggestions();
   }
   if (e.target.closest("#bilty-form")) updateBiltyTotals();
-  if (e.target.closest("#delivery-form")) updateDeliveryWarnings();
+  if (e.target.closest("#delivery-form")) {if(e.target.name==='walkin_total_received')allocateWalkinTotal(e.target.value);updateDeliveryWarnings();}
   if (e.target.id === "delivery-bilty-number") {
     clearTimeout(deliveryLookupTimer);
     deliveryLookupTimer = setTimeout(fetchDeliveryBilty, 450);
@@ -3427,7 +3439,7 @@ async function submitForm(form, submitter) {
         loading: data["loading_" + r.id],
         suzuki: data["suzuki_" + r.id],
       }));
-      const walkinCash=deliveryWalkin?{request_key:data.walkin_request_key,cash_account_id:data.walkin_cash_account,notes:data.walkin_cash_notes,items:[...selected.values()].map(row=>({id:row.id,bilty_received:data['bilty_received_'+row.id]||'0',service_received:data['service_received_'+row.id]||'0'}))}:null;
+      const walkinCash=deliveryWalkin?{request_key:data.walkin_request_key,cash_account_id:data.walkin_cash_account,notes:data.walkin_cash_notes,items:[...selected.values()].map(row=>{const split=walkinAmounts(row,data);return {id:row.id,bilty_received:amount(split.bilty_received),service_received:amount(split.service_received)};})}:null;
       let r = await api(deliveryEdit?.id ? "update_delivery" : "save_delivery", {
         ...(deliveryEdit || {}),
         delivery_mode: data.delivery_mode || 'standard',
@@ -3989,7 +4001,7 @@ function currentDeliveryBalanceLines(context) {
  return (cashForm?cashReceivingInvoice?.lines||[]:[...selected.values()]).map(row=>{
   const id=cashForm?row.delivery_item_id:row.id;
   const due=cashForm?Number(row.balance):Number(row.bilty_amount||0)+Number(row.godown||0)+money('loading',id)+money('suzuki',id)-Number(row.advance||0)-money('discount',id);
-  const received=cashForm||deliveryEntryCash()?money('bilty_received',id)+money('service_received',id):deliveryEdit?.cash_started?Number(row.bilty_received||0)+Number(row.service_received||0):0;
+  const received=!cashForm&&deliveryWalkin?money('walkin_received',id):cashForm||deliveryEntryCash()?money('bilty_received',id)+money('service_received',id):deliveryEdit?.cash_started?Number(row.bilty_received||0)+Number(row.service_received||0):0;
   return {account_id:row.account_id,customer:row.customer||row.account_id,due:Math.max(0,due),remaining:Math.max(0,due-received)};
  });
 }
@@ -4022,17 +4034,22 @@ async function showPreviousBiltyDetails(account,exclude,page=0) {
 function updateDeliveryTableTotals(form) {
  const data=Object.fromEntries(new FormData(form)),amount=(key,id)=>Math.round(Number(data[key+'_'+id]||0)*100);
  const totals={qty:0,bilty_amount:0,godown:0,bilty_godown:0,advance:0,loading:0,suzuki:0,discount:0,bilty_received:0,service_received:0,due:0,outstanding:0,credit:0};
+ let receivable=0;
  for(const row of selected.values()){
   const line={};for(const key of ['qty','bilty_amount','godown','advance'])line[key]=Number(row[key]||0);
   for(const key of ['loading','suzuki','discount','bilty_received','service_received'])line[key]=amount(key,row.id);
+  if(deliveryWalkin){const split=walkinAmounts(row,data);line.bilty_received=split.bilty_received;line.service_received=split.service_received;}
   line.bilty_godown=line.bilty_amount+line.godown;
   line.due=line.bilty_godown+line.loading+line.suzuki-line.advance-line.discount;
+  receivable+=Math.max(0,line.due);
   line.outstanding=Math.max(0,line.due-line.bilty_received-line.service_received);line.credit=Math.max(0,line.bilty_received+line.service_received-line.due);
   for(const key of Object.keys(totals))totals[key]+=line[key];
   const el=$('[data-delivery-totals="'+row.id+'"]',form);if(el)el.textContent=cash(line.due);
+  if(deliveryWalkin){$('[data-walkin-due="'+row.id+'"]',form).textContent=cash(Math.max(0,line.due));$('[data-walkin-balance="'+row.id+'"]',form).textContent=line.credit?'Customer credit: '+cash(line.credit):cash(line.outstanding);}
  }
  for(const [key,value] of Object.entries(totals)){const el=$('[data-delivery-column="'+key+'"]',form);if(el)el.textContent=key==='qty'?num(value):cash(value);}
- const breakdown=[['Bilty charges',totals.bilty_amount],['Godown charges',totals.godown],['Bilty + godown total',totals.bilty_godown],['Loading',totals.loading],['Suzuki',totals.suzuki],['Advance',totals.advance],['Discount',totals.discount],['Total bilty cash received',totals.bilty_received],['Loading / Suzuki cash received',totals.service_received],['Total cash received',totals.bilty_received+totals.service_received]];
+ if(deliveryWalkin){const received=totals.bilty_received+totals.service_received,input=form.elements.namedItem('walkin_total_received');if(document.activeElement!==input)input.value=(received/100).toFixed(2);$('[data-walkin-total-due]',form).textContent=cash(receivable);$('[data-walkin-total-received]',form).textContent=cash(received);$('[data-walkin-total-balance]',form).textContent=cash(totals.outstanding);}
+ const breakdown=[['Bilty charges',totals.bilty_amount],['Godown charges',totals.godown],['Bilty + godown total',totals.bilty_godown],['Loading',totals.loading],['Suzuki',totals.suzuki],['Advance',totals.advance],['Discount',totals.discount],...(!deliveryWalkin?[['Total bilty cash received',totals.bilty_received],['Loading / Suzuki cash received',totals.service_received]]:[]),['Total cash received',totals.bilty_received+totals.service_received]];
  $('#delivery-combined').innerHTML=`<div class="delivery-summary-head"><h3>Delivery totals</h3><span>${num(selected.size)} bilties · Quantity ${num(totals.qty)}</span></div><div class="delivery-totals-breakdown">${deliveryFacts(breakdown.map(([label,value])=>[label,cash(value)]))}</div><div class="delivery-total-banner delivery-grand-total"><div><span>Grand total</span><small>Bilty + godown + loading + Suzuki − advance − discount</small></div><strong>${cash(totals.due)}</strong></div>${deliveryEntryCash()?deliveryFacts([['Remaining customer balance',cash(totals.outstanding)],['Customer credit',cash(totals.credit)]]):'<p class="note">Cash for standard deliveries is collected separately in Delivery Cash Receiving.</p>'}`;
  renderCustomerDues($('#delivery-prior-balances'));
 }

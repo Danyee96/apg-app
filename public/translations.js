@@ -5182,5 +5182,12 @@ window.APG_TRANSLATIONS = {
   "Choose between 1 and 1000 customers.": ["ایک سے ایک ہزار تک گاہک منتخب کریں۔", "Aik se aik hazaar tak gahak muntakhib karein."],
   "Choose valid customers.": ["درست گاہک منتخب کریں۔", "Durust gahak muntakhib karein."],
   "Choose one customer to view details.": ["تفصیل دیکھنے کے لیے ایک گاہک منتخب کریں۔", "Tafseel dekhnay ke liye aik gahak muntakhib karein."],
-  "You do not have permission to view delivery customer balances.": ["آپ کو ڈیلیوری کے گاہکوں کا بقایا دیکھنے کی اجازت نہیں۔", "Aap ko delivery ke gahakon ka baqaya dekhnay ki ijazat nahin."]
+  "You do not have permission to view delivery customer balances.": ["آپ کو ڈیلیوری کے گاہکوں کا بقایا دیکھنے کی اجازت نہیں۔", "Aap ko delivery ke gahakon ka baqaya dekhnay ki ijazat nahin."],
+  "Receive full amount": ["پوری رقم وصول کریں", "Poori raqam wasool karein"],
+  "Total cash received (Rs)": ["کل وصول شدہ نقد رقم (روپے)", "Kul wasool shuda naqad raqam (rupay)"],
+  "Cash received (Rs)": ["وصول شدہ نقد رقم (روپے)", "Wasool shuda naqad raqam (rupay)"],
+  "Bilty / Customer": ["بلٹی / گاہک", "Bilty / gahak"],
+  "Receivable": ["واجب الادا رقم", "Wajib ul ada raqam"],
+  "Total cash is allocated from top to bottom. Adjust a row to specify who paid; any extra becomes credit on the last bilty.": ["کل نقد رقم اوپر سے نیچے بلٹیوں میں تقسیم ہوگی۔ ہر گاہک کی وصولی واضح کرنے کے لیے اس کی رقم بدل سکتے ہیں؛ زائد رقم آخری بلٹی کے گاہک کی اضافی جمع ہوگی۔", "Kul naqad raqam upar se neechay biltyon mein taqseem hogi. Har gahak ki wasooli wazeh karne ke liye uski raqam badal saktay hain; zaid raqam aakhri bilty ke gahak ki izafi jama hogi."],
+  "Enter the total cash in the collection section. Any unpaid amount stays on the customer\u2019s account.": ["وصولی کے حصے میں کل نقد رقم درج کریں۔ باقی رقم گاہک کے کھاتے میں رہے گی۔", "Wasooli ke hissay mein kul naqad raqam darj karein. Baqi raqam gahak ke khatay mein rahegi."]
 };

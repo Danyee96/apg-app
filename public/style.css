@@ -4905,3 +4905,17 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .walkin-cash-section .delivery-summary-head { margin-bottom:14px; }
 .walkin-pay-full { display:block; margin-top:7px; font-size:11px; white-space:nowrap; }
 .delivery-entry-table:has(.walkin-pay-full) { min-width:1650px; }
+
+.cash-bilty-preview { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:7px; max-width:250px; }
+.cash-bilty-chip { padding:3px 7px; border:1px solid #d4e7df; border-radius:6px; background:#f2f8f5; color:#315f50; font-size:11px; font-weight:700; line-height:1.4; }
+.cash-bilty-more { display:inline-flex; align-items:center; gap:4px; border:1px solid #bddcd0; border-radius:6px; padding:3px 7px; background:#e9f5ef; color:#087c6c; cursor:pointer; font:inherit; font-size:11px; font-weight:700; }
+.cash-bilty-more svg { width:16px; height:16px; }
+.cash-invoice-action { white-space:nowrap; font-size:12px; padding:10px 13px; }
+.cash-invoice-breakdown { border:1px solid #d8e6df; border-radius:12px; margin:18px 0; }
+.cash-invoice-breakdown table { min-width:1900px; font-size:12px; }
+.cash-invoice-breakdown td,.cash-invoice-breakdown th { padding:12px; }
+.cash-invoice-breakdown .number { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.cash-invoice-breakdown small { display:block; margin-top:5px; color:#6d8279; font-size:11px; }
+.cash-invoice-breakdown tfoot { background:#e9f5ed; color:#254e3d; }
+.cash-invoice-breakdown tfoot th { text-align:start; }
+.cash-collection-history h3 { margin:20px 0 10px; }

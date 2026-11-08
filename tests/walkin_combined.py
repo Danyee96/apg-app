@@ -35,6 +35,8 @@ def check(base,database,password):
  saved=admin.call('save_delivery',request,status=201);assert saved['cash_recorded'] and not saved['pending_cash']
  invoice=admin.call('delivery_cash_invoice',params={'id':saved['id']});assert (invoice['due'],invoice['received'],invoice['outstanding'])==(27000,23000,4000)
  assert len(invoice['receipts'])==1
+ assert (invoice['lines'][0]['bilty_amount'],invoice['lines'][0]['godown'],invoice['lines'][0]['discount'],invoice['lines'][0]['loading'])==(20000,7000,1000,3000)
+ assert admin.call('delivery_cash_list',params={'search':'COMBINED-ADMIN'})['rows'][0]['bilty_preview']==['COMBINED-ADMIN']
  assert admin.call('save_delivery',request,status=201)['replayed']
  assert db.execute('SELECT count(*) FROM deliveries').fetchone()[0]==before+1
  assert db.execute('SELECT count(*) FROM vouchers').fetchone()[0]==vouchers+2
@@ -50,10 +52,14 @@ def check(base,database,password):
  assert ops.call('save_delivery',oprequest,status=201)['replayed']
  assert db.execute('SELECT count(*) FROM vouchers').fetchone()[0]==vouchers
  assert len(admin.call('delivery_cash_invoice',params={'id':pending['id']})['receipts'])==0
+ assert not admin.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['rows']
+ assert not ops.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['rows']
+ assert admin.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['stats']['total']==0
  review=admin.call('cash_collection_submission',params={'id':pending['cash_id']})
  ops.call('approve_cash_collection',review['payload'],status=403)
  admin.call('approve_cash_collection',{**review['payload'],'pending_id':review['id'],'pending_version':review['version']},status=201)
  invoice=admin.call('delivery_cash_invoice',params={'id':pending['id']});assert invoice['received']==23000 and invoice['receipts'][0]['created_by']=='combined-ops'
+ assert admin.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['rows'][0]['id']==pending['id']
  # Standard handovers keep their separate collection flow and cannot sneak cash in.
  standard=payload(shipment('COMBINED-STANDARD'));standard['delivery_mode']='standard'
  admin.call('save_delivery',standard,status=422);standard.pop('walkin_cash')

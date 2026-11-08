@@ -5158,5 +5158,12 @@ window.APG_TRANSLATIONS = {
   "Walk-in delivery saved. Cash submitted for admin approval.": ["فوری ڈیلیوری محفوظ ہوگئی۔ نقد وصولی ایڈمن کی منظوری کے لیے بھیج دی گئی۔", "Walk-in delivery save ho gayi. Naqad wasooli admin ki manzoori ke liye bhej di gayi."],
   "Walk-in delivery and cash saved.": ["فوری ڈیلیوری اور نقد وصولی محفوظ ہوگئی۔", "Walk-in delivery aur naqad wasooli save ho gayi."],
   "Save the delivery goods now. Any cash you collect requires admin approval.": ["سامان کی حوالگی محفوظ کریں۔ وصول کردہ نقد رقم کے لیے ایڈمن کی منظوری درکار ہے۔", "Samaan ki hawalgi save karein. Wasool karda naqad raqam ke liye admin ki manzoori darkar hai."],
-  "Cash collection in this form is only available for walk-in deliveries.": ["اس فارم میں نقد وصولی صرف فوری ڈیلیوری کے لیے دستیاب ہے۔", "Is form mein naqad wasooli sirf walk-in delivery ke liye dastiyab hai."]
+  "Cash collection in this form is only available for walk-in deliveries.": ["اس فارم میں نقد وصولی صرف فوری ڈیلیوری کے لیے دستیاب ہے۔", "Is form mein naqad wasooli sirf walk-in delivery ke liye dastiyab hai."],
+  "View all bilties": ["تمام بلٹیاں دیکھیں", "Tamam biltiyan dekhein"],
+  "View details": ["تفصیل دیکھیں", "Tafseel dekhein"],
+  "Receive cash": ["نقد رقم وصول کریں", "Naqad raqam wasool karein"],
+  "All bilties": ["تمام بلٹیاں", "Tamam biltiyan"],
+  "Walk-in delivery details": ["فوری ڈیلیوری کی تفصیل", "Walk-in delivery ki tafseel"],
+  "Delivery details": ["ڈیلیوری کی تفصیل", "Delivery ki tafseel"],
+  "Bilty charge breakdown": ["بلٹیوں کے چارجز کی تفصیل", "Biltyon ke charges ki tafseel"]
 };

@@ -5266,5 +5266,9 @@ window.APG_TRANSLATIONS = {
   "Total amount due": ["کل واجب الادا رقم", "Kul wajib ul ada raqam"],
   "Payment recorded.": ["وصولی درج ہوگئی۔", "Wasooli darj ho gayi."],
   "Cash collection recorded.": ["نقد وصولی درج ہوگئی۔", "Naqad wasooli darj ho gayi."],
-  "REC S AMT": ["سروس کی وصولی", "Service ki wasooli"]
+  "REC S AMT": ["سروس کی وصولی", "Service ki wasooli"],
+  "Previous Balance": ["پچھلا بقایا", "Pichla baqaya"],
+  "Total Receivable": ["کل قابل وصول رقم", "Kul qabil e wasool raqam"],
+  "Current delivery balance": ["موجودہ ڈیلیوری کا بقایا", "Maujooda delivery ka baqaya"],
+  "Previous Balance is counted once per customer in totals. Earlier balances remain on their original deliveries.": ["مجموعے میں ہر گاہک کا پچھلا بقایا ایک ہی بار شامل ہے۔ یہ بقایا اپنی اصل ڈیلیوریوں پر برقرار رہتا ہے۔", "Majmooe mein har gahak ka pichla baqaya aik hi baar shamil hai. Yeh baqaya apni asal deliveries par barqarar rehta hai."]
 };

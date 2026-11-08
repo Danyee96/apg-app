@@ -5247,5 +5247,21 @@ window.APG_TRANSLATIONS = {
   "Save changes before printing.": ["پرنٹ سے پہلے تبدیلیاں محفوظ کریں۔", "Print se pehle tabdeeliyan save karein."],
   "Payment approved.": ["وصولی منظور ہوگئی۔", "Wasooli manzoor ho gayi."],
   "Delivery saved.": ["ڈیلیوری محفوظ ہوگئی۔", "Delivery save ho gayi."],
-  "Print / challan": ["پرنٹ / چالان", "Print / challan"]
+  "Print / challan": ["پرنٹ / چالان", "Print / challan"],
+  "Delivery Reports": ["ڈیلیوری رپورٹس", "Delivery reports"],
+  "Pending Payments Deliveries": ["غیر ادا شدہ ڈیلیوریاں", "Ghair ada shuda deliveries"],
+  "Partially Paid Deliveries": ["جزوی ادائیگی والی ڈیلیوریاں", "Juzvi adaigi wali deliveries"],
+  "Fully Paid Deliveries": ["مکمل ادا شدہ ڈیلیوریاں", "Mukammal ada shuda deliveries"],
+  "Payment overview": ["ادائیگیوں کا خلاصہ", "Adaigiyon ka khulasa"],
+  "Based on delivery date. Balances reflect approved payments recorded to date.": ["رپورٹ ڈیلیوری کی تاریخ کے مطابق ہے۔ بقایا میں اب تک منظور شدہ وصولیاں شامل ہیں۔", "Report delivery ki tareekh ke mutabiq hai. Baqaya mein ab tak manzoor shuda wasooliyan shamil hain."],
+  "Date filter": ["تاریخ کا انتخاب", "Tareekh ka intikhab"],
+  "Date range": ["تاریخوں کی حد", "Tareekhon ki had"],
+  "Single date": ["ایک تاریخ", "Aik tareekh"],
+  "Sort by": ["ترتیب", "Tarteeb"],
+  "Newest first": ["نئی ڈیلیوریاں پہلے", "Nayi deliveries pehle"],
+  "Oldest first": ["پرانی ڈیلیوریاں پہلے", "Purani deliveries pehle"],
+  "Highest outstanding": ["زیادہ بقایا پہلے", "Zyada baqaya pehle"],
+  "Highest received": ["زیادہ وصولی پہلے", "Zyada wasooli pehle"],
+  "Clear filters": ["فلٹر صاف کریں", "Filters saaf karein"],
+  "Total amount due": ["کل واجب الادا رقم", "Kul wajib ul ada raqam"]
 };

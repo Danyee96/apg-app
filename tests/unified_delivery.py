@@ -89,6 +89,21 @@ def check(base,database,password):
   imported=admin.call('unified_delivery',params={'id':historical[0]});assert imported['lines']
   assert before_lines==c.execute('SELECT count(*),sum(debit),sum(credit) FROM voucher_lines').fetchone()
   assert before_raw==c.execute('SELECT count(*),sum(COALESCE(REC_BAMT,0)),sum(COALESCE(REC_SAMT,0)) FROM legacy_IND').fetchone()
+ # Report filters and analytics cover the full matching set, not only one page.
+ report_ids=[]
+ for n,(b,l,s,date) in enumerate([('0','0','0','2026-11-07'),('500','0','0','2026-11-08'),('1200','100','50','2026-11-08')]):
+  p=payload(shipment('REPORT-FLOW-'+str(n)),b,l,s);p['dated']=p['received_date']=date;report_ids.append(admin.call('save_unified_delivery',p,status=201)['id'])
+ report=admin.call('unified_deliveries',params={'search':'REPORT-FLOW-','sort':'balance_high'})
+ assert report['total']==3 and [r['id'] for r in report['rows']]==report_ids
+ assert report['stats']['fully_paid']==report['stats']['partially_paid']==report['stats']['pending_payment']==1
+ assert report['stats']['bilty_due']==360000 and report['stats']['service_due']==45000 and report['stats']['collected']==185000 and report['stats']['outstanding']==220000
+ for status,expected in [('pending_payment',0),('partially_paid',1),('fully_paid',2)]:
+  filtered=admin.call('unified_deliveries',params={'search':'REPORT-FLOW-','payment_status':status,'from':'2026-11-07','to':'2026-11-08'})
+  assert filtered['total']==1 and filtered['rows'][0]['id']==report_ids[expected] and filtered['stats'][status]==1
+ single=admin.call('unified_deliveries',params={'search':'REPORT-FLOW-','from':'2026-11-07','to':'2026-11-07'});assert single['total']==1 and single['rows'][0]['id']==report_ids[0]
+ period=admin.call('unified_deliveries',params={'search':'REPORT-FLOW-','from':'2026-11-08','to':'2026-11-08','sort':'received_high'});assert period['total']==2 and period['rows'][0]['id']==report_ids[2]
+ empty=admin.call('unified_deliveries',params={'search':'REPORT-FLOW-','payment_status':'fully_paid','from':'2026-11-07','to':'2026-11-07'});assert empty['total']==0 and empty['stats']['collected']==0
+ admin.call('unified_deliveries',params={'from':'2026-11-08','to':'2026-11-07'},status=422)
  c.close()
  c=sqlite3.connect(database);assert not c.execute('SELECT voucher_id FROM voucher_lines GROUP BY voucher_id HAVING SUM(debit)<>SUM(credit)').fetchall();assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok';c.close()
  print('PASS: separate bilty/loading/Suzuki accounting; partial/full/zero initial collections; walk-in classification; cumulative later receipts; dates retained on reopen/zero; adjustment journals; retry safety; operator typed approval; ledger reconciliation.')

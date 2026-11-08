@@ -5069,3 +5069,27 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 
 .u-two-grids .icon-btn { width:22px; height:28px; min-width:0; padding:3px; }
 .u-two-grids th { overflow-wrap:normal; }
+
+.u-report-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 20px; }
+.u-report-tabs .btn { flex:1; min-width:150px; }
+.u-report-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); margin:18px 0; }
+.u-report-analytics { padding:20px; margin-bottom:20px; }
+.u-report-analytics h2 { font-size:16px; margin:0 0 16px; }
+.u-payment-breakdown { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.u-payment-breakdown strong { display:block; margin:6px 0; font-size:22px; color:#254c40; }
+.u-payment-breakdown span { font-size:12px; color:#637b7d; }
+.u-report-track { height:7px; border-radius:9px; overflow:hidden; background:#edf2ef; }
+.u-report-track i { display:block; height:100%; border-radius:9px; }
+.u-report-pending_payment { background:#bf8b42; }
+.u-report-partially_paid { background:#628eb5; }
+.u-report-fully_paid { background:#078275; }
+.u-report-filter { display:flex; flex-direction:column; gap:5px; font-size:11px; color:#637b7d; }
+.u-report-list .toolbar { flex-wrap:wrap; align-items:flex-end; }
+.u-report-list .toolbar > .buttons { flex-wrap:wrap; align-items:flex-end; }
+.u-report-list .search { flex:1 1 230px; }
+@media(max-width:650px) {
+ .u-report-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .u-payment-breakdown { gap:12px; }
+ .u-report-list .toolbar > .buttons { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .u-report-filter .filter { width:100%; min-width:0; }
+}

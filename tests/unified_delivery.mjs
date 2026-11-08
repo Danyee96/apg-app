@@ -36,6 +36,15 @@ try {
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>APG.setLanguage('ur'));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  assert.equal(await page.locator('.u-services-grid').count(),1);assert.ok(await page.locator('.u-mobile-bilty').first().isVisible());
  await page.evaluate(()=>APG.setLanguage('en'));
+ // Reports stay in the delivery workspace and keep date/status filters on refresh.
+ await page.setViewportSize({width:1680,height:1050});await page.locator('[data-action="u-back"]').first().click();await page.locator('[data-action="u-tab"][data-value="reports"]').click();await page.locator('.u-report-analytics').waitFor();await page.screenshot({path:'/private/tmp/apg-delivery-reports.png'});assert.ok(await page.locator('.u-delivery-list').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.locator('#u-report-date-mode').selectOption('single');await page.locator('#u-report-date').waitFor();await page.locator('#list-search').fill('U-UI-');await page.waitForFunction(()=>listData?.total===1);
+ await page.locator('[data-action="u-report-status"][data-value="fully_paid"]').click();await page.locator('[data-action="u-report-status"][aria-pressed="true"][data-value="fully_paid"]').waitFor();
+ await page.reload();await page.locator('.u-report-analytics').waitFor();assert.equal(await page.locator('#u-report-date-mode').inputValue(),'single');assert.equal(await page.locator('[data-action="u-report-status"][aria-pressed="true"]').getAttribute('data-value'),'fully_paid');
+ await page.locator('#u-report-sort').selectOption('balance_high');await page.locator('.u-report-list').waitFor();
+ await page.locator('[data-action="u-report-clear"]').click();await page.locator('#u-report-date-mode').waitFor();assert.equal(await page.locator('#filter-from').inputValue(),'');
+ await page.locator('[data-action="u-report-status"][data-value=""]').click();await page.locator('#list-search').fill('U-UI-');await page.waitForFunction(()=>listData?.total===1);await page.locator('.u-delivery-list [data-action="u-open"]').last().click();await page.locator('#unified-delivery-form').waitFor();assert.equal(await page.evaluate(()=>unifiedEditor.doc.header.id),saved.id);
+
  // Pending operator collections remain in the same module and retain categories.
  const ops=await browser.newPage({viewport:{width:390,height:844}});ops.on('pageerror',error=>errors.push(error.message));
  await page.evaluate(async()=>{await api('save_user',{username:'unified-ui-ops',full_name:'Unified UI operator',role:'operations',active:1,permissions:['deliveries.create'],password:'Unified-ui-ops-2026'});const customer=(await api('save_customer',{name:'Unified operator customer',group_code:'116'})).id;await api('save_shipment',{kind:'incoming',dated:today(),station_id:lookups.stations.find(row=>row.status==='A').id,truck:'U-OPS',items:[{account_id:customer,bilty:'U-OPS-1',qty:1,bilty_amount:'500',godown:'50',loading:'30',suzuki:'20'}]});});

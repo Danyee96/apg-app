@@ -453,7 +453,14 @@ const navs = [
 function initialView() {
   const query = new URLSearchParams(location.search);
   let requested = query.get("view");
-  if(requested === "deliveries" && ["all", "approvals", "balances"].includes(query.get("tab"))) unifiedTab = query.get("tab");
+  if(requested === "deliveries" && ["all", "reports", "approvals", "balances"].includes(query.get("tab"))) unifiedTab = query.get("tab");
+  if(requested === "deliveries" && unifiedTab === "reports") {
+    unifiedReportStatus = ["pending_payment","partially_paid","fully_paid"].includes(query.get("payment")) ? query.get("payment") : "";
+    unifiedReportDateMode = query.get("dates") === "single" ? "single" : "range";
+    unifiedReportSort = ["oldest","balance_high","received_high"].includes(query.get("sort")) ? query.get("sort") : "newest";
+    for(const key of ["from","to"]) state[key] = /^\d{4}-\d{2}-\d{2}$/.test(query.get(key)||"") ? query.get(key) : "";
+    if(unifiedReportDateMode === "single") state.to = state.from;
+  }
   if(["delivery-cash","pending-cash"].includes(requested)){unifiedTab=requested==="pending-cash"?"approvals":"all";requested="deliveries";}
   return navs.some(([view]) => view === requested) && canView(requested)
     ? requested
@@ -573,6 +580,13 @@ function rememberCurrentPage() {
   url.searchParams.set("view", state.view);
   if(state.view === "deliveries") url.searchParams.set("tab", unifiedTab);
   else url.searchParams.delete("tab");
+  for(const key of ["payment","dates","sort","from","to"]) url.searchParams.delete(key);
+  if(state.view === "deliveries" && unifiedTab === "reports") {
+    url.searchParams.set("payment", unifiedReportStatus);
+    url.searchParams.set("dates", unifiedReportDateMode);
+    url.searchParams.set("sort", unifiedReportSort);
+    for(const key of ["from","to"]) if(state[key]) url.searchParams.set(key,state[key]);
+  }
   if(url.href !== location.href) history.replaceState(null, "", url);
 }
 async function render() {
@@ -3338,7 +3352,7 @@ async function submitForm(form, submitter) {
       session = await api("session");
       await refreshLookups();
       shell();
-      await navigate(initialView());
+      await navigate(initialView(), false);
       break;
     case "global-search":
       if (
@@ -3889,7 +3903,7 @@ document.addEventListener("keydown", (e) => {
     if (!session.user) return auth();
     await refreshLookups();
     shell();
-    await navigate(initialView());
+    await navigate(initialView(), false);
   } catch (e) {
     startupError(e.message);
   }

@@ -4877,3 +4877,21 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .delivery-entry-table tfoot th { text-align:start; letter-spacing:normal; text-transform:none; font-size:13px; }
 
 .delivery-entry-table tfoot th:first-child { text-align:start; }
+
+/* Keep delivery header details short so bilty entry starts near the top. */
+.delivery-dialog > .modal-head { padding:14px 22px; }
+.delivery-dialog > .modal-body { padding:18px 22px; }
+.delivery-dialog #delivery-form > .form-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 16px; }
+.delivery-dialog #delivery-form > .form-grid > .field { gap:5px; }
+.delivery-dialog #delivery-form > .form-grid > .field.wide { grid-column:auto; }
+.delivery-dialog #delivery-form > .form-grid input,
+.delivery-dialog #delivery-form > .form-grid select { min-height:44px; padding:9px 11px; }
+.delivery-dialog #delivery-form > .divider { margin:16px 0; }
+@media(max-width:800px) {
+ .delivery-dialog > .modal-head { padding:12px 14px; }
+ .delivery-dialog > .modal-body { padding:14px; }
+ .delivery-dialog #delivery-form > .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; }
+}
+@media(max-width:359px) {
+ .delivery-dialog #delivery-form > .form-grid { grid-template-columns:minmax(0,1fr); }
+}

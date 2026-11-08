@@ -57,12 +57,13 @@ def check(base,database,password):
  ops=Client();ops.call('login',{'username':'cash-operator','password':'Cash-operator-test-2026'})
  for action in ['delivery_cash_invoice','delivery_cash_list']:ops.call(action,params={'id':id})
  ops.call('delivery_customer_balances',status=403)
- ops.call('receive_delivery_cash',first,status=409)
+ assert ops.call('receive_delivery_cash',first,status=201)['replayed']
+ ops.call('receive_delivery_cash',{**first,'request_key':str(uuid.uuid4())},status=409)
  # Earlier invoices are not backfilled; zero collection explicitly transfers a new due to its customer account.
  second=admin.call('save_shipment',{'kind':'incoming','dated':'2026-11-06','station_id':station,'truck':'ZERO-CASH','items':[{'account_id':customers[1],'bilty':'ZERO-CASH','qty':1,'bilty_amount':'50'}]},status=201)
  item=admin.call('shipment',params={'id':second['id']})['items'][0]
  handed=admin.call('save_delivery',{'dated':'2026-11-06','receiver':'On account','items':[{'id':item['id']}]},status=201);id=handed['id'];zero=admin.call('delivery_cash_invoice',params={'id':id});admin.call('receive_delivery_cash',receipt(zero,[('0','0')]),status=201)
  assert admin.call('ledger',params={'account_id':customers[1]})['closing']==5000
  assert db.execute('pragma integrity_check').fetchone()[0]=='ok' and not db.execute('pragma foreign_key_check').fetchall()
- db.close();print('PASS: handover without cash; per-customer full/partial/unpaid allocations; no cross-customer offset; balanced JV/RV ledger postings; cash account update; later receipts and credit; retry/stale protection; immutable posted charges; operator cannot post cash directly; zero cash on account; historic receipts unchanged.')
+ db.close();print('PASS: handover without cash; per-customer full/partial/unpaid allocations; no cross-customer offset; balanced JV/RV ledger postings; cash account update; later receipts and credit; retry/stale protection; immutable posted charges; operator collection access with stale/retry protection; zero cash on account; historic receipts unchanged.')
 if __name__=='__main__':main(check)

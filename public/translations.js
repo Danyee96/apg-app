@@ -5263,5 +5263,7 @@ window.APG_TRANSLATIONS = {
   "Highest outstanding": ["زیادہ بقایا پہلے", "Zyada baqaya pehle"],
   "Highest received": ["زیادہ وصولی پہلے", "Zyada wasooli pehle"],
   "Clear filters": ["فلٹر صاف کریں", "Filters saaf karein"],
-  "Total amount due": ["کل واجب الادا رقم", "Kul wajib ul ada raqam"]
+  "Total amount due": ["کل واجب الادا رقم", "Kul wajib ul ada raqam"],
+  "Payment recorded.": ["وصولی درج ہوگئی۔", "Wasooli darj ho gayi."],
+  "Cash collection recorded.": ["نقد وصولی درج ہوگئی۔", "Naqad wasooli darj ho gayi."]
 };

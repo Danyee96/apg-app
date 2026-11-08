@@ -65,6 +65,13 @@ function validate_delivery_cash_amounts(array $p,array $invoice,string $dated): 
 }
 function can_submit_delivery_cash(array $user): bool {return $user['role']==='operations'&&can_access($user,'deliveries.create');}
 function record_delivery_cash(array $p,array $user,bool $insideTransaction=false,int $approvalId=0): array {
+ if(!$approvalId&&isset($user['id'])){
+  $prior=one('SELECT * FROM cash_collection_submissions WHERE request_key=?',[(string)($p['request_key']??'')]);
+  if($prior){if((int)$prior['submitted_by']!==(int)$user['id']||!hash_equals($prior['request_hash'],shipment_version($p)))throw new RuntimeException('This cash request key was already used for different values.',409);
+   if($prior['status']==='approved')return ['id'=>$prior['receipt_id'],'delivery_id'=>$prior['delivery_id'],'pending'=>false,'replayed'=>true];
+   if($prior['status']==='discarded')throw new RuntimeException('This collection was discarded. Submit a new request.',409);
+  }
+ }
  if((int)(one('SELECT accounting_model FROM delivery_cash_invoices WHERE delivery_id=?',[(int)($p['delivery_id']??0)])['accounting_model']??0)===2)return unified_record_cash($p,$user,$insideTransaction,$approvalId);
  $id=(int)($p['delivery_id']??0);$dated=day($p);$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');
  $payloadHash=shipment_version($p);
@@ -93,7 +100,7 @@ function delivery_cash_routes(string $action,string $method,array $p,array $user
  if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))fail('Delivery cash access is not available to this account.',403);
  if(in_array($action,['delivery_customer_balances','approve_cash_collection','discard_cash_collection'],true)&&$user['role']!=='super_admin')fail('Only the super admin can approve cash collections.',403);
  if($action==='delivery_cash_invoice'&&$method==='GET'){$result=delivery_cash_invoice((int)($_GET['id']??0));$result['cash_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id");response($result);}
- if($action==='receive_delivery_cash'&&$method==='POST')response($user['role']==='super_admin'?record_delivery_cash($p,$user):submit_delivery_cash($p,$user),201);
+ if($action==='receive_delivery_cash'&&$method==='POST')response(record_delivery_cash($p,$user),201);
  delivery_cash_approval_routes($action,$method,$p,$user);
  // Walk-in cash submitted by an operator enters this workspace after first approval.
  $visible=" NOT(d.delivery_mode='walkin' AND NOT EXISTS(SELECT 1 FROM delivery_cash_receipts vr WHERE vr.delivery_id=d.id) AND EXISTS(SELECT 1 FROM cash_collection_submissions vs WHERE vs.delivery_id=d.id))";
@@ -117,21 +124,31 @@ function delivery_cash_routes(string $action,string $method,array $p,array $user
 function cash_submission_version(array $row): string {
  return shipment_version(['submission'=>$row,'invoice_version'=>delivery_cash_invoice((int)$row['delivery_id'])['version']]);
 }
+// Kept for older clients/callers; submitting cash no longer creates an approval.
 function submit_delivery_cash(array $p,array $user,bool $insideTransaction=false): array {
- if((int)(one('SELECT accounting_model FROM delivery_cash_invoices WHERE delivery_id=?',[(int)($p['delivery_id']??0)])['accounting_model']??0)===2)return unified_submit_cash($p,$user,$insideTransaction);
- $id=(int)($p['delivery_id']??0);$dated=day($p);$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
- $save=function()use($p,$user,$id,$dated,$key,$hash){
-  $existing=one('SELECT * FROM cash_collection_submissions WHERE request_key=?',[$key]);if($existing){if((int)$existing['submitted_by']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);if($existing['status']==='discarded')throw new RuntimeException('This cash collection was discarded. Reopen the invoice to submit again.',409);return ['id'=>$existing['status']==='approved'?$existing['receipt_id']:$existing['id'],'delivery_id'=>$id,'pending'=>$existing['status']==='pending','status'=>$existing['status'],'replayed'=>true];}
-  if(one('SELECT id FROM delivery_cash_receipts WHERE request_key=?',[$key]))throw new RuntimeException('This cash request key was already used for different values.',409);
-  if(one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]))throw new RuntimeException('A cash collection is already awaiting approval for this delivery.',409);
-  $invoice=delivery_cash_invoice($id);if(!hash_equals($invoice['version'],(string)($p['version']??'')))throw new RuntimeException('This cash invoice changed. Reopen it before collecting.',409);
-  [$lines,$total,$cashAccount]=validate_delivery_cash_amounts($p,$invoice,$dated);
-  $format=fn($amount)=>sprintf('%d.%02d',intdiv($amount,100),$amount%100);$items=[];foreach($lines as $lineId=>[$bilty,$service])$items[]=['id'=>$lineId,'bilty_received'=>$format($bilty),'service_received'=>$format($service)];
-  $payload=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>$key,'dated'=>$dated,'cash_account_id'=>$cashAccount,'notes'=>text($p,'notes',500),'items'=>$items];
-  run('INSERT INTO cash_collection_submissions(delivery_id,submitted_by,submitted_name,payload,request_key,request_hash) VALUES(?,?,?,?,?,?)',[$id,$user['id'],$user['username'],json_encode($payload,JSON_THROW_ON_ERROR),$key,$hash]);$submissionId=(int)db()->lastInsertId();audit('submitted','cash_collection',$submissionId);return ['id'=>$submissionId,'delivery_id'=>$id,'pending'=>true];
- };
- return $insideTransaction?$save():transaction($save);
+ return record_delivery_cash($p,$user,$insideTransaction);
 }
+
+// Deployment transition only. Preserve original proposals and collector identity;
+// append receipts once, using the same stable keys as the former approval route.
+function settle_pending_delivery_cash(): array {
+ $result=['posted'=>0,'errors'=>[]];
+ foreach(query("SELECT id FROM cash_collection_submissions WHERE status='pending' ORDER BY id") as $candidate){
+  try{$posted=transaction(function()use($candidate){
+   $row=one("SELECT * FROM cash_collection_submissions WHERE id=? AND status='pending'",[$candidate['id']]);if(!$row)return false;
+   $payload=json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR);$invoice=delivery_cash_invoice((int)$row['delivery_id']);
+   $payload['delivery_id']=(int)$row['delivery_id'];$payload['version']=$invoice['version'];$payload['request_key']='cash-approval-'.str_pad((string)$row['id'],16,'0',STR_PAD_LEFT);
+   $receipt=record_delivery_cash($payload,['username'=>$row['submitted_name']],true,(int)$row['id']);
+   $payload['automatic_posting_reason']='Operator cash approval requirement removed';
+   run("UPDATE cash_collection_submissions SET status='approved',approved_by=NULL,approved_at=CURRENT_TIMESTAMP,receipt_id=?,approved_payload=? WHERE id=?",[$receipt['id'],json_encode($payload,JSON_THROW_ON_ERROR),$row['id']]);
+   foreach(['delivery_unified_requests','walkin_delivery_requests'] as $table)foreach(query('SELECT request_key,result_json FROM '.$table) as $request){$saved=json_decode($request['result_json'],true,64,JSON_THROW_ON_ERROR);if((int)($saved['id']??0)!==(int)$row['delivery_id']||empty($saved['pending_cash'])||(int)($saved['cash_id']??0)!==(int)$row['id'])continue;$saved['pending_cash']=false;$saved['cash_recorded']=true;$saved['cash_id']=$receipt['id'];run('UPDATE '.$table.' SET result_json=? WHERE request_key=?',[json_encode($saved,JSON_THROW_ON_ERROR),$request['request_key']]);}
+   audit('posted automatically after approval removal','cash_collection',$row['id']);return true;
+  });if($posted)$result['posted']++;
+  }catch(Throwable $error){$result['errors'][]=['id'=>$candidate['id'],'error'=>$error->getMessage()];}
+ }
+ $result['pending']=(int)one("SELECT COUNT(*) n FROM cash_collection_submissions WHERE status='pending'")['n'];return $result;
+}
+
 function delivery_cash_approval_routes(string $action,string $method,array $p,array $user): void {
  if($action==='pending_cash_collections'&&$method==='GET'){
   $where=" WHERE s.status='pending'";$args=[];if($user['role']!=='super_admin'){$where.=' AND s.submitted_by=?';$args[]=$user['id'];}
@@ -163,7 +180,7 @@ function collect_walkin_delivery_cash(int $deliveryId,array $cash,array $user,st
  $input=$cash['items']??[];if(!is_array($input)||count($input)!==count($map))throw new InvalidArgumentException('Include every invoice bilty once.');$items=[];$seen=[];
  foreach($input as $row){if(!is_array($row))throw new InvalidArgumentException('Include every invoice bilty once.');$source=filter_var($row['id']??0,FILTER_VALIDATE_INT);if(!$source||!isset($map[$source])||isset($seen[$source]))throw new InvalidArgumentException('A cash line does not belong to this delivery.');$seen[$source]=true;$items[]=['id'=>$map[$source],'bilty_received'=>$row['bilty_received']??'0','service_received'=>$row['service_received']??'0'];}
  $payload=['delivery_id'=>$deliveryId,'version'=>$invoice['version'],'request_key'=>text($cash,'request_key',100,true),'dated'=>$dated,'cash_account_id'=>text($cash,'cash_account_id',40),'notes'=>text($cash,'notes',500),'items'=>$items];
- return $user['role']==='super_admin'?record_delivery_cash($payload,$user,true):submit_delivery_cash($payload,$user,true);
+ return record_delivery_cash($payload,$user,true);
 }
 
 // Customer debt is read from its original delivery allocations, never reposted

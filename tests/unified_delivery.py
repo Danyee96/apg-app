@@ -56,16 +56,16 @@ def check(base,database,password):
  assert overdoc['lines'][0]['payment_status']=='fully_paid' and overdoc['lines'][0]['service_credit']==10000
  # Zero initial payment creates an outstanding customer debt, excluding service charges.
  zero=admin.call('save_unified_delivery',payload(shipment('UNIFIED-ZERO'),'0','0','0'),status=201);doc=admin.call('unified_delivery',params={'id':zero['id']});assert doc['lines'][0]['payment_status']=='pending_payment' and not doc['receipts'] and doc['lines'][0]['bilty_received_date'] is None
- # Operator's separate-category collection must retain typed values for approval.
+ # Operator collections post immediately, retain category values and are visible to admin.
  admin.call('save_user',{'username':'unified-ops','full_name':'Unified operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Unified-ops-2026'},status=201)
  ops=Client();ops.call('login',{'username':'unified-ops','password':'Unified-ops-2026'})
  customer_before=admin.call('ledger',params={'account_id':customer})['closing'];cash_before=admin.call('ledger',params={'account_id':cash})['closing']
- proposal=payload(shipment('UNIFIED-OPS'),'1200','100','50');pending=ops.call('save_unified_delivery',proposal,status=201);assert pending['pending_cash']
- assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before+120000
- assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before
- review=admin.call('cash_collection_submission',params={'id':pending['cash_id']});assert review['payload']['items'][0]['loading_received']=='100.00' and review['payload']['items'][0]['suzuki_received']=='50.00'
- admin.call('approve_cash_collection',{**review['payload'],'pending_id':review['id'],'pending_version':review['version']},status=201)
- approved=admin.call('unified_delivery',params={'id':pending['id']});assert approved['lines'][0]['payment_status']=='fully_paid' and approved['lines'][0]['walkin']
+ proposal=payload(shipment('UNIFIED-OPS'),'1200','100','50');pending=ops.call('save_unified_delivery',proposal,status=201);assert not pending['pending_cash']
+ assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before
+ assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before+135000
+ approved=admin.call('unified_delivery',params={'id':pending['id']});assert approved['lines'][0]['payment_status']=='fully_paid' and approved['lines'][0]['walkin'] and not approved['pending_cash']
+ assert approved['lines'][0]['loading_received']==10000 and approved['lines'][0]['suzuki_received']==5000 and approved['receipts'][0]['created_by']=='unified-ops'
+ assert ops.call('save_unified_delivery',proposal,status=201)['replayed']
  admin.call('save_unified_delivery',{**proposal,'request_key':str(uuid.uuid4())},status=409)
  invalid=payload(shipment('UNIFIED-INVALID'),'-1');admin.call('save_unified_delivery',invalid,status=422)
  assert admin.call('unified_deliveries',params={'search':'UNIFIED-001'})['rows'][0]['id']==saved['id']
@@ -106,5 +106,5 @@ def check(base,database,password):
  admin.call('unified_deliveries',params={'from':'2026-11-08','to':'2026-11-07'},status=422)
  c.close()
  c=sqlite3.connect(database);assert not c.execute('SELECT voucher_id FROM voucher_lines GROUP BY voucher_id HAVING SUM(debit)<>SUM(credit)').fetchall();assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok';c.close()
- print('PASS: separate bilty/loading/Suzuki accounting; partial/full/zero initial collections; walk-in classification; cumulative later receipts; dates retained on reopen/zero; adjustment journals; retry safety; operator typed approval; ledger reconciliation.')
+ print('PASS: separate bilty/loading/Suzuki accounting; partial/full/zero initial collections; walk-in classification; cumulative later receipts; dates retained on reopen/zero; adjustment journals; retry safety; immediate operator cash; ledger reconciliation.')
 if __name__=='__main__':main(check)

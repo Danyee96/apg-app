@@ -85,14 +85,11 @@ function unified_record_cash(array $p,array $user,bool $inside=false,int $approv
   audit('received cash','delivery',$id);return ['id'=>$receipt,'delivery_id'=>$id,'voucher_id'=>$voucher];
  };return $inside?$save():transaction($save);
 }
+// Compatibility entry point: operator collections now post immediately.
 function unified_submit_cash(array $p,array $user,bool $inside=false): array {
- $save=function()use($p,$user){$id=(int)$p['delivery_id'];$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);$existing=one('SELECT * FROM cash_collection_submissions WHERE request_key=?',[$key]);if($existing){if((int)$existing['submitted_by']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);if($existing['status']==='discarded')throw new RuntimeException('This collection was discarded. Submit a new request.',409);return ['id'=>$existing['id'],'delivery_id'=>$id,'pending'=>$existing['status']==='pending','replayed'=>true];}
-  if(one('SELECT id FROM delivery_cash_receipts WHERE request_key=?',[$key])||one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]))throw new RuntimeException('A cash collection is already awaiting approval for this delivery.',409);
-  $invoice=delivery_cash_invoice($id);if(!hash_equals($invoice['version'],(string)($p['version']??'')))throw new RuntimeException('This cash invoice changed. Reopen it before collecting.',409);unified_cash_input($p,$invoice,day($p));
-  foreach($p['items'] as &$line){if(!array_key_exists('loading_received',$line)&&!array_key_exists('suzuki_received',$line)&&!array_key_exists('legacy_service_received',$line))$line['legacy_service_received']=$line['service_received']??'0';$line['service_received']=amount_decimal(money($line,'loading_received')+money($line,'suzuki_received')+money($line,'legacy_service_received'));}unset($line);
-  run('INSERT INTO cash_collection_submissions(delivery_id,submitted_by,submitted_name,payload,request_key,request_hash) VALUES(?,?,?,?,?,?)',[$id,$user['id'],$user['username'],json_encode($p,JSON_THROW_ON_ERROR),$key,$hash]);$submission=(int)db()->lastInsertId();audit('submitted','cash_collection',$submission);return ['id'=>$submission,'delivery_id'=>$id,'pending'=>true];
- };return $inside?$save():transaction($save);
+ return unified_record_cash($p,$user,$inside);
 }
+
 function unified_finish_migration(): void {
  transaction(function(){
  run(unified_view_sql());
@@ -156,7 +153,7 @@ function unified_save(array $p,array $user): array {
   foreach($input as $row){$lineId=$initial?($map[(int)$row['id']]??0):(int)$row['id'];$item=['id'=>$lineId];foreach(['bilty_received','loading_received','suzuki_received','legacy_service_received'] as $field){$value=money($row,$field);$item[$field]=amount_decimal($value);$total+=$value;$item[$field.'_date']=!empty($row[$field.'_date'])?day($row,$field.'_date'):null;}$cashItems[]=$item;}
   $pending=one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]);if($pending&&($total||$initial))throw new RuntimeException('A cash collection is already awaiting approval for this delivery.',409);
   $result=['id'=>$id,'reference'=>$invoice['header']['reference'],'pending_cash'=>false];
-  if($total>0&&!$pending){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Walk-in delivery requires cash receiving access.',403);$cash=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>'unified-cash-'.hash('sha256',$key),'dated'=>!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$cashItems,'initial'=>$initial];$recorded=$user['role']==='super_admin'?unified_record_cash($cash,$user,true):unified_submit_cash($cash,$user,true);$result['pending_cash']=!empty($recorded['pending']);$result['cash_id']=$recorded['id'];}
+  if($total>0&&!$pending){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Walk-in delivery requires cash receiving access.',403);$cash=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>'unified-cash-'.hash('sha256',$key),'dated'=>!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$cashItems,'initial'=>$initial];$recorded=unified_record_cash($cash,$user,true);$result['pending_cash']=!empty($recorded['pending']);$result['cash_id']=$recorded['id'];}
   run('INSERT INTO delivery_unified_requests(request_key,actor_id,request_hash,result_json) VALUES(?,?,?,?)',[$key,$user['id'],$hash,json_encode($result,JSON_THROW_ON_ERROR)]);return $result;
  });
 }

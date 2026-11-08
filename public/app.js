@@ -13,10 +13,10 @@ const num = (v) => Number(v || 0).toLocaleString("en-PK");
 const cash = (v) => v == null ? "—" :
   "Rs " +
   (Number(v || 0) / 100).toLocaleString("en-PK", {
-    minimumFractionDigits: 2,
+    minimumFractionDigits: Number(v || 0) % 100 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   });
-const amount = (v) => (Number(v || 0) / 100).toFixed(2);
+const amount = (v) => (Number(v || 0) / 100).toFixed(2).replace(/\.00$/, "");
 const fmtdate = (v) =>
   v
     ? new Date(v.slice(0, 10) + "T12:00:00").toLocaleDateString("en-GB", {
@@ -1483,10 +1483,10 @@ async function editShipment(id) {
   if (!can(s.kind + ".edit") || (isOperations() && s.kind === "incoming")) throw Error("You do not have permission to edit this entry.");
   const header = { ...s };
   delete header.items;
-  for (const key of ["truck_amount", "commission", "labour_bonus", "munshi_bonus"]) header[key] = (Number(s[key] || 0) / 100).toFixed(2);
+  for (const key of ["truck_amount", "commission", "labour_bonus", "munshi_bonus"]) header[key] = amount(s[key]);
   const items = s.items.map(row => {
     const item = { ...blankItem(), ...row };
-    for (const key of ["bilty_amount", "godown", "loading", "suzuki", "rent", "local_charge", "advance"]) item[key] = (Number(row[key] || 0) / 100).toFixed(2);
+    for (const key of ["bilty_amount", "godown", "loading", "suzuki", "rent", "local_charge", "advance"]) item[key] = amount(row[key]);
     return item;
   });
   closeModal();
@@ -1781,7 +1781,7 @@ function deliveryRowInput(row,key,label,value) {
 }
 function deliveryBiltyRow(r,index) {
   const legacy=deliveryLegacyCash(),money=(key,label,value)=>`<td class="delivery-edit-cell">${deliveryRowInput(r,key,label,value)}</td>`;
-  return `<tr class="delivery-entry-row" data-delivery-row="${r.id}"><td class="delivery-row-index">${index+1}</td><th scope="row"><strong>${esc(r.bilty)}</strong><small>${esc(r.station||"—")} · ${fmtdate(r.dated)}</small></th><td class="delivery-party-cell"><strong>${esc(r.customer||"—")}</strong><small>Party to: ${esc(r.party_to||"—")}</small></td><td class="delivery-goods-cell">${esc([goodsTypeLabel(r),r.detail!==goodsTypeLabel(r)?r.detail:""].filter(Boolean).join(" · ")||"Not recorded")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.bilty_amount)}</td><td class="number">${cash(r.godown)}</td><td class="number"><strong>${cash(Number(r.bilty_amount||0)+Number(r.godown||0))}</strong></td><td class="number">${cash(r.advance)}</td>${money('discount','Discount (Rs)','0')}${money('loading','Loading charge (Rs)',(Number(r.loading||0)/100).toFixed(2))}${money('suzuki','Suzuki charge (Rs)',(Number(r.suzuki||0)/100).toFixed(2))}${legacy?money('bilty_received','Bilty cash received (Rs)','0')+money('service_received','Loading / Suzuki received (Rs)','0'):''}<td class="number delivery-row-total" data-delivery-totals="${r.id}"></td><td>${deliveryEdit?'':`<button type="button" class="icon-btn" data-action="delivery-remove" data-id="${r.id}" aria-label="Remove bilty ${esc(r.bilty)}" title="Remove">${icon('close')}</button>`}</td></tr>`;
+  return `<tr class="delivery-entry-row" data-delivery-row="${r.id}"><td class="delivery-row-index">${index+1}</td><th scope="row"><strong>${esc(r.bilty)}</strong><small>${esc(r.station||"—")} · ${fmtdate(r.dated)}</small></th><td class="delivery-party-cell"><strong>${esc(r.customer||"—")}</strong><small>Party to: ${esc(r.party_to||"—")}</small></td><td class="delivery-goods-cell">${esc([goodsTypeLabel(r),r.detail!==goodsTypeLabel(r)?r.detail:""].filter(Boolean).join(" · ")||"Not recorded")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.bilty_amount)}</td><td class="number">${cash(r.godown)}</td><td class="number"><strong>${cash(Number(r.bilty_amount||0)+Number(r.godown||0))}</strong></td><td class="number">${cash(r.advance)}</td>${money('discount','Discount (Rs)','0')}${money('loading','Loading charge (Rs)',amount(r.loading))}${money('suzuki','Suzuki charge (Rs)',amount(r.suzuki))}${legacy?money('bilty_received','Bilty cash received (Rs)','0')+money('service_received','Loading / Suzuki received (Rs)','0'):''}<td class="number delivery-row-total" data-delivery-totals="${r.id}"></td><td>${deliveryEdit?'':`<button type="button" class="icon-btn" data-action="delivery-remove" data-id="${r.id}" aria-label="Remove bilty ${esc(r.bilty)}" title="Remove">${icon('close')}</button>`}</td></tr>`;
 }
 function deliveryEntryTable(rows) {
  const legacy=deliveryLegacyCash(),columns=legacy?16:14;
@@ -4021,7 +4021,7 @@ function updateDeliveryTableTotals(form) {
   if(deliveryWalkin){$('[data-walkin-due="'+row.id+'"]',form).textContent=cash(Math.max(0,line.due));$('[data-walkin-balance="'+row.id+'"]',form).textContent=line.credit?'Customer credit: '+cash(line.credit):cash(line.outstanding);}
  }
  for(const [key,value] of Object.entries(totals)){const el=$('[data-delivery-column="'+key+'"]',form);if(el)el.textContent=key==='qty'?num(value):cash(value);}
- if(deliveryWalkin){const received=totals.bilty_received+totals.service_received,input=form.elements.namedItem('walkin_total_received');if(document.activeElement!==input)input.value=(received/100).toFixed(2);$('[data-walkin-total-due]',form).textContent=cash(receivable);$('[data-walkin-total-received]',form).textContent=cash(received);$('[data-walkin-total-balance]',form).textContent=cash(totals.outstanding);}
+ if(deliveryWalkin){const received=totals.bilty_received+totals.service_received,input=form.elements.namedItem('walkin_total_received');if(document.activeElement!==input)input.value=amount(received);$('[data-walkin-total-due]',form).textContent=cash(receivable);$('[data-walkin-total-received]',form).textContent=cash(received);$('[data-walkin-total-balance]',form).textContent=cash(totals.outstanding);}
  const breakdown=[['Bilty charges',totals.bilty_amount],['Godown charges',totals.godown],['Bilty + godown total',totals.bilty_godown],['Loading',totals.loading],['Suzuki',totals.suzuki],['Advance',totals.advance],['Discount',totals.discount],...(!deliveryWalkin?[['Total bilty cash received',totals.bilty_received],['Loading / Suzuki cash received',totals.service_received]]:[]),['Total cash received',totals.bilty_received+totals.service_received]];
  $('#delivery-combined').innerHTML=`<div class="delivery-summary-head"><h3>Delivery totals</h3><span>${num(selected.size)} bilties · Quantity ${num(totals.qty)}</span></div><div class="delivery-totals-breakdown">${deliveryFacts(breakdown.map(([label,value])=>[label,cash(value)]))}</div><div class="delivery-total-banner delivery-grand-total"><div><span>Grand total</span><small>Bilty + godown + loading + Suzuki − advance − discount</small></div><strong>${cash(totals.due)}</strong></div>${deliveryEntryCash()?deliveryFacts([['Remaining customer balance',cash(totals.outstanding)],['Customer credit',cash(totals.credit)]]):'<p class="note">Cash for standard deliveries is collected separately in Delivery Cash Receiving.</p>'}`;
  renderCustomerDues($('#delivery-prior-balances'));

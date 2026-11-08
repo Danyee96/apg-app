@@ -456,10 +456,10 @@ function initialView() {
   if(requested === "deliveries" && ["all", "reports", "balances"].includes(query.get("tab"))) unifiedTab = query.get("tab");
   if(requested === "deliveries" && unifiedTab === "reports") {
     unifiedReportStatus = ["pending_payment","partially_paid","fully_paid"].includes(query.get("payment")) ? query.get("payment") : "";
-    unifiedReportDateMode = query.get("dates") === "single" ? "single" : "range";
+    unifiedReportDateMode = query.get("dates") === "range" ? "range" : "single";
     unifiedReportSort = ["oldest","balance_high","received_high"].includes(query.get("sort")) ? query.get("sort") : "newest";
     for(const key of ["from","to"]) state[key] = /^\d{4}-\d{2}-\d{2}$/.test(query.get(key)||"") ? query.get(key) : "";
-    if(unifiedReportDateMode === "single") state.to = state.from;
+    if(unifiedReportDateMode === "single") state.from = state.to = state.from || today();
   }
   if(["delivery-cash","pending-cash"].includes(requested)){unifiedTab="all";requested="deliveries";}
   return navs.some(([view]) => view === requested) && canView(requested)
@@ -576,6 +576,7 @@ async function navigate(view, reset = true) {
 }
 function rememberCurrentPage() {
   if(!session?.user || !navs.some(([view]) => view === state.view) || !canView(state.view)) return;
+  if(state.view === "deliveries" && unifiedTab === "reports" && unifiedReportDateMode === "single") state.from = state.to = state.from || today();
   const url = new URL(location.href);
   url.searchParams.set("view", state.view);
   if(state.view === "deliveries") url.searchParams.set("tab", unifiedTab);

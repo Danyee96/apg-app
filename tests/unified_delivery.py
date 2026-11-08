@@ -81,6 +81,9 @@ def check(base,database,password):
  assert admin.call('ledger',params={'account_id':customer})['closing']==before_balance+70000
  journals=c.execute('SELECT count(*) FROM vouchers').fetchone()[0];admin.call('unified_delivery',params={'id':legacy['id']});assert c.execute('SELECT count(*) FROM vouchers').fetchone()[0]==journals
  assert old_receipt==c.execute('SELECT id,delivery_id,request_key,dated,cash_account_id,notes,created_by,voucher_id,request_hash FROM delivery_cash_receipts WHERE delivery_id=?',(legacy['id'],)).fetchall()
+ # A new combined payment on an old combined account retains its legacy bucket.
+ legacy_more=existing(converted);legacy_more['items'][0].pop('loading_received');legacy_more['items'][0].pop('suzuki_received');legacy_more['items'][0]['service_received']='25';admin.call('save_unified_delivery',legacy_more,status=201)
+ legacy_after=admin.call('unified_delivery',params={'id':legacy['id']});assert legacy_after['lines'][0]['legacy_service_received']==7500 and legacy_after['lines'][0]['loading_received']==0 and legacy_after['lines'][0]['suzuki_received']==0
  # Reopening an original imported document must not post its old cash or charges again.
  historical=c.execute('SELECT id FROM deliveries WHERE cash_workflow=0 AND legacy_id IS NOT NULL LIMIT 1').fetchone()
  if historical:
@@ -89,6 +92,17 @@ def check(base,database,password):
   imported=admin.call('unified_delivery',params={'id':historical[0]});assert imported['lines']
   assert before_lines==c.execute('SELECT count(*),sum(debit),sum(credit) FROM voucher_lines').fetchone()
   assert before_raw==c.execute('SELECT count(*),sum(COALESCE(REC_BAMT,0)),sum(COALESCE(REC_SAMT,0)) FROM legacy_IND').fetchone()
+ # REC S AMT is split server-side against outstanding loading then Suzuki.
+ combined=payload(shipment('UNIFIED-COMBINED'),'1200','0','0');combined['items'][0].pop('loading_received');combined['items'][0].pop('suzuki_received');combined['items'][0]['service_received']='120';combined['items'][0]['service_received_date']=day
+ combined_id=ops.call('save_unified_delivery',combined,status=201)['id'];combined_doc=admin.call('unified_delivery',params={'id':combined_id});assert combined_doc['lines'][0]['loading_received']==10000 and combined_doc['lines'][0]['suzuki_received']==2000
+ assert combined_doc['lines'][0]['service_outstanding']==3000 and combined_doc['lines'][0]['loading_received_date']==day and combined_doc['lines'][0]['suzuki_received_date']==day
+ more=existing(combined_doc);more['items'][0].pop('loading_received');more['items'][0].pop('suzuki_received');more['items'][0]['service_received']='30';ops.call('save_unified_delivery',more,status=201)
+ combined_doc=admin.call('unified_delivery',params={'id':combined_id});assert combined_doc['lines'][0]['payment_status']=='fully_paid' and combined_doc['lines'][0]['loading_received']==10000 and combined_doc['lines'][0]['suzuki_received']==5000 and len(combined_doc['receipts'])==2
+ zero_more=existing(combined_doc);zero_more['items'][0].pop('loading_received');zero_more['items'][0].pop('suzuki_received');zero_more['items'][0]['service_received']='0';ops.call('save_unified_delivery',zero_more,status=201)
+ assert len(admin.call('unified_delivery',params={'id':combined_id})['receipts'])==2
+ extra=existing(combined_doc);extra['items'][0].pop('loading_received');extra['items'][0].pop('suzuki_received');extra['items'][0]['service_received']='20';ops.call('save_unified_delivery',extra,status=201)
+ credited=admin.call('unified_delivery',params={'id':combined_id});assert credited['lines'][0]['service_credit']==2000 and credited['lines'][0]['bilty_balance']==0
+ mixed=existing(credited);mixed['items'][0]['service_received']='1';mixed['items'][0]['loading_received']='1';admin.call('save_unified_delivery',mixed,status=422)
  # Report filters and analytics cover the full matching set, not only one page.
  report_ids=[]
  for n,(b,l,s,date) in enumerate([('0','0','0','2026-11-07'),('500','0','0','2026-11-08'),('1200','100','50','2026-11-08')]):

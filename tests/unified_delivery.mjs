@@ -16,7 +16,7 @@ try {
 
  await page.locator('[name^="u_loading_"]:not([name^="u_loading_cash_"])').first().fill('100');
  await page.locator('[name^="u_suzuki_"]:not([name^="u_suzuki_cash_"])').first().fill('50');
- const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');await page.locator('[name^="u_loading_cash_"]').first().fill('20');await page.locator('[name^="u_suzuki_cash_"]').first().fill('30');
+ const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');assert.equal(await page.locator('.u-services-grid input[name^="u_service_cash_"]').count(),2);assert.equal(await page.locator('input[name^="u_loading_cash_"],input[name^="u_suzuki_cash_"]').count(),0);await page.locator('[name^="u_service_cash_"]').first().fill('0');assert.equal(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText(),'');await page.locator('[name^="u_service_cash_"]').first().fill('50');assert.ok(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText());
  const rowKey=await first.first().getAttribute('name');assert.ok(await page.locator('[data-u-date="'+rowKey+'"]').innerText());
  await first.first().fill('0');assert.equal(await page.locator('[data-u-date="'+rowKey+'"]').innerText(),'');await first.first().fill('500');
  assert.ok((await page.locator('[data-u-total="bilty_outstanding"]').innerText()).includes('1,900'));
@@ -25,7 +25,7 @@ try {
  if(process.env.APG_UNIFIED_REVIEW)await page.screenshot({path:process.env.APG_UNIFIED_REVIEW});
  const response=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.locator('#unified-delivery-form [type="submit"]').click();const saved=await (await response).json();await page.locator('.u-history details').waitFor();
  assert.equal(await first.first().inputValue(),'0');assert.ok((await page.locator('[data-u-total="bilty_paid"]').innerText()).includes('500'));
- const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,2000);assert.equal(before.lines[0].suzuki_received,3000);
+ const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,5000);assert.equal(before.lines[0].suzuki_received,0);
  // Reopening does not invent a new receipt date or reset historical payments.
  assert.equal(await page.locator('[data-u-date]').first().innerText(),'');await page.locator('[data-action="u-full"]').click();
  assert.ok((await page.locator('[data-u-total="bilty_outstanding"]').innerText()).includes('Rs 0'));

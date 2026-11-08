@@ -23,3 +23,7 @@ Delivery Reports is an inner tab in Delivery Goods. Its Overview, Pending Paymen
 ## Operator cash policy change
 
 Operator receipts post immediately through both unified delivery save and older cash/walk-in entry points. The former submission helpers delegate to receipt recording; no new approval rows are created. The Payment Approvals tab and old pending-cash links no longer lead to an approval queue. Historical submission records and original collector names remain intact. `settle_pending_delivery_cash()` is a deployment-only transition helper for any existing queue: it uses the original amounts/dates/account, stable receipt keys and a transaction per entry, preserving proposals and audit history. Invalid entries remain preserved and are reported rather than deleted. On deployment the live queue was checked before changing policy.
+
+## Combined service collection input
+
+The service grid uses one REC S AMT input per bilty for new cash. Both preview calculations and server posting allocate new cash to unpaid loading first, then Suzuki. Any supported overpayment remains Suzuki service credit; it never clears bilty/customer debt. Imported combined service accounts stay combined without guessing their original split. The entered date is assigned only to components receiving cash. Existing receipt history and independent service ledgers are preserved. The API continues to accept older explicitly split inputs, but rejects a combined amount alongside positive split amounts to prevent double counting.

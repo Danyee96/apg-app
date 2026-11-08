@@ -142,6 +142,13 @@ function unified_edit(int $id,array $p,array $user): void {
  }
  if($changed){if(!can_access($user,'deliveries.edit'))throw new RuntimeException('You do not have permission to edit deliveries.',403);unified_journal(date('Y-m-d'),'Delivery charge correction · '.$header['reference'],$entries);$before=delivery_snapshot($id);run('UPDATE deliveries SET dated=?,receiver=?,mobile=?,cnic=?,remarks=? WHERE id=?',[$dated,$receiver,text($p,'mobile',30),text($p,'cnic',30),text($p,'remarks',500),$id]);run('INSERT INTO delivery_revisions(delivery_id,actor,before_json,after_json) VALUES(?,?,?,?)',[$id,$user['username'],json_encode($invoice,JSON_THROW_ON_ERROR),json_encode(delivery_snapshot($id),JSON_THROW_ON_ERROR)]);audit('updated','delivery',$id);}
 }
+// One service cash entry; allocate against unpaid loading first, then Suzuki.
+// Historical combined service accounts retain their existing classification.
+function unified_service_allocation(array $line,int $received,bool $legacy): array {
+ if($legacy)return [0,0,$received];
+ $loading=min($received,max(0,(int)$line['loading']-(int)$line['loading_received']));
+ return [$loading,$received-$loading,0];
+}
 function unified_save(array $p,array $user): array {
  $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
  return transaction(function()use($p,$user,$key,$hash){$existing=one('SELECT * FROM delivery_unified_requests WHERE request_key=?',[$key]);if($existing){if((int)$existing['actor_id']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);return [...json_decode($existing['result_json'],true,64,JSON_THROW_ON_ERROR),'replayed'=>true];}
@@ -149,8 +156,15 @@ function unified_save(array $p,array $user): array {
   if(!$id){require_permission($user,'deliveries.create');$handover=$p;unset($handover['walkin_cash']);$handover['delivery_mode']='standard';$handover['items']=array_map(function($row){$row['bilty_received']='0';$row['service_received']='0';return $row;},$input);$result=create_delivery_entry($handover,$user,true);$id=(int)$result['id'];run('UPDATE deliveries SET classification_auto=1 WHERE id=?',[$id]);run('UPDATE delivery_cash_invoices SET accounting_model=2 WHERE delivery_id=?',[$id]);}
   else{unified_adopt($id);unified_edit($id,$p,$user);}
   if($initial)unified_assess($id);
-  $invoice=delivery_cash_invoice($id);$map=$initial?array_column(query('SELECT item_id,id FROM delivery_items WHERE delivery_id=?',[$id]),'id','item_id'):[];$cashItems=[];$total=0;
-  foreach($input as $row){$lineId=$initial?($map[(int)$row['id']]??0):(int)$row['id'];$item=['id'=>$lineId];foreach(['bilty_received','loading_received','suzuki_received','legacy_service_received'] as $field){$value=money($row,$field);$item[$field]=amount_decimal($value);$total+=$value;$item[$field.'_date']=!empty($row[$field.'_date'])?day($row,$field.'_date'):null;}$cashItems[]=$item;}
+  $invoice=delivery_cash_invoice($id);$map=$initial?array_column(query('SELECT item_id,id FROM delivery_items WHERE delivery_id=?',[$id]),'id','item_id'):[];$cashItems=[];$total=0;$cashLines=array_column($invoice['lines'],null,'delivery_item_id');
+  foreach($input as $row){$lineId=$initial?($map[(int)$row['id']]??0):(int)$row['id'];$item=['id'=>$lineId];
+   if(array_key_exists('service_received',$row)){
+    foreach(['loading_received','suzuki_received','legacy_service_received'] as $field)if(money($row,$field)>0)throw new InvalidArgumentException('Enter service cash once in REC S AMT.');
+    $line=$cashLines[$lineId]??null;if(!$line)throw new InvalidArgumentException('A cash line does not belong to this delivery.');
+    $allocated=unified_service_allocation($line,money($row,'service_received'),(bool)$invoice['header']['legacy_services']);
+    foreach(['loading_received','suzuki_received','legacy_service_received'] as $index=>$field){$row[$field]=amount_decimal($allocated[$index]);$row[$field.'_date']=$row['service_received_date']??null;}
+   }
+foreach(['bilty_received','loading_received','suzuki_received','legacy_service_received'] as $field){$value=money($row,$field);$item[$field]=amount_decimal($value);$total+=$value;$item[$field.'_date']=!empty($row[$field.'_date'])?day($row,$field.'_date'):null;}$cashItems[]=$item;}
   $pending=one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]);if($pending&&($total||$initial))throw new RuntimeException('A cash collection is already awaiting approval for this delivery.',409);
   $result=['id'=>$id,'reference'=>$invoice['header']['reference'],'pending_cash'=>false];
   if($total>0&&!$pending){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Walk-in delivery requires cash receiving access.',403);$cash=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>'unified-cash-'.hash('sha256',$key),'dated'=>!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$cashItems,'initial'=>$initial];$recorded=unified_record_cash($cash,$user,true);$result['pending_cash']=!empty($recorded['pending']);$result['cash_id']=$recorded['id'];}

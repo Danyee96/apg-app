@@ -15,17 +15,29 @@ try {
  await page.locator('#delivery-form [name="receiver"]').fill('UI cash receiver');
  await page.locator('#delivery-form [name^="loading_"]').first().fill('30');await page.locator('#delivery-form [name^="discount_"]').first().fill('10');
  assert.ok((await page.locator('#delivery-combined').innerText()).includes('390.00'));
- await page.locator('#delivery-form [type="submit"]').click();await page.locator('#delivery-cash-form').waitFor();
- assert.ok((await page.locator('#modal-title').innerText()).includes('Walk-in delivery'));
- const deliveryId=await page.evaluate(()=>cashReceivingInvoice.header.id);assert.equal(await page.evaluate(()=>cashReceivingInvoice.header.delivery_mode),'walkin');
- await page.locator('[data-action="cash-pay-full"]').first().click();
- assert.equal(await page.locator('#delivery-cash-form [name^="bilty_received_"]').first().inputValue(),'240.00');assert.equal(await page.locator('#delivery-cash-form [name^="service_received_"]').first().inputValue(),'30.00');
- await page.locator('#delivery-cash-form [name^="bilty_received_"]').last().fill('50');
- assert.ok((await page.locator('[data-cash-line-feedback]').first().innerText()).includes('Paid in full'));
- assert.ok((await page.locator('[data-cash-line-feedback]').last().innerText()).includes('Part payment'));
- assert.ok((await page.locator('[data-cash-line-feedback]').last().innerText()).includes('70.00'));
- assert.ok((await page.locator('#cash-collect-summary').innerText()).includes('320.00'));
- await page.locator('#delivery-cash-form [type="submit"]').click();
+ await page.locator('[data-action="walkin-pay-full"]').first().click();
+ assert.equal(await page.locator('#delivery-form [name^="bilty_received_"]').first().inputValue(),'240.00');
+ assert.equal(await page.locator('#delivery-form [name^="service_received_"]').first().inputValue(),'30.00');
+ await page.locator('#delivery-form [name^="bilty_received_"]').last().fill('50');
+ assert.ok((await page.locator('#delivery-combined').innerText()).includes('320.00'));
+ assert.ok((await page.locator('#delivery-combined').innerText()).includes('70.00'));
+ assert.equal(await page.locator('#delivery-cash-form').count(),0);
+ await page.evaluate(()=>APG.setLanguage('ur'));
+ assert.equal(await page.locator('html').getAttribute('dir'),'rtl');
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.evaluate(()=>APG.setLanguage('en'));
+ if(process.env.APG_WALKIN_REVIEW){
+  await page.setViewportSize({width:1800,height:1100});
+  await page.locator('.walkin-cash-section').scrollIntoViewIfNeeded();
+  await page.screenshot({path:process.env.APG_WALKIN_REVIEW});
+  await page.setViewportSize({width:390,height:844});
+ }
+ const savedResponse=page.waitForResponse(r=>r.url().includes('action=save_delivery')&&r.request().method()==='POST');
+ await page.locator('#delivery-form [type="submit"]').click();
+ const saved=await (await savedResponse).json(),deliveryId=saved.id;assert.equal(saved.cash_recorded,true);
+ await page.locator('#modal [data-action="edit-delivery"]').waitFor();
+ assert.equal(await page.locator('#delivery-cash-form').count(),0);
+ await page.evaluate(id=>receiveDeliveryCash(id),deliveryId);
  await page.locator('#modal .summary-row').filter({hasText:'320.00'}).waitFor();
  assert.ok((await page.locator('#modal').innerText()).includes('70.00'));
  await page.locator('[data-action="print-dialog"]').last().click();await page.locator('#thermal-preview-sheet').waitFor();
@@ -41,5 +53,5 @@ try {
  await page.locator('#delivery-form [name="receiver"]').fill('Receiver corrected after cash');await page.locator('#delivery-form [type="submit"]').click();await page.locator('#modal').getByText('Receiver corrected after cash',{exact:true}).waitFor();
  assert.ok((await page.locator('#modal').innerText()).includes('320.00'));
  await page.locator('[data-action="close-modal"]').first().click();await page.locator('#app-language').selectOption('ur');await page.evaluate(id=>receiveDeliveryCash(id),deliveryId);await page.locator('#delivery-cash-form').waitFor();assert.equal(await page.locator('html').getAttribute('dir'),'rtl');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
- assert.deepEqual(errors,[]);console.log('PASS: mobile admin walk-in opens cash collection immediately and posts cash without approval; full/part payment by customer; live per-bilty status; collection history; outstanding customer list; printable A4 statement; metadata edit preserves collections; Urdu RTL.');
+ assert.deepEqual(errors,[]);console.log('PASS: mobile admin walk-in records goods and cash together in one popup without approval; full/part payment by customer; live per-bilty status; collection history; outstanding customer list; printable A4 statement; metadata edit preserves collections; Urdu RTL.');
 }finally{await browser.close();}

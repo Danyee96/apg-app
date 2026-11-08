@@ -5146,5 +5146,17 @@ window.APG_TRANSLATIONS = {
   "Loading / Suzuki cash received": ["لوڈنگ / سوزوکی کی وصول شدہ نقد رقم", "Loading / Suzuki ki wasool shuda naqad raqam"],
   "Bilty cash receiving now": ["اب وصول ہونے والی بلٹی کی رقم", "Ab wasool honay wali bilty ki raqam"],
   "Loading / Suzuki cash receiving now": ["اب وصول ہونے والی لوڈنگ / سوزوکی کی رقم", "Ab wasool honay wali loading / Suzuki ki raqam"],
-  "Bilty + godown total": ["بلٹی اور گودام کا مجموعہ", "Bilty aur godown ka majmua"]
+  "Bilty + godown total": ["بلٹی اور گودام کا مجموعہ", "Bilty aur godown ka majmua"],
+  "Walk-in cash collection": ["فوری ڈیلیوری کی نقد وصولی", "Walk-in delivery ki naqad wasooli"],
+  "Cash requires admin approval": ["نقد وصولی کے لیے ایڈمن کی منظوری درکار ہے", "Naqad wasooli ke liye admin ki manzoori darkar hai"],
+  "Saved together with this delivery": ["ڈیلیوری کے ساتھ ہی محفوظ ہوگی", "Delivery ke sath hi save hogi"],
+  "Collection notes": ["وصولی کی تفصیل", "Wasooli ki tafseel"],
+  "Save delivery & submit cash": ["ڈیلیوری محفوظ کریں اور نقد وصولی منظوری کے لیے بھیجیں", "Delivery save karein aur naqad wasooli manzoori ke liye bhejein"],
+  "Save delivery & receive cash": ["ڈیلیوری اور نقد وصولی محفوظ کریں", "Delivery aur naqad wasooli save karein"],
+  "Enter cash received against each bilty above. Any unpaid amount stays on that customer\u2019s account.": ["اوپر ہر بلٹی کے سامنے وصول کردہ رقم درج کریں۔ باقی رقم اسی گاہک کے کھاتے میں رہے گی۔", "Upar har bilty ke samnay wasool karda raqam darj karein. Baqi raqam usi gahak ke khatay mein rahegi."],
+  "Cash for standard deliveries is collected separately in Delivery Cash Receiving.": ["عام ڈیلیوری کی رقم ڈیلیوری کی نقد وصولی میں الگ درج کریں۔", "Aam delivery ki raqam Delivery Cash Receiving mein alag darj karein."],
+  "Walk-in delivery saved. Cash submitted for admin approval.": ["فوری ڈیلیوری محفوظ ہوگئی۔ نقد وصولی ایڈمن کی منظوری کے لیے بھیج دی گئی۔", "Walk-in delivery save ho gayi. Naqad wasooli admin ki manzoori ke liye bhej di gayi."],
+  "Walk-in delivery and cash saved.": ["فوری ڈیلیوری اور نقد وصولی محفوظ ہوگئی۔", "Walk-in delivery aur naqad wasooli save ho gayi."],
+  "Save the delivery goods now. Any cash you collect requires admin approval.": ["سامان کی حوالگی محفوظ کریں۔ وصول کردہ نقد رقم کے لیے ایڈمن کی منظوری درکار ہے۔", "Samaan ki hawalgi save karein. Wasool karda naqad raqam ke liye admin ki manzoori darkar hai."],
+  "Cash collection in this form is only available for walk-in deliveries.": ["اس فارم میں نقد وصولی صرف فوری ڈیلیوری کے لیے دستیاب ہے۔", "Is form mein naqad wasooli sirf walk-in delivery ke liye dastiyab hai."]
 };

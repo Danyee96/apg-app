@@ -4900,3 +4900,8 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .delivery-totals-breakdown .delivery-facts > div { padding:0 0 12px; border-bottom:1px solid #dce9e3; }
 .delivery-totals-breakdown .delivery-facts dd { font-size:17px; font-weight:800; }
 @media(max-width:650px) { .delivery-totals-breakdown .delivery-facts { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } }
+
+.walkin-cash-section { border:1px solid #c7e4d7; background:#f4faf6; border-radius:14px; padding:18px; margin-bottom:20px; }
+.walkin-cash-section .delivery-summary-head { margin-bottom:14px; }
+.walkin-pay-full { display:block; margin-top:7px; font-size:11px; white-space:nowrap; }
+.delivery-entry-table:has(.walkin-pay-full) { min-width:1650px; }

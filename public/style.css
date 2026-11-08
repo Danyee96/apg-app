@@ -5093,3 +5093,35 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
  .u-report-list .toolbar > .buttons { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
  .u-report-filter .filter { width:100%; min-width:0; }
 }
+
+/* Original delivery report structure: compact grid, repeated headings and totals. */
+.legacy-delivery-document { font:9pt/1.35 Arial,Helvetica,sans-serif; }
+.legacy-print-header { display:flex; justify-content:space-between; gap:10mm; border-bottom:2px solid #111; padding-bottom:4mm; margin-bottom:3mm; }
+.legacy-print-header h1 { font-size:17pt; margin:0 0 1mm; }
+.legacy-print-header h2 { font-size:12pt; margin:3mm 0 0; }
+.legacy-print-header p { margin:1mm 0; font-size:9pt; }
+.legacy-print-header > div:last-child { text-align:end; }
+.legacy-print-parties { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1mm 12mm; margin-bottom:3mm; }
+.legacy-delivery-document .legacy-delivery-table { direction:ltr; font-size:7.5pt; margin:3mm 0; }
+.legacy-delivery-table th,.legacy-delivery-table td { padding:1.6mm 1.1mm; border:1px solid #777; vertical-align:top; line-height:1.3; }
+.legacy-delivery-table thead th { position:static; font-size:7.5pt; background:#efefef; }
+.legacy-delivery-table th:first-child { width:7mm; }
+.legacy-delivery-table thead th:nth-child(4) { width:30mm; }
+.legacy-delivery-table thead th:nth-child(5) { width:25mm; }
+.legacy-delivery-table thead th:nth-child(6) { width:10mm; }
+.legacy-delivery-table .legacy-money { text-align:right; direction:ltr; font-variant-numeric:tabular-nums; }
+.legacy-delivery-table tfoot { font-weight:700; }
+.legacy-delivery-table tfoot th,.legacy-delivery-table tfoot td { border-top:2px solid #111; background:#f4f4f4; }
+.legacy-print-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1mm 12mm; margin:4mm 0; padding:3mm; border:1px solid #777; break-inside:avoid; }
+.legacy-print-previous { margin-top:3mm; break-inside:avoid; }
+.legacy-print-previous h3 { font-size:10pt; margin:0 0 2mm; }
+.legacy-print-signatures { display:flex; justify-content:space-between; gap:10mm; margin-top:10mm; break-inside:avoid; }
+@media print {
+ .legacy-delivery-table thead { display:table-header-group; }
+ .legacy-delivery-table tfoot { display:table-row-group; }
+ .legacy-delivery-table tbody tr { break-inside:avoid; }
+ .legacy-print-header,.legacy-print-parties { break-inside:avoid; }
+}
+
+.legacy-print-footer { margin-top:4mm; border-top:1px solid #aaa; padding-top:2mm; break-inside:avoid; }
+.legacy-print-footer .slip-row { justify-content:flex-end; gap:4mm; font-size:8pt; }

@@ -2105,7 +2105,7 @@ function buildThermalRecord(context) {
     };
     const cashSlip = context.variant === "cash";
     const previousCash = (d.previous_collections || []).reduce((sum,row)=>sum+Number(row.amount||0),0);
-    title = cashSlip ? "Cash received slip" : d.cash_workflow ? "Delivery handover" : "Delivery receipt";
+    title = cashSlip ? "Cash received slip" : "Delivery receipt";
     reference = h.reference || d.reference;
     date = h.dated;
     const sum = (key) => rows.reduce((n, i) => n + Number(i[key] || 0), 0);
@@ -2140,7 +2140,9 @@ function buildThermalRecord(context) {
                 slipMoney("Bilty cash", i.bilty_received) +
                 slipMoney("Services cash", i.service_received)
               : slipMoney("Loading", i.loading) +
-                slipMoney("Suzuki kiraya", i.suzuki)),
+                slipMoney("Suzuki kiraya", i.suzuki)) +
+            slipMoney("Previous Balance", i.previous_balance) +
+            slipMoney("Total Receivable", i.total_receivable, true),
         );
       })
       .join("");
@@ -2171,7 +2173,6 @@ function buildThermalRecord(context) {
             slipMoney("Suzuki kiraya", sum("suzuki")),
         );
     if(cashSlip&&previousCash)content+=slipSection('Previous balance collections',(d.previous_collections||[]).map(row=>slipMoney(row.reference,row.amount)).join(''));
-    if(d.cash_summary)content+=slipSection('Cash receiving',slipText('Cash status',cashStatus(d.cash_summary.status))+slipMoney('Amount due',d.cash_summary.due)+slipMoney('Cash received',d.cash_summary.received)+slipMoney('Customer balance',d.cash_summary.outstanding,true)+slipMoney('Customer credit',d.cash_summary.credit));
     if (!rows.length)
       content += slipNote(
         "No printable lines are available for this original receipt.",
@@ -2179,8 +2180,17 @@ function buildThermalRecord(context) {
     content +=
       slipText("Remarks", d.remarks) +
       slipNote(
-        "Goods handover only. This slip does not create an accounting voucher.",
+        "Printed copy of the saved delivery record.",
       );
+    if(['sheet','challan'].includes(context.variant)){
+      title=context.variant==='challan'?'Delivery challan':'Delivery goods sheet';
+      content=slipSection('Received by',slipText('Receiver',h.receiver)+slipText('Received date',h.received_date?fmtdate(h.received_date):'')+slipText('CNIC',h.cnic))+
+        rows.map((row,index)=>slipEntry(`${index+1}. Bilty ${row.bilty||'—'}`,slipText('Station',row.station)+slipText('Customer',row.customer)+slipText('Party to',row.party_to)+slipText('Quantity',row.qty)+slipMoney('Bilty amount',row.bilty_amount)+slipMoney('Godown',row.godown)+slipMoney('Bilty total',originalBiltyTotal(row,'incoming'),true)+slipMoney('Loading',row.loading)+slipMoney('Suzuki',row.suzuki)+slipMoney('Rec B Amt',row.bilty_received)+slipMoney('Rec S Amt',row.service_received)+slipMoney('Previous Balance',row.previous_balance)+slipMoney('Total Receivable',row.total_receivable,true))).join('')+
+        slipSection('Delivery totals',slipText('Quantity',num(sum('qty')))+slipMoney('Bilty amount',sum('bilty_amount'))+slipMoney('Godown',sum('godown'))+slipMoney('Bilty total',totalBilty)+slipMoney('Loading',sum('loading'))+slipMoney('Suzuki',sum('suzuki'))+slipMoney('Rec B Amt',sum('bilty_received'))+slipMoney('Rec S Amt',sum('service_received'))+slipMoney('Cash received',sum('bilty_received')+sum('service_received')+previousCash,true));
+      if(previousCash)content+=slipSection('Previous balance collections',(d.previous_collections||[]).map(row=>slipMoney(row.reference,row.amount)).join(''));
+      content+=slipText('Remarks',d.remarks);
+    }
+    const printBalances=deliveryPrintBalanceTotals(rows);content+=slipSection('Customer receivables',slipMoney('Previous Balance',printBalances.previous_balance)+slipMoney('Total Receivable',printBalances.total_receivable,true))+slipNote('Previous Balance is counted once per customer in totals. Balances are current at printing.');
   } else if (context.kind === "voucher") {
     title =
       { RV: "Receipt voucher", PV: "Payment voucher", JV: "Journal voucher" }[
@@ -2386,7 +2396,33 @@ function printFormat() {
 function printOrientation() {
   try {return localStorage.getItem("apg.print.orientation") === "landscape" ? "landscape" : "portrait";} catch {return "portrait";}
 }
-function buildA4Document(snapshot) {
+// Delivery layouts reconstructed from R153 (sheet/challan), R150 and R157.
+function legacyDeliveryColumns(variant) {
+  const cols=[['Station','station'],['Bilty no.','bilty'],['Customer','customer'],['Party to','party_to'],['Qty','qty']];
+  if(variant==='receipt')return [...cols,['Bilty total','bilty_total'],['Loading','loading'],['Suzuki','suzuki'],['Previous Balance','previous_balance'],['Total Receivable','total_receivable']];
+  return [...cols,['Bilty amount','bilty_amount'],['Godown','godown'],['Bilty total','bilty_total'],['Loading','loading'],['Suzuki','suzuki'],...(variant==='cash'?[['Discount','discount']]:[]),['Rec B Amt','bilty_received'],['Rec S Amt','service_received'],['Previous Balance','previous_balance'],['Total Receivable','total_receivable']];
+}
+function deliveryPrintBalanceTotals(rows){
+ if(rows.some(row=>row.previous_balance==null||row.total_receivable==null))return {previous_balance:null,total_receivable:null};
+ const customers=new Map();let current=0;for(const row of rows){customers.set(row.balance_customer_key||row.account_id||row.customer||row.bilty,Number(row.previous_balance));current+=Number(row.current_bilty_receivable||0);}
+ const previous=[...customers.values()].reduce((total,value)=>total+value,0);return {previous_balance:previous,total_receivable:current+previous};
+}
+function legacyDeliveryRow(row){return {...row,bilty_total:Number(row.bilty_amount||0)+Number(row.godown||0)};}
+function buildLegacyDeliveryA4(context,orientation) {
+  const d=context.data,h=d.print_header||d,variant=context.variant||'receipt',rows=(d.print_items??d.items??[]).map(legacyDeliveryRow),cols=legacyDeliveryColumns(variant);
+  const title={sheet:'Delivery goods sheet',challan:'Delivery challan',receipt:'Delivery receipt',cash:'Delivery cash summary'}[variant]||'Delivery receipt';
+  const moneyKeys=new Set(['bilty_amount','godown','bilty_total','loading','suzuki','discount','bilty_received','service_received','previous_balance','total_receivable']);
+  const balanceTotals=deliveryPrintBalanceTotals(rows);
+  const sum=key=>key in balanceTotals?balanceTotals[key]:rows.reduce((total,row)=>total+Number(row[key]||0),0),value=(row,key)=>moneyKeys.has(key)?(key in balanceTotals&&row[key]==null?'—':num(Number(row[key]||0)/100)):key==='qty'?num(row[key]):esc(row[key]||'—');
+  function table(columns){const firstAmount=columns.findIndex(([,key])=>moneyKeys.has(key)||key==='qty');return `<table class="a4-table legacy-delivery-table"><thead><tr><th>#</th>${columns.map(([label,key])=>`<th class="${moneyKeys.has(key)||key==='qty'?'legacy-money':''}">${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows.map((row,index)=>`<tr><td>${index+1}</td>${columns.map(([,key])=>`<td class="${moneyKeys.has(key)||key==='qty'?'legacy-money':''}">${value(row,key)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><th colspan="${firstAmount+1}">Total</th>${columns.slice(firstAmount).map(([,key])=>`<td class="${moneyKeys.has(key)||key==='qty'?'legacy-money':''}">${moneyKeys.has(key)?(sum(key)==null?'—':num(sum(key)/100)):key==='qty'?num(sum(key)):''}</td>`).join('')}</tr></tfoot></table>`;}
+  // The original R153 is landscape. Portrait keeps financial columns in linked tables.
+  let tables;if(orientation==='portrait'&&cols.length>9){const identity=cols.slice(0,5),charges=cols.slice(5,8),rest=cols.slice(8);tables=table([...identity,...charges]);for(let start=0;start<rest.length;start+=6)tables+=table([['Bilty no.','bilty'],['Customer','customer'],...rest.slice(start,start+6)]);}else tables=table(cols);
+  const previous=d.previous_collections||[],previousCash=previous.reduce((total,row)=>total+Number(row.amount||0),0);
+  const cashSummary=variant!=='receipt'?`<section class="legacy-print-summary">${slipMoney('Total bilty cash received',sum('bilty_received'))}${slipMoney('Loading / Suzuki cash received',sum('service_received'))}${previousCash?slipMoney('Previous balance cash',previousCash):''}${slipMoney('Total cash collected',sum('bilty_received')+sum('service_received')+previousCash,true)}${variant==='cash'?slipMoney('Discounts',sum('discount')):''}</section>`:'';
+  return `<article class="a4-document legacy-delivery-document" data-legacy-report="${variant==='receipt'?'R150':variant==='cash'?'R157':'R153'}"><header class="legacy-print-header"><div><h1>AZAD PAKISTAN GOODS</h1><p>Bannu Road, D. I. Khan</p><h2>${esc(title)}</h2></div><div><b>${esc(h.reference||d.reference)}</b><p>${esc(fmtdate(h.dated||d.dated))}</p><small>Amounts in Rs</small></div></header><section class="legacy-print-parties">${slipText('Receiver',h.receiver||d.receiver)}${slipText('Receipt date',h.received_date?fmtdate(h.received_date):'')}${slipText('Mobile',h.mobile||d.mobile)}${slipText('CNIC',h.cnic||d.cnic)}</section>${tables}<p class="slip-note">Previous Balance is counted once per customer in totals. Balances are current at printing.</p>${cashSummary}${variant!=='receipt'&&previous.length?`<section class="legacy-print-previous"><h3>Previous balance collections</h3>${previous.map(row=>slipMoney(row.reference,row.amount)).join('')}</section>`:''}${d.remarks?slipText('Remarks',d.remarks):''}<section class="legacy-print-signatures"><span>Prepared by: ${esc(displayName())}</span><span>Receiver signature: __________________</span></section><footer class="legacy-print-footer">${slipText('Printed on',new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',dateStyle:'medium',timeStyle:'short'}).format(new Date())+' PKT')}</footer></article>`;
+}
+function buildA4Document(snapshot,orientation=printOrientation()) {
+  if(snapshot.context?.kind === "delivery") return buildLegacyDeliveryA4(snapshot.context,orientation);
   const source = document.createElement("div");
   source.innerHTML = snapshot.html;
   const slip = source.querySelector(".thermal-slip");
@@ -2424,7 +2460,7 @@ function refreshPrintLayout() {
   const format = $("#print-preview").open ? $("#print-format")?.value || printFormat() : printFormat();
   const orientation = $("#print-preview").open ? $("#print-orientation")?.value || printOrientation() : printOrientation();
   const paperWidth = orientation === "landscape" ? 297 : 210;
-  const html = format === "a4" ? buildA4Document(thermalSnapshot) : thermalSnapshot.html;
+  const html = format === "a4" ? buildA4Document(thermalSnapshot,orientation) : thermalSnapshot.html;
   const sheet = $("#thermal-preview-sheet");
   const root = $("#thermal-print");
   if (sheet) { sheet.dataset.format = format; sheet.dataset.orientation = orientation; sheet.innerHTML = html;
@@ -2502,10 +2538,11 @@ function openThermalPreview(source) {
   const context = visiblePrintContext(source);
   thermalSnapshot = buildThermalRecord(context);
   const dialog = $("#print-preview");
-  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">PRINT OPTIONS</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="print-format">Printer / paper type<select id="print-format"><option value="thermal">Thermal printer · Narrow slip</option><option value="a4">Normal printer · A4</option></select></label></div><div class="thermal-toolbar"><label for="print-orientation">Page orientation<select id="print-orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Report values<select id="thermal-values"><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
+  dialog.innerHTML = `<div class="modal-head"><div><span class="section-kicker">PRINT OPTIONS</span><h2 id="thermal-preview-title">Thermal print preview</h2><p>${esc(thermalSnapshot.title)} · Narrow slip layout</p></div><button class="icon-btn" data-action="thermal-close" aria-label="Close print preview">${icon("close")}</button></div><div class="thermal-toolbar"><label for="print-format">Printer / paper type<select id="print-format"><option value="thermal">Thermal printer · Narrow slip</option><option value="a4">Normal printer · A4</option></select></label></div><div class="thermal-toolbar"><label for="print-orientation">Page orientation<select id="print-orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label></div><div class="thermal-toolbar"><label for="thermal-width">Paper width<select id="thermal-width"><option value="80">80 mm · Standard roll</option><option value="58">58 mm · Small roll</option></select></label><span id="thermal-width-note"></span></div>${context.kind === "delivery" ? '<div class="thermal-toolbar thermal-values-toolbar"><label for="thermal-values">Document type<select id="thermal-values"><option value="sheet">Delivery sheet</option><option value="challan">Delivery challan</option><option value="receipt">Receipt slip · charges</option><option value="cash">Cash summary · received</option></select></label></div>' : ""}<p class="thermal-print-help">In the printer dialog, select the same paper width, use 100% scale, no margins, and turn off browser headers and footers. Long records continue onto additional slip pages.</p><div class="thermal-preview-stage"><div id="thermal-preview-sheet">${thermalSnapshot.html}</div></div><div class="modal-footer"><button class="btn" data-action="thermal-close">Back to record</button><button class="btn primary" data-action="thermal-confirm">${icon("print")}Print slip</button></div>`;
   $("#thermal-width").value = thermalWidth();
   $("#print-format").value = printFormat();
   $("#print-orientation").value = printOrientation();
+  if(context.kind === "delivery") {$("#thermal-values").value = context.variant || "receipt";if(["sheet","challan"].includes(context.variant))$("#print-orientation").value="landscape";}
   if (!dialog.open) dialog.showModal();
   updateThermalPage();
 }
@@ -2530,6 +2567,7 @@ document.addEventListener("change", (e) => {
     updateThermalPage();
   }
   if (e.target.id === "thermal-values") {
+    if(["sheet","challan"].includes(e.target.value)) $("#print-orientation").value="landscape";
     thermalSnapshot = buildThermalRecord({
       ...thermalSnapshot.context,
       variant: e.target.value,

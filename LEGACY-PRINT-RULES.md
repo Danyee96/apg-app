@@ -39,7 +39,7 @@ For imported deliveries the API now supplies a read-only `print_header` and `pri
 
 The initial working database has 123,034 imported incoming items and 7,083 booking items with a zero stored total despite nonzero charge fields. Among 123,457 linked original delivery lines, delivery loading differs from the linked arrival in 25,809 rows and Suzuki differs in 61,727 rows. Reading the incoming item alone therefore cannot reproduce the original delivery slip values.
 
-The old receipt queries display `WORKING.UTITLE`, using the original Urdu font encoding. The new slip retains readable account names from `WTITLE` and a separate party-to value; old-font Urdu rendering is a separate conversion issue. Monetary source values checked in the recovered goods tables are whole rupees; the app represents them as integer paisa and formats two decimal places.
+The old receipt queries display `WORKING.UTITLE`, using the original Urdu font encoding. The new slip retains readable account names from `WTITLE` and a separate party-to value; old-font Urdu rendering is a separate conversion issue. Monetary source values checked in the recovered goods tables are whole rupees; the app represents them as integer paisa and shows whole rupees without trailing .00 while retaining actual paisa values.
 
 `tests/legacy_print.py` compares historical receipt output fields with independent queries over the recovered source rows, including receipts where arrival/delivery charges differ and receipts with discounts. Thermal browser/PDF tests additionally check both slip variants and paper widths. Physical printer output remains dependent on the configured device and driver.
 
@@ -52,3 +52,18 @@ The old receipt queries display `WORKING.UTITLE`, using the original Urdu font e
 - `Reports/R156.rep`: `2229a5d690d29fa86971e745211411036f5e5052f09bdba92f1da52e193e9d64`
 
 Original binaries, screenshots, customer records and credentials remain outside the public repository.
+
+## Reconstructed delivery layouts (8 November 2026)
+
+Source review now includes `PTech/Reports/R153.rep` and `Forms/F002.fmx` in the private APG Old folder. The form binds both Print Sheet and D.Challan to R153. Its embedded field bindings identify STATION.STNAME, delivery IND billty/customer/party/quantity, BILLTY_AMT, GODOWN_CHG, CF_TOTAL, LOADING_AMT, SUZUKI_KIRAYA, REC_BAMT and REC_SAMT. CF_TOTALFORMULA is bilty amount plus godown. Its report settings specify Landscape. R153 does not expose a discount column; discounts remain separate in the R157 cash-summary variant.
+
+Normal-paper delivery previews now render a dedicated compact table using those columns, with receiver/document details, totals and signature space. Sheet/challan default to landscape; explicit portrait uses two linked tables to retain readable values. R150 receipt and R157 cash-summary variants remain available, as do 58/80mm thermal layouts. The old header source `Icons/Off001.txt` identifies Bannu Road, D.I.Khan. The source API now reads station from the delivery's original STID rather than guessing from the incoming row. New-app previous-balance collections remain an explicitly separate section and are included in collected-cash totals.
+
+These layouts reconstruct the original report structure and calculations; compiled report files do not establish a pixel-identical browser rendering. No unreadable legacy Urdu font encoding is substituted for readable account names.
+
+Additional evidence: R153.rep SHA-256 `63970f9e02f59e3c22e9ebf372ef9b2a2418beb6dd68d07f15dc0feca2a1fe18`.
+Validation: `tests/legacy_delivery_layout.py` checks source values/column order, all four variants, portrait/landscape, multipage PDFs and both thermal widths. No physical print jobs are submitted.
+
+## Current receivables added to delivery prints
+
+At the user's request, all delivery print variants now append Previous Balance and Total Receivable. These are new-app operational columns, not reconstructed Oracle fields. Previous Balance is the customer's positive unpaid bilty debt from other delivery documents, excluding this entire document and service accounts. Total Receivable adds this bilty's remaining amount after saved advances/discounts/receipts. Values reflect the moment the print record is loaded, not a historical balance as of the original document date. Footer totals include previous debt once per customer; repeated customer rows do not multiply it. Existing permissions for reading prior balances remain enforced. Both ordinary and original-source print rows receive the same read-only figures. These additions do not change charges, receipts or ledgers.

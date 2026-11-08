@@ -5277,5 +5277,15 @@ window.APG_TRANSLATIONS = {
   "Customer balances changed. Refresh balances and try again.": ["گاہک کے بقایا میں تبدیلی ہوئی ہے۔ بقایا تازہ کریں اور دوبارہ کوشش کریں۔", "Gahak ke baqaya mein tabdeeli hui hai. Baqaya taza karein aur dobara koshish karein."],
   "Previous balance cash": ["پچھلے بقایا کی نقد وصولی", "Pichlay baqaya ki naqad wasooli"],
   "Previous balance collections": ["پچھلے بقایا کی وصولیاں", "Pichlay baqaya ki wasooliyan"],
-  "Current bilty + previous balance": ["موجودہ بلٹی کا بقایا + پچھلا بقایا", "Maujooda bilty ka baqaya + pichla baqaya"]
+  "Current bilty + previous balance": ["موجودہ بلٹی کا بقایا + پچھلا بقایا", "Maujooda bilty ka baqaya + pichla baqaya"],
+  "Delivery sheet": ["ڈیلیوری شیٹ", "Delivery sheet"],
+  "Delivery goods sheet": ["ڈیلیوری کی تفصیلی شیٹ", "Delivery ki tafseeli sheet"],
+  "Delivery challan": ["ڈیلیوری چالان", "Delivery challan"],
+  "Delivery receipt": ["ڈیلیوری رسید", "Delivery raseed"],
+  "Delivery cash summary": ["ڈیلیوری وصولیوں کا خلاصہ", "Delivery wasooliyon ka khulasa"],
+  "Bilty no.": ["بلٹی نمبر", "Bilty number"],
+  "Receiver signature: __________________": ["وصول کنندہ کے دستخط: __________________", "Wasool karne walay ke dastakhat: __________________"],
+  "Printed copy of the saved delivery record.": ["محفوظ شدہ ڈیلیوری ریکارڈ کی مطبوعہ نقل۔", "Save shuda delivery record ki matboo naqal."],
+  "Customer receivables": ["گاہک سے قابل وصول رقم", "Gahak se qabil e wasool raqam"],
+  "Previous Balance is counted once per customer in totals. Balances are current at printing.": ["مجموعے میں ہر گاہک کا پچھلا بقایا ایک ہی بار شامل ہے۔ یہ بقایا پرنٹ کے وقت کا ہے۔", "Majmooe mein har gahak ka pichla baqaya aik hi baar shamil hai. Yeh baqaya print ke waqt ka hai."]
 };

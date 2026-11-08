@@ -224,3 +224,12 @@ function unified_collect_previous(array $p,array $invoice,array $items,array $us
  }
  return ['items'=>$items,'previous_collected'=>$previousTotal,'previous_receipts'=>$receipts];
 }
+
+// Read-only print figures: current customer debt, not historical/as-of balances.
+function delivery_print_balances(int $id,array $user): array {
+ $lines=query('SELECT l.*,di.legacy_id print_source_id FROM delivery_unified_lines l JOIN delivery_items di ON di.id=l.delivery_item_id WHERE l.delivery_id=? ORDER BY l.delivery_item_id',[$id]);
+ $canRead=can_access($user,'deliveries.create')||can_access($user,'deliveries.edit');$accounts=array_values(array_unique(array_filter(array_column($lines,'account_id'))));$previous=[];
+ if($canRead&&$accounts)foreach(delivery_customer_debts($accounts,$id) as $debt)$previous[$debt['account_id']]=($previous[$debt['account_id']]??0)+(int)$debt['balance'];
+ $items=[];$source=[];foreach($lines as $line){$prior=$canRead?(int)($previous[$line['account_id']]??0):null;$current=max(0,(int)$line['bilty_due']-(int)$line['bilty_received']);$figures=['balance_customer_key'=>$line['account_id'],'previous_balance'=>$prior,'current_bilty_receivable'=>$current,'total_receivable'=>$prior===null?null:$current+$prior];$items[$line['item_id']]=$figures;if($line['print_source_id']!==null)$source[$line['print_source_id']]=$figures;}
+ return ['items'=>$items,'source'=>$source];
+}

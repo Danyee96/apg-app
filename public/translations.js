@@ -2052,7 +2052,7 @@ window.APG_TRANSLATIONS = {
     "الگ دکھائے گئے ہیں۔ یہ چارجز کا حساب ہے، نقد وصولی نہیں۔",
     "Alag dikhaye gaye hain. Yeh charges ka hisaab hai, naqad wasooli nahin."
   ],
-  "Charge summaries are restricted for Operations.": [
+  "Charge summaries are restricted for Munshi.": [
     "آپریشنز کے لیے چارجز کا خلاصہ دستیاب نہیں۔",
     "Operations ke liye charges ka khulasa dastiyab nahin."
   ],
@@ -3828,7 +3828,7 @@ window.APG_TRANSLATIONS = {
     "پہلے سے موجود صارف کا نام نہیں بدلا جا سکتا۔",
     "Pehle se mojood sarif ka naam nahin badla ja sakta."
   ],
-  "Financial totals are restricted for Operations.": [
+  "Financial totals are restricted for Munshi.": [
     "آپریشنز کو مالی مجموعے دیکھنے کی اجازت نہیں۔",
     "Operations ko maali majmooe dekhnay ki ijazat nahin."
   ],
@@ -3904,7 +3904,7 @@ window.APG_TRANSLATIONS = {
     "آپریشنز صرف نئی آمد منظوری کے لیے بھیج سکتا ہے۔",
     "Operations sirf nayi aamad manzoori ke liye bhej sakta hai."
   ],
-  "Operations incoming goods must go through approval.": [
+  "Munshi incoming goods must go through approval.": [
     "آپریشنز کی درج کردہ آمد کی منظوری ضروری ہے۔",
     "Operations ki darj kardah aamad ki manzoori zaroori hai."
   ],
@@ -4284,7 +4284,7 @@ window.APG_TRANSLATIONS = {
     "اصل ریکارڈ محفوظ ہے · بیک اپ",
     "Asal record mehfooz hai · backup"
   ],
-  "Permissions are checked on the server for every request. Operations incoming goods require super admin approval; incoming charge summaries and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.": [
+  "Permissions are checked on the server for every request. Munshi incoming goods require super admin approval; incoming charge summaries and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.": [
     "ہر درخواست پر سرور اختیارات چیک کرتا ہے۔ آپریشنز کی آمد کے لیے سپر ایڈمن کی منظوری ضروری ہے؛ اس کردار کو آمد کے مالی خلاصے اور براہِ راست ترمیم کی اجازت نہیں۔ اکاؤنٹ بند کرنے یا پاس ورڈ بدلنے سے موجودہ سیشن ختم ہو جاتے ہیں۔",
     "Har darkhwast par server ikhtiyarat check karta hai. Operations ki aamad ke liye super admin ki manzoori zaroori hai; is kirdar ko aamad ke maali khulasay aur barah e raast tarmeem ki ijazat nahin. Account band karnay ya password badalnay se mojooda sessions khatam ho jatay hain."
   ],
@@ -4600,7 +4600,7 @@ window.APG_TRANSLATIONS = {
     "حوالگی، بلٹی، پارٹی، وصول کنندہ یا موبائل تلاش کریں…",
     "Hawalgi, bilty, party, wasool kuninda ya mobile talash karein…"
   ],
-  "Permissions are checked on the server for every request. Operations incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.": [
+  "Permissions are checked on the server for every request. Munshi incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.": [
     "ہر درخواست پر سرور اختیارات چیک کرتا ہے۔ آپریشنز کی آمد کے لیے سپر ایڈمن کی منظوری ضروری ہے؛ اس کردار کے لیے آنے والی کھیپ کے گودام چارجز کا مجموعہ اور براہِ راست ترمیم محدود ہیں۔ انفرادی بلٹی اور حوالگی کے چارجز نظر آتے ہیں۔ اکاؤنٹ بند کرنے یا پاس ورڈ بدلنے سے موجودہ سیشن ختم ہو جاتے ہیں۔",
     "Har darkhwast par server ikhtiyarat check karta hai. Operations ki aamad ke liye super admin ki manzoori zaroori hai; is kirdar ke liye aanay wali khep ke godown charges ka majmooa aur barah e raast tarmeem mehdood hain. Infiradi bilty aur hawalgi ke charges nazar aatay hain. Account band karnay ya password badalnay se mojooda sessions khatam ho jatay hain."
   ],
@@ -4964,9 +4964,9 @@ window.APG_TRANSLATIONS = {
     "منظوری کی منتظر نقد وصولی",
     "Manzoori ki muntazir naqad wasooli"
   ],
-  "Review operator cash collections before posting customer and cash balances.": [
-    "گاہکوں اور کیش کے کھاتوں میں اندراج سے پہلے آپریٹر کی وصولیوں کا جائزہ لیں۔",
-    "Gahakon aur cash ke khaton mein indraj se pehle operator ki wasooliyon ka jaiza lein."
+  "Review munshi cash collections before posting customer and cash balances.": [
+    "گاہکوں اور کیش کے کھاتوں میں اندراج سے پہلے منشی کی وصولیوں کا جائزہ لیں۔",
+    "Gahakon aur cash ke khaton mein indraj se pehle munshi ki wasooliyon ka jaiza lein."
   ],
   "Your cash submissions stay here until admin approval.": [
     "آپ کی بھیجی گئی وصولیاں ایڈمن کی منظوری تک یہاں رہیں گی۔",
@@ -5141,7 +5141,7 @@ window.APG_TRANSLATIONS = {
   "Bilty + godown + loading + Suzuki − advance − discount": ["بلٹی + گودام + لوڈنگ + سوزوکی − پیشگی − رعایت", "Bilty + godown + loading + Suzuki − advance − riayat"],
   "Amount due at cash receiving. Cash is entered in the next step for walk-in deliveries.": ["یہ رقم نقد وصولی کے وقت واجب الادا ہوگی۔ فوری ڈیلیوری کی رقم اگلے مرحلے میں درج کریں۔", "Yeh raqam naqad wasooli ke waqt wajib ul ada hogi. Walk-in delivery ki raqam aglay marhalay mein darj karein."],
   "Fetch and add the entered bilty before saving, or clear its number.": ["محفوظ کرنے سے پہلے درج کردہ بلٹی تلاش کرکے شامل کریں، یا اس کا نمبر مٹا دیں۔", "Save karne se pehle darj karda bilty talash karke shamil karein, ya iska number mita dein."],
-  "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving. Operator cash collections require admin approval. Any unpaid amount stays against the bilty\u2019s customer.": ["یہاں سامان کی حوالگی محفوظ کریں۔ نقد رقم ڈیلیوری کی نقد وصولی میں الگ درج کریں۔ آپریٹر کی وصول کردہ رقم ایڈمن کی منظوری کے بعد کھاتوں میں آئے گی۔ بقایا رقم بلٹی کے گاہک کے نام رہے گی۔", "Yahan samaan ki hawalgi save karein. Naqad raqam Delivery Cash Receiving mein alag darj karein. Operator ki wasool karda raqam admin ki manzoori ke baad khaton mein aayegi. Baqaya raqam bilty ke gahak ke naam rahegi."],
+  "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving. Munshi cash collections require admin approval. Any unpaid amount stays against the bilty\u2019s customer.": ["یہاں سامان کی حوالگی محفوظ کریں۔ نقد رقم ڈیلیوری کی نقد وصولی میں الگ درج کریں۔ منشی کی وصول کردہ رقم ایڈمن کی منظوری کے بعد کھاتوں میں آئے گی۔ بقایا رقم بلٹی کے گاہک کے نام رہے گی۔", "Yahan samaan ki hawalgi save karein. Naqad raqam Delivery Cash Receiving mein alag darj karein. Munshi ki wasool karda raqam admin ki manzoori ke baad khaton mein aayegi. Baqaya raqam bilty ke gahak ke naam rahegi."],
   "Total bilty cash received": ["بلٹیوں کی کل وصول شدہ نقد رقم", "Biltyon ki kul wasool shuda naqad raqam"],
   "Loading / Suzuki cash received": ["لوڈنگ / سوزوکی کی وصول شدہ نقد رقم", "Loading / Suzuki ki wasool shuda naqad raqam"],
   "Bilty cash receiving now": ["اب وصول ہونے والی بلٹی کی رقم", "Ab wasool honay wali bilty ki raqam"],
@@ -5287,5 +5287,76 @@ window.APG_TRANSLATIONS = {
   "Receiver signature: __________________": ["وصول کنندہ کے دستخط: __________________", "Wasool karne walay ke dastakhat: __________________"],
   "Printed copy of the saved delivery record.": ["محفوظ شدہ ڈیلیوری ریکارڈ کی مطبوعہ نقل۔", "Save shuda delivery record ki matboo naqal."],
   "Customer receivables": ["گاہک سے قابل وصول رقم", "Gahak se qabil e wasool raqam"],
-  "Previous Balance is counted once per customer in totals. Balances are current at printing.": ["مجموعے میں ہر گاہک کا پچھلا بقایا ایک ہی بار شامل ہے۔ یہ بقایا پرنٹ کے وقت کا ہے۔", "Majmooe mein har gahak ka pichla baqaya aik hi baar shamil hai. Yeh baqaya print ke waqt ka hai."]
+  "Previous Balance is counted once per customer in totals. Balances are current at printing.": ["مجموعے میں ہر گاہک کا پچھلا بقایا ایک ہی بار شامل ہے۔ یہ بقایا پرنٹ کے وقت کا ہے۔", "Majmooe mein har gahak ka pichla baqaya aik hi baar shamil hai. Yeh baqaya print ke waqt ka hai."],
+  "Entries": ["اندراجات", "Indrajaat"],
+  "Receive from Munshi": ["منشی سے وصول کریں", "Munshi se wasool karein"],
+  "Other cash received": ["دیگر نقد وصولی", "Doosri naqad wasooli"],
+  "You got · Other cash received": ["آپ نے وصول کیا · دیگر نقد وصولی", "Aap ne wasool kiya · Doosri naqad wasooli"],
+  "Received from / details": ["کس سے وصول کیا / تفصیل", "Kis se wasool kiya / tafseel"],
+  "Save cash received": ["نقد وصولی محفوظ کریں", "Naqad wasooli save karein"],
+  "Cash received recorded.": ["نقد وصولی درج ہوگئی۔", "Naqad wasooli darj ho gayi."],
+  "Delivery collection": ["ڈیلیوری کی وصولی", "Delivery ki wasooli"],
+  "You got · Cash received": ["آپ نے وصول کیا · نقد وصولی", "Aap ne wasool kiya · Naqad wasooli"],
+  "Daily expense": ["روزمرہ اخراجات", "Rozmarra akhrajaat"],
+  "Delivery collections and expenses stay here until the balance is cleared.": ["حساب بند ہونے تک ڈیلیوری کی وصولیاں اور اخراجات یہاں جمع رہتے ہیں۔", "Hisaab band honay tak delivery ki wasooliyan aur akhrajaat yahan jama rehtay hain."],
+  "Delivery collections, expenses and munshi receivables until cleared.": ["ڈیلیوری وصولیاں، اخراجات اور منشی کے بقایا کا حساب۔", "Delivery wasooliyan, akhrajaat aur munshi ke baqaya ka hisaab."],
+  "Munshi": ["منشی", "Munshi"],
+  "Munshi cash ledger": ["منشی کا نقد حساب", "Munshi ka naqad hisaab"],
+  "Receivable from munshi": ["منشی سے وصول طلب رقم", "Munshi se wasool talab raqam"],
+  "Company owes munshi": ["منشی کو واجب الادا رقم", "Munshi ko wajib ul ada raqam"],
+  "Current period": ["موجودہ حساب", "Maujooda hisaab"],
+  "Cleared period": ["بند شدہ حساب", "Band shuda hisaab"],
+  "Balance at clearance": ["حساب بند کرتے وقت بقایا", "Hisaab band karte waqt baqaya"],
+  "Period opened:": ["حساب شروع ہوا:", "Hisaab shuru hua:"],
+  "A new period starts with the next entry.": ["اگلی اندراج سے نیا حساب شروع ہوگا۔", "Agli entry se naya hisaab shuru hoga."],
+  "Delivery collections": ["ڈیلیوری کی وصولیاں", "Delivery ki wasooliyan"],
+  "Expenses": ["اخراجات", "Akhrajaat"],
+  "Total receivable from munshis": ["منشیوں سے کل وصول طلب رقم", "Munshis se kul wasool talab raqam"],
+  "This balance carries forward until super admin clears it.": ["سپر ایڈمن کے حساب بند کرنے تک یہ بقایا آگے منتقل ہوتا رہے گا۔", "Super admin ke hisaab band karne tak yeh baqaya aagay muntaqil hota rahay ga."],
+  "Current ledger": ["موجودہ کھاتہ", "Maujooda khata"],
+  "Period details": ["حساب کی تفصیل", "Hisaab ki tafseel"],
+  "Cleared history": ["بند شدہ حسابات", "Band shuda hisaabaat"],
+  "Cleared by:": ["حساب بند کیا:", "Hisaab band kiya:"],
+  "Settled with munshi": ["منشی کو ادائیگی کردی گئی", "Munshi ko adaigi kar di gayi"],
+  "Received by admin": ["ایڈمن نے وصول کیا", "Admin ne wasool kiya"],
+  "View ledger": ["کھاتہ دیکھیں", "Khata dekhein"],
+  "No cleared periods yet.": ["ابھی کوئی حساب بند نہیں ہوا۔", "Abhi koi hisaab band nahin hua."],
+  "Search entries…": ["اندراجات تلاش کریں…", "Entries talash karein…"],
+  "Entry type": ["اندراج کی قسم", "Entry ki qism"],
+  "All entries": ["تمام اندراجات", "Tamam entries"],
+  "You got · Deliveries": ["وصولیاں · ڈیلیوری", "Wasooliyan · Delivery"],
+  "You gave · Expenses": ["ادائیگیاں · اخراجات", "Adaigiyan · Akhrajaat"],
+  "Balance covers the entire period. Date filters only change the entries shown.": ["بقایا پورے حساب کا ہے۔ تاریخ کے فلٹر صرف دکھائے جانے والے اندراجات بدلتے ہیں۔", "Baqaya pooray hisaab ka hai. Tareekh ke filters sirf dikhaye janay wali entries badalte hain."],
+  "Balance after entry:": ["اندراج کے بعد بقایا:", "Entry ke baad baqaya:"],
+  "You gave": ["آپ نے خرچ کیا", "Aap ne kharch kiya"],
+  "You got": ["آپ نے وصول کیا", "Aap ne wasool kiya"],
+  "Add expense": ["خرچہ درج کریں", "Kharcha darj karein"],
+  "From delivery collections": ["ڈیلیوری کی وصولیوں سے", "Delivery ki wasooliyon se"],
+  "No entries in this selection. Delivery collections appear automatically.": ["اس انتخاب میں کوئی اندراج نہیں۔ ڈیلیوری کی وصولیاں خود شامل ہوں گی۔", "Is intikhab mein koi entry nahin. Delivery ki wasooliyan khud shamil hongi."],
+  "You gave · Add expense": ["خرچہ درج کریں", "Kharcha darj karein"],
+  "Saved expenses cannot be edited.": ["محفوظ شدہ اخراجات میں تبدیلی نہیں کی جاسکتی۔", "Save shuda akhrajaat mein tabdeeli nahin ki ja sakti."],
+  "Expense details": ["خرچے کی تفصیل", "Kharchay ki tafseel"],
+  "Expense date": ["خرچے کی تاریخ", "Kharchay ki tareekh"],
+  "Paid from": ["ادائیگی کا کھاتہ", "Adaigi ka khata"],
+  "Expense account": ["اخراجات کا کھاتہ", "Akhrajaat ka khata"],
+  "Save expense": ["خرچہ محفوظ کریں", "Kharcha save karein"],
+  "Clear receivable": ["بقایا وصول کرکے حساب بند کریں", "Baqaya wasool karke hisaab band karein"],
+  "Clear balance": ["حساب بند کریں", "Hisaab band karein"],
+  "Amount settled with munshi": ["منشی کو ادا کی گئی رقم", "Munshi ko ada ki gayi raqam"],
+  "Amount received from munshi": ["منشی سے وصول شدہ رقم", "Munshi se wasool shuda raqam"],
+  "Confirm the cash has been settled and expenses reviewed. This closes the period and keeps every entry in history.": ["تصدیق کریں کہ نقد حساب پورا ہوچکا ہے اور اخراجات دیکھ لیے ہیں۔ حساب بند ہوگا، تمام اندراجات تاریخ میں محفوظ رہیں گے۔", "Tasdeeq karein ke naqad hisaab poora ho chuka hai aur akhrajaat dekh liye hain. Hisaab band hoga, tamam entries tareekh mein mehfooz rahengi."],
+  "Clearance notes": ["حساب بند کرنے کی تفصیل", "Hisaab band karne ki tafseel"],
+  "Confirm clearance": ["حساب بند کرنے کی تصدیق کریں", "Hisaab band karne ki tasdeeq karein"],
+  "Read-only entry": ["محفوظ اندراج · صرف دیکھنے کے لیے", "Mehfooz entry · Sirf dekhnay ke liye"],
+  "Entry date": ["اندراج کی تاریخ", "Entry ki tareekh"],
+  "Recorded at": ["درج کرنے کا وقت", "Darj karne ka waqt"],
+  "Recorded by": ["درج کیا", "Darj kiya"],
+  "Expense recorded.": ["خرچہ درج ہوگیا۔", "Kharcha darj ho gaya."],
+  "Receivable cleared.": ["بقایا کا حساب بند ہوگیا۔", "Baqaya ka hisaab band ho gaya."],
+  "Expenses exceed collections. The munshi is owed the difference.": ["اخراجات وصولیوں سے زیادہ ہیں۔ اضافی رقم منشی کو واجب الادا ہے۔", "Akhrajaat wasooliyon se zyada hain. Izafi raqam munshi ko wajib ul ada hai."],
+  "The ledger period changed. Refresh before adding the expense.": ["حساب بدل چکا ہے۔ خرچہ درج کرنے سے پہلے صفحہ تازہ کریں۔", "Hisaab badal chuka hai. Kharcha darj karne se pehle safha taza karein."],
+  "New entries changed this receivable. Refresh and review before clearing.": ["نئے اندراجات سے بقایا بدل گیا ہے۔ حساب بند کرنے سے پہلے تازہ تفصیل دیکھیں۔", "Nayi entries se baqaya badal gaya hai. Hisaab band karne se pehle taza tafseel dekhein."],
+  "Saved ledger entries cannot be edited.": ["محفوظ کھاتے کے اندراجات میں تبدیلی نہیں ہوسکتی۔", "Mehfooz khatay ki entries mein tabdeeli nahin ho sakti."],
+  "Incoming cash is recorded automatically from deliveries.": ["وصولیاں ڈیلیوری سے خود بخود درج ہوتی ہیں۔", "Wasooliyan delivery se khud ba khud darj hoti hain."],
+  "No munshis yet. Add a munshi in Users & permissions.": ["ابھی کوئی منشی نہیں۔ صارفین اور اختیارات میں منشی بنائیں۔", "Abhi koi munshi nahin. Users aur permissions mein munshi banayein."]
 };

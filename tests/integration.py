@@ -96,6 +96,12 @@ def main(checker=check):
         original.close()
         password=secrets.token_urlsafe(24)
         hashed=subprocess.run(['php','-r','echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);'],input=password,text=True,capture_output=True,check=True).stdout
+        # Reset user-owned custody fixtures before replacing test identities.
+        if target.execute("SELECT 1 FROM sqlite_master WHERE name='operator_cash_entries'").fetchone():
+            target.execute('DROP TRIGGER IF EXISTS operator_cash_immutable_delete')
+            target.execute('DELETE FROM operator_cash_entries')
+            target.execute('DELETE FROM operator_cash_periods')
+            target.execute("CREATE TRIGGER operator_cash_immutable_delete BEFORE DELETE ON operator_cash_entries BEGIN SELECT RAISE(ABORT,'Operator cash entries cannot be deleted.'); END")
         target.execute('DELETE FROM users')
         target.execute("DELETE FROM meta WHERE key='user_access_version'")
         target.execute('INSERT INTO users(username,password) VALUES(?,?)',('integration-review',hashed))

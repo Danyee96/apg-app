@@ -9,37 +9,20 @@ const esc = (v) =>
         c
       ],
   );
-const num = (v) => Number(v || 0).toLocaleString("en-PK");
-const cash = (v) => v == null ? "—" :
-  "Rs " +
-  (Number(v || 0) / 100).toLocaleString("en-PK", {
-    minimumFractionDigits: Number(v || 0) % 100 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  });
+// Reuse locale formatters across the many cells in goods and finance tables.
+const numberFormatter = new Intl.NumberFormat("en-PK"),
+  rupeeFormatter = new Intl.NumberFormat("en-PK", {maximumFractionDigits:2}),
+  paisaFormatter = new Intl.NumberFormat("en-PK", {minimumFractionDigits:2,maximumFractionDigits:2}),
+  dateFormatter = new Intl.DateTimeFormat("en-GB", {day:"2-digit",month:"short",year:"numeric"}),
+  timeFormatter = new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Karachi",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}),
+  todayFormatter = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Karachi",year:"numeric",month:"2-digit",day:"2-digit"});
+const num = v => numberFormatter.format(Number(v || 0));
+const cash = v => v == null ? "—" : "Rs " + (Number(v || 0)%100===0?rupeeFormatter:paisaFormatter).format(Number(v || 0)/100);
 const amount = (v) => (Number(v || 0) / 100).toFixed(2).replace(/\.00$/, "");
-const fmtdate = (v) =>
-  v
-    ? new Date(v.slice(0, 10) + "T12:00:00").toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "—";
-const fmttime = (v) =>
-  new Date(v.replace(" ", "T") + "Z").toLocaleString("en-GB", {
-    timeZone: "Asia/Karachi",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-const today = () =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Karachi",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+const formattedDate = (formatter,date) => Number.isNaN(date.getTime()) ? "Invalid Date" : formatter.format(date);
+const fmtdate = v => v ? formattedDate(dateFormatter,new Date(v.slice(0,10)+"T12:00:00")) : "—";
+const fmttime = v => formattedDate(timeFormatter,new Date(v.replace(" ","T")+"Z"));
+const today = () => todayFormatter.format(new Date());
 const paths = {
   grid: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   incoming: "M12 3v12 m-4-4 4 4 4-4 M4 16v5h16v-5",
@@ -163,7 +146,7 @@ const roleLabel = (role) =>
     super_admin: "Super admin",
     manager: "Manager",
     accountant: "Accountant",
-    operations: "Operations",
+    operations: "Munshi",
     viewer: "Viewer",
     custom: "Custom",
   })[role] || role;
@@ -186,6 +169,7 @@ function canView(view) {
     backups: "backups.create",
     archive: "archive.view",
   };
+  if (view === "daily-expense") return isSuper() || isOperations();
   if (view === "delivery-cash" || view === "pending-cash") return isSuper() || (isOperations() && can('deliveries.create'));
   if (view === "goods-categories") return isSuper();
   if (view === "goods-analytics") return can("incoming.view");
@@ -312,6 +296,7 @@ function navigationHub() {
     reports: "Open goods registers, directories and account views.",
     "financial-reports":
       "Explore account activity, balances and accounting reports.",
+    "daily-expense": "Delivery collections, expenses and munshi receivables until cleared.",
     settings: "Manage stations, backups and workspace activity.",
     backups: "Automatic midnight backups, manual snapshots and restore history.",
     users: "Create staff accounts and set individual permissions.",
@@ -337,7 +322,7 @@ function navigationHub() {
       "finance",
       "Accounts & reporting",
       "Your accounting tools, together.",
-      ["accounts", "reports", "financial-reports"],
+      ["daily-expense", "accounts", "reports", "financial-reports"],
     ],
     [
       "workspace",
@@ -441,6 +426,7 @@ const navs = [
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Delivery goods"],
   ["customers", "users", "Customers"],
+  ["daily-expense", "wallet", "Daily expense"],
   ["accounts", "wallet", "Accounts & vouchers"],
   ["reports", "report", "Reports"],
   ["financial-reports", "wallet", "Financial Reports"],
@@ -480,7 +466,7 @@ function sidebarNavigation() {
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
     link('deliveries')+
     ['booking','goods-analytics','goods-categories','customers'].map(link).join('')+
-    '<div class="nav-label">FINANCE & WORKSPACE</div>'+['accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
+    '<div class="nav-label">FINANCE & WORKSPACE</div>'+['daily-expense','accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
 }
 function shell() {
   document.title = "APG — Goods & accounts";
@@ -606,6 +592,9 @@ async function render() {
         break;
       case "overview":
         html = await overview();
+        break;
+      case "daily-expense":
+        html = await dailyExpensePage();
         break;
       case "customers":
         html = await customers();
@@ -3679,7 +3668,7 @@ async function usersPage() {
       )
       .join(
         "",
-      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Operations incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
+      )}</div><section class="panel">${searchBar("Find a person by name, username or email…")}<div class="table-scroll"><table><thead><tr><th>Person</th><th>Role</th><th>Access</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>${d.rows.map((user) => `<tr><td><div class="person">${avatarMarkup(user)}<div><strong>${esc(user.full_name || user.username)}</strong><small>@${esc(user.username)}${user.email ? " · " + esc(user.email) : ""}</small></div></div></td><td>${tag(roleLabel(user.role), user.role === "super_admin" ? "orange" : "")}</td><td><span class="permission-total">${user.role === "super_admin" ? "Full access" : user.permissions.length + " permissions"}</span><small>${esc(user.job_title || "Workspace member")}</small></td><td>${tag(Number(user.active) ? "Active" : "Inactive", Number(user.active) ? "green" : "gray")}</td><td>${user.last_login ? fmttime(user.last_login) : "Not signed in yet"}</td><td>${user.role === "super_admin" ? `<button class="btn small" data-view="profile">My profile ${icon("arrow")}</button>` : `<button class="btn small" data-action="edit-user" data-id="${user.id}">${icon("edit")}Manage access</button>`}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty("No people match this search.") : ""}${pagination(d)}</section><div class="data-note">${icon("shield")}<span>Permissions are checked on the server for every request. Munshi incoming goods require super admin approval; only the incoming shipment’s godown charges total and direct editing are restricted for that role. Deactivated users and reset passwords invalidate existing sessions.</span></div>`
   );
 }
 function permissionChecklist(selected) {
@@ -4156,7 +4145,7 @@ document.addEventListener('change',event=>{if(event.target.id==='cash-status'){c
 
 async function pendingCashCollections(){
  const data=await api('pending_cash_collections',null,{page:state.page});listData=data;
- return head('Pending cash collections',isSuper()?'Review operator cash collections before posting customer and cash balances.':'Your cash submissions stay here until admin approval.',btn('Refresh','refresh',false,'refresh'))+`<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Delivery</th><th>Submitted by</th><th>Date</th><th>Receiver</th><th>Cash submitted</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-CASH-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.reference)}${row.delivery_mode==='walkin'?tag('Walk-in delivery','green'):''}</td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td><strong>${cash(row.amount)}</strong></td><td><button class="btn primary" data-action="review-pending-cash" data-id="${row.id}">${isSuper()?'Review & approve':'View submission'}</button>${isSuper()?` <button class="btn" data-action="discard-pending-cash" data-id="${row.id}">Discard entry</button>`:''}</td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No cash collections awaiting approval.')}${pagination(data)}</section>`;
+ return head('Pending cash collections',isSuper()?'Review munshi cash collections before posting customer and cash balances.':'Your cash submissions stay here until admin approval.',btn('Refresh','refresh',false,'refresh'))+`<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Delivery</th><th>Submitted by</th><th>Date</th><th>Receiver</th><th>Cash submitted</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-CASH-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.reference)}${row.delivery_mode==='walkin'?tag('Walk-in delivery','green'):''}</td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td><strong>${cash(row.amount)}</strong></td><td><button class="btn primary" data-action="review-pending-cash" data-id="${row.id}">${isSuper()?'Review & approve':'View submission'}</button>${isSuper()?` <button class="btn" data-action="discard-pending-cash" data-id="${row.id}">Discard entry</button>`:''}</td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No cash collections awaiting approval.')}${pagination(data)}</section>`;
 }
 async function reviewPendingCash(id){const review=await api('cash_collection_submission',null,{id});await unifiedOpen(review.delivery_id,id);}
 

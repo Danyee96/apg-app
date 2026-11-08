@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/operator_cash.php';
 
 function migrate_delivery_cash(): void {
  if((one("SELECT value FROM meta WHERE key='delivery_cash_version'")['value']??'')==='5')return;
@@ -91,6 +92,7 @@ function record_delivery_cash(array $p,array $user,bool $insideTransaction=false
   $voucher=null;if($total>0){$entries=[[$cashAccount,$total,0]];foreach($invoice['lines'] as $line){[$bilty,$service]=$lines[$line['delivery_item_id']];$entries[]=[$line['account_id'],0,$bilty+$service];}$voucher=delivery_system_voucher('RV',$dated,'Delivery cash received · '.$invoice['header']['reference'],$entries);}
   run('INSERT INTO delivery_cash_receipts(delivery_id,request_key,dated,cash_account_id,notes,created_by,voucher_id,request_hash) VALUES(?,?,?,?,?,?,?,?)',[$id,$key,$dated,$total>0?$cashAccount:null,text($p,'notes',500),$user['username'],$voucher,$payloadHash]);$receiptId=(int)db()->lastInsertId();
   foreach($lines as $lineId=>[$bilty,$service]){run('INSERT INTO delivery_cash_receipt_lines(receipt_id,delivery_item_id,bilty_received,service_received) VALUES(?,?,?,?)',[$receiptId,$lineId,$bilty,$service]);run('UPDATE delivery_items SET bilty_received=bilty_received+?,service_received=service_received+? WHERE id=?',[$bilty,$service,$lineId]);}
+  operator_cash_record_receipt($receiptId,$user);
   audit('received cash','delivery',$id);return ['id'=>$receiptId,'delivery_id'=>$id,'voucher_id'=>$voucher];
  };
  return $insideTransaction?$save():transaction($save);

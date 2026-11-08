@@ -125,7 +125,20 @@
     localise();
     window.dispatchEvent(new CustomEvent('apg-language-change',{detail:value}));
   }
-  observer = new MutationObserver(() => localise());
+  const pendingRoots = new Set();
+  let localisationFrame = 0;
+  observer = new MutationObserver(records => {
+    for (const record of records) {
+      const root = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+      if (root) pendingRoots.add(record.type === 'attributes' ? root.parentElement || root : root);
+    }
+    if (!localisationFrame) localisationFrame = requestAnimationFrame(() => {
+      localisationFrame = 0;
+      const roots = [...pendingRoots].filter(root => root.isConnected);
+      pendingRoots.clear();
+      for (const root of roots) if (!roots.some(other => other !== root && other.contains(root))) localise(root);
+    });
+  });
   window.APG = {t,remember,picker,localise,setLanguage,sourceText,get language(){return language;}};
   document.addEventListener('change', event => {if (event.target.id === 'app-language') setLanguage(event.target.value);});
   document.addEventListener('change',event=>{const input=event.target;if(dataKeys.has(input.name))remember({[input.name]:input.value});});

@@ -7,8 +7,8 @@ with tempfile.TemporaryDirectory(prefix='apg-package-') as tmp:
  root=Path(tmp);public=root/'public_html';public.mkdir();store=root/'storage';store.mkdir()
  for f in (B/'public').iterdir():
   if f.is_file():shutil.copy2(f,public/f.name)
- shutil.copy2(B/'bootstrap.php',root/'bootstrap.php')
- shutil.copy2(B/'access.php',root/'access.php')
+ for name in ['bootstrap.php','access.php','backups.php','goods.php','delivery_cash.php','delivery_create.php','delivery_unified.php','operator_cash.php']:
+  shutil.copy2(B/name,root/name)
  shutil.copy2(B/'storage/.htaccess',store/'.htaccess')
  source=sqlite3.connect('file:'+str(B/'storage/app.sqlite')+'?mode=ro',uri=True)
  target=sqlite3.connect(store/'app.sqlite');source.backup(target)

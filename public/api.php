@@ -19,7 +19,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();
+ migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_operator_cash();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -38,9 +38,12 @@ try {
  }
  if($action==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();response(['ok'=>true]);}
  if(!$current)fail('Please sign in.',401);
+ // Persist authentication, then release PHP's session lock before long report/backup work.
+ if($method==='GET')session_write_close();
  access_routes($action,$method,$p??[],$current);
  authorize_action($action,$method,$p??[],$current);
  if($action==='delivery_customer_dues'){if($method!=='POST')fail('Method not allowed.',405);response(delivery_customer_dues($p));}
+ operator_cash_routes($action,$method,$p??[],$current);
  delivery_unified_routes($action,$method,$p??[],$current);
  delivery_cash_routes($action,$method,$p??[],$current);
  if($action==='workspace_changes'&&$method==='GET')response(['revision'=>(int)(one('SELECT max(id) revision FROM audit')['revision']??0)]);
@@ -293,4 +296,4 @@ try {
  }
  if($action==='settings'&&$method==='GET')response(['user'=>$_SESSION['username'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','meta'=>query('SELECT * FROM meta'),'audit'=>query('SELECT * FROM audit ORDER BY id DESC LIMIT 20')]);
  fail('This action was not found.',404);
-}catch(JsonException){fail('Invalid JSON request.',400);}catch(InvalidArgumentException $e){fail($e->getMessage());}catch(RuntimeException $e){if(in_array($e->getCode(),[409,503],true))fail($e->getMessage(),$e->getCode());error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}catch(Throwable $e){error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}
+}catch(JsonException){fail('Invalid JSON request.',400);}catch(InvalidArgumentException $e){fail($e->getMessage());}catch(RuntimeException $e){if(in_array($e->getCode(),[403,404,409,503],true))fail($e->getMessage(),$e->getCode());error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}catch(Throwable $e){error_log('APG: '.$e->getMessage());fail('Unable to complete the request. No changes were saved.',500);}

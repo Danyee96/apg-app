@@ -144,6 +144,7 @@ function access_routes(string $action,string $method,array $p,array $user): void
  }
 }
 function authorize_action(string $action,string $method,array $p,array $user): void {
+ if($action==='delivery_customer_dues'){if(can_access($user,'deliveries.create')||can_access($user,'deliveries.edit'))return;fail('You do not have permission to view delivery customer balances.',403);}
  if(in_array($action,['delivery_cash_list','delivery_cash_invoice','receive_delivery_cash','delivery_customer_balances','pending_cash_collections','cash_collection_submission','approve_cash_collection','discard_cash_collection'],true)){if($user['role']==='super_admin')return;if($user['role']==='operations'&&can_access($user,'deliveries.create')&&in_array($action,['delivery_cash_list','delivery_cash_invoice','receive_delivery_cash','pending_cash_collections','cash_collection_submission'],true))return;fail('Only the super admin can approve cash collections.',403);}
  if($action==='pending_deliveries'){if($user['role']==='super_admin'||($user['role']==='operations'&&can_access($user,'deliveries.view')))return;fail('Pending delivery goods is unavailable to this account.',403);}
  if(in_array($action,['delivery_submission','discard_delivery_submission'],true)){if($user['role']==='super_admin')return;fail('Only the super admin can review delivery submissions.',403);}

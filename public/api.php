@@ -38,6 +38,7 @@ try {
  if(!$current)fail('Please sign in.',401);
  access_routes($action,$method,$p??[],$current);
  authorize_action($action,$method,$p??[],$current);
+ if($action==='delivery_customer_dues'){if($method!=='POST')fail('Method not allowed.',405);response(delivery_customer_dues($p));}
  delivery_cash_routes($action,$method,$p??[],$current);
  if($action==='workspace_changes'&&$method==='GET')response(['revision'=>(int)(one('SELECT max(id) revision FROM audit')['revision']??0)]);
  if($action==='dashboard'&&$method==='GET'){

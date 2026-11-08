@@ -55,11 +55,14 @@ def check(base,database,password):
  assert not admin.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['rows']
  assert not ops.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['rows']
  assert admin.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['stats']['total']==0
+ assert ops.call('delivery_customer_dues',{'account_ids':[customer],'details':True})['customers'][0]['outstanding']==4000
  review=admin.call('cash_collection_submission',params={'id':pending['cash_id']})
  ops.call('approve_cash_collection',review['payload'],status=403)
  admin.call('approve_cash_collection',{**review['payload'],'pending_id':review['id'],'pending_version':review['version']},status=201)
  invoice=admin.call('delivery_cash_invoice',params={'id':pending['id']});assert invoice['received']==23000 and invoice['receipts'][0]['created_by']=='combined-ops'
  assert admin.call('delivery_cash_list',params={'search':'COMBINED-OPERATOR'})['rows'][0]['id']==pending['id']
+ assert ops.call('delivery_customer_dues',{'account_ids':[customer]})['customers'][0]['outstanding']==8000
+ assert ops.call('delivery_customer_dues',{'account_ids':[customer],'exclude_delivery_id':pending['id']})['customers'][0]['outstanding']==4000
  # Standard handovers keep their separate collection flow and cannot sneak cash in.
  standard=payload(shipment('COMBINED-STANDARD'));standard['delivery_mode']='standard'
  admin.call('save_delivery',standard,status=422);standard.pop('walkin_cash')
@@ -69,5 +72,23 @@ def check(base,database,password):
  zero=payload(shipment('COMBINED-ZERO'));zero['walkin_cash']['items'][0].update(bilty_received='0',service_received='0')
  zero['walkin_cash']['cash_account_id']='';result=admin.call('save_delivery',zero,status=201)
  invoice=admin.call('delivery_cash_invoice',params={'id':result['id']});assert invoice['received']==0 and invoice['outstanding']==27000 and len(invoice['receipts'])==1
+ # Read-only debt lookup validates account scope, pagination, and role permission.
+ admin.call('delivery_customer_dues',{'account_ids':[]},status=422)
+ admin.call('delivery_customer_dues',{'account_ids':[cash]},status=422)
+ admin.call('delivery_customer_dues',{'account_ids':[customer],'exclude_delivery_id':-1},status=422)
+ admin.call('delivery_customer_dues',status=405)
+ admin.call('save_user',{'username':'dues-view-only','role':'custom','full_name':'View only','active':1,'permissions':['deliveries.view'],'password':'Dues-view-only-2026'},status=201)
+ viewer=Client();viewer.call('login',{'username':'dues-view-only','password':'Dues-view-only-2026'})
+ viewer.call('delivery_customer_dues',{'account_ids':[customer]},status=403)
+ pagedCustomer=admin.call('save_customer',{'name':'Paginated previous debt','group_code':'116'})['id']
+ source=admin.call('save_shipment',{'kind':'incoming','dated':'2026-11-08','station_id':station,'truck':'DUES-PAGES','items':[{'account_id':pagedCustomer,'bilty':'DEBT-PAGE-'+str(n),'qty':1,'bilty_amount':'1'} for n in range(55)]},status=201)
+ pageItems=admin.call('shipment',params={'id':source['id']})['items']
+ admin.call('save_delivery',{'dated':'2026-11-08','receiver':'Paged previous debt','items':[{'id':row['id']} for row in pageItems]},status=201)
+ auditCount=db.execute('SELECT count(*) FROM audit').fetchone()[0]
+ first=admin.call('delivery_customer_dues',{'account_ids':[pagedCustomer,pagedCustomer],'details':True})
+ last=admin.call('delivery_customer_dues',{'account_ids':[pagedCustomer],'details':True,'page':999})
+ assert first['total']==55 and len(first['rows'])==50 and first['customers'][0]['outstanding']==5500
+ assert last['page']==1 and len(last['rows'])==5
+ assert db.execute('SELECT count(*) FROM audit').fetchone()[0]==auditCount
  db.close();print('PASS: combined admin save; full rollback on bad account/allocation/amount; duplicate retry protection; per-customer cash and balances; operator pending-only then approval; standard collection unchanged; zero-cash walk-in.')
 if __name__=='__main__':main(check)

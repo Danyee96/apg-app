@@ -4919,3 +4919,21 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .cash-invoice-breakdown tfoot { background:#e9f5ed; color:#254e3d; }
 .cash-invoice-breakdown tfoot th { text-align:start; }
 .cash-collection-history h3 { margin:20px 0 10px; }
+
+.customer-prior-balances { border:1px solid #d1e2d7; border-radius:14px; padding:18px; margin:20px 0; background:#f6faf7; }
+.customer-prior-balances .delivery-summary-head { align-items:center; }
+.customer-prior-balances .link { display:inline-flex; align-items:center; gap:5px; }
+.customer-prior-balances .link svg { width:15px; height:15px; }
+.customer-due-card { padding:14px; border:1px solid #dce7df; border-radius:10px; background:#fff; margin-bottom:12px; }
+.customer-due-card header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+.customer-due-card .btn { padding:8px 10px; font-size:12px; }
+.customer-due-card .delivery-facts { grid-template-columns:repeat(3,minmax(0,1fr)); margin:0; }
+.customer-balance-dialog { width:min(1180px,95vw); max-width:95vw; }
+.customer-balance-dialog .table-scroll table { min-width:1000px; }
+.customer-balance-dialog .number { white-space:nowrap; }
+@media(max-width:650px) { .customer-prior-balances { padding:13px; } .customer-due-card .delivery-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } .customer-prior-balances .delivery-summary-head h3 { font-size:16px; } }
+@media(max-width:650px) {
+ .customer-prior-balances .delivery-total-banner { flex-wrap:wrap; }
+ .customer-prior-balances .delivery-total-banner > span { flex-basis:100%; }
+ .customer-prior-balances .delivery-total-banner > strong { width:100%; white-space:nowrap; font-size:24px; direction:ltr; unicode-bidi:isolate; }
+}

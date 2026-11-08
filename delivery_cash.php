@@ -160,3 +160,22 @@ function collect_walkin_delivery_cash(int $deliveryId,array $cash,array $user,st
  $payload=['delivery_id'=>$deliveryId,'version'=>$invoice['version'],'request_key'=>text($cash,'request_key',100,true),'dated'=>$dated,'cash_account_id'=>text($cash,'cash_account_id',40),'notes'=>text($cash,'notes',500),'items'=>$items];
  return $user['role']==='super_admin'?record_delivery_cash($payload,$user,true):submit_delivery_cash($payload,$user,true);
 }
+
+// Customer debt is read from its original delivery allocations, never reposted
+// as a charge on the next delivery. Exclude that delivery when reviewing it.
+function delivery_customer_dues(array $p): array {
+ $input=$p['account_ids']??[];if(!is_array($input)||count($input)<1||count($input)>1000)throw new InvalidArgumentException('Choose between 1 and 1000 customers.');
+ $ids=[];foreach($input as $id){if(!is_string($id)||trim($id)===''||mb_strlen($id)>40)throw new InvalidArgumentException('Choose valid customers.');$ids[trim($id)]=true;}$ids=array_keys($ids);$marks=implode(',',array_fill(0,count($ids),'?'));
+ $accounts=query('SELECT id,name FROM accounts WHERE customer=1 AND id IN ('.$marks.') ORDER BY name',$ids);if(count($accounts)!==count($ids))throw new InvalidArgumentException('Choose valid customers.');
+ $exclude=filter_var($p['exclude_delivery_id']??0,FILTER_VALIDATE_INT);if($exclude===false||$exclude<0)throw new InvalidArgumentException('Choose a valid delivery.');
+ $where=" WHERE b.account_id IN ($marks) AND b.delivery_id<>? AND NOT(d.delivery_mode='walkin' AND NOT EXISTS(SELECT 1 FROM delivery_cash_receipts vr WHERE vr.delivery_id=d.id) AND EXISTS(SELECT 1 FROM cash_collection_submissions vs WHERE vs.delivery_id=d.id))";$args=[...$ids,$exclude];
+ $from=' FROM delivery_cash_balances b JOIN deliveries d ON d.id=b.delivery_id';
+ $summary=query('SELECT b.account_id,SUM(CASE WHEN b.balance>0 THEN b.balance ELSE 0 END) outstanding,SUM(CASE WHEN b.balance<0 THEN -b.balance ELSE 0 END) credit,SUM(CASE WHEN b.balance>0 THEN 1 ELSE 0 END) bilties'.$from.$where.' GROUP BY b.account_id',$args);$map=array_column($summary,null,'account_id');
+ $customers=[];foreach($accounts as $account){$sum=$map[$account['id']]??[];$customers[]=['account_id'=>$account['id'],'customer'=>$account['name'],'outstanding'=>(int)($sum['outstanding']??0),'credit'=>(int)($sum['credit']??0),'bilties'=>(int)($sum['bilties']??0)];}
+ $result=['customers'=>$customers,'exclude_delivery_id'=>$exclude];
+ if(!empty($p['details'])){
+  if(count($ids)!==1)throw new InvalidArgumentException('Choose one customer to view details.');$total=$customers[0]['bilties'];$page=max(0,min(max(0,(int)ceil($total/50)-1),(int)($p['page']??0)));
+  $result['rows']=query('SELECT b.delivery_id,b.delivery_item_id,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due+b.service_due due,b.bilty_received+b.service_received received,b.balance,d.reference,d.dated,(SELECT COUNT(*) FROM cash_collection_submissions s WHERE s.delivery_id=d.id AND s.status=\'pending\') pending_cash'.$from.$where.' AND b.balance>0 ORDER BY d.dated,b.delivery_id,b.delivery_item_id LIMIT 50 OFFSET '.($page*50),$args);$result['total']=$total;$result['page']=$page;$result['page_size']=50;
+ }
+ return $result;
+}

@@ -5165,5 +5165,22 @@ window.APG_TRANSLATIONS = {
   "All bilties": ["تمام بلٹیاں", "Tamam biltiyan"],
   "Walk-in delivery details": ["فوری ڈیلیوری کی تفصیل", "Walk-in delivery ki tafseel"],
   "Delivery details": ["ڈیلیوری کی تفصیل", "Delivery ki tafseel"],
-  "Bilty charge breakdown": ["بلٹیوں کے چارجز کی تفصیل", "Biltyon ke charges ki tafseel"]
+  "Bilty charge breakdown": ["بلٹیوں کے چارجز کی تفصیل", "Biltyon ke charges ki tafseel"],
+  "Customer balance summary": ["گاہک کے بقایا حساب کی تفصیل", "Gahak ke baqaya hisaab ki tafseel"],
+  "Refresh balances": ["بقایا دوبارہ دیکھیں", "Baqaya dobara dekhein"],
+  "Balance details": ["بقایا کی تفصیل", "Baqaya ki tafseel"],
+  "Previous unpaid balance": ["پچھلی بلٹیوں کی بقایا رقم", "Pichli biltyon ki baqaya raqam"],
+  "Current delivery amount": ["موجودہ ڈیلیوری کی رقم", "Maujooda delivery ki raqam"],
+  "Total customer due": ["گاہک کی کل واجب الادا رقم", "Gahak ki kul wajib ul ada raqam"],
+  "Previous customer credit": ["گاہک کی پچھلی اضافی جمع رقم", "Gahak ki pichli izafi jama raqam"],
+  "Total due including previous balances": ["پچھلے بقایا سمیت کل واجب الادا رقم", "Pichlay baqaya samait kul wajib ul ada raqam"],
+  "Remaining after this collection": ["اس وصولی کے بعد باقی رقم", "Is wasooli ke baad baqi raqam"],
+  "Cash entered here pays this delivery only. Previous balances remain on their original invoices; credits are shown separately.": ["یہاں درج رقم صرف موجودہ ڈیلیوری کے لیے ہے۔ پچھلا بقایا اپنی اصل بلٹیوں کے کھاتے میں رہے گا؛ اضافی جمع رقم الگ دکھائی گئی ہے۔", "Yahan darj raqam sirf maujooda delivery ke liye hai. Pichla baqaya apni asal biltyon ke khatay mein rahega; izafi jama raqam alag dikhai gayi hai."],
+  "Loading customer balances\u2026": ["گاہک کا بقایا حساب دیکھا جا رہا ہے…", "Gahak ka baqaya hisaab dekha ja raha hai…"],
+  "Previous unpaid bilties": ["پچھلی بقایا بلٹیاں", "Pichli baqaya biltiyan"],
+  "No previous unpaid bilties.": ["کوئی پچھلی بلٹی بقایا نہیں ہے۔", "Koi pichli bilty baqaya nahin hai."],
+  "Choose between 1 and 1000 customers.": ["ایک سے ایک ہزار تک گاہک منتخب کریں۔", "Aik se aik hazaar tak gahak muntakhib karein."],
+  "Choose valid customers.": ["درست گاہک منتخب کریں۔", "Durust gahak muntakhib karein."],
+  "Choose one customer to view details.": ["تفصیل دیکھنے کے لیے ایک گاہک منتخب کریں۔", "Tafseel dekhnay ke liye aik gahak muntakhib karein."],
+  "You do not have permission to view delivery customer balances.": ["آپ کو ڈیلیوری کے گاہکوں کا بقایا دیکھنے کی اجازت نہیں۔", "Aap ko delivery ke gahakon ka baqaya dekhnay ki ijazat nahin."]
 };

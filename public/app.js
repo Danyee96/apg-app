@@ -451,7 +451,9 @@ const navs = [
   ["archive", "report", "Imported backup"],
 ];
 function initialView() {
-  let requested = new URLSearchParams(location.search).get("view");
+  const query = new URLSearchParams(location.search);
+  let requested = query.get("view");
+  if(requested === "deliveries" && ["all", "approvals", "balances"].includes(query.get("tab"))) unifiedTab = query.get("tab");
   if(["delivery-cash","pending-cash"].includes(requested)){unifiedTab=requested==="pending-cash"?"approvals":"all";requested="deliveries";}
   return navs.some(([view]) => view === requested) && canView(requested)
     ? requested
@@ -565,7 +567,16 @@ async function navigate(view, reset = true) {
   await render();
   return true;
 }
+function rememberCurrentPage() {
+  if(!session?.user || !navs.some(([view]) => view === state.view) || !canView(state.view)) return;
+  const url = new URL(location.href);
+  url.searchParams.set("view", state.view);
+  if(state.view === "deliveries") url.searchParams.set("tab", unifiedTab);
+  else url.searchParams.delete("tab");
+  if(url.href !== location.href) history.replaceState(null, "", url);
+}
 async function render() {
+  rememberCurrentPage();
   let id = ++requestID;
   $("#main").innerHTML =
     '<div class="loading-state" role="status"><span class="loading-orbit"></span><b>Getting your workspace ready</b><span>Bringing your latest records together.</span></div>';

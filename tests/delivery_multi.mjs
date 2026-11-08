@@ -54,6 +54,8 @@ assert.ok(Number(layout.bold)>=700);assert.equal(layout.overflow,false);assert.e
 assert.ok((await page.locator('[data-delivery-column="qty"]').innerText()).includes('3'));
 assert.ok((await page.locator('[data-delivery-column="bilty_amount"]').innerText()).includes('200.00'));
 assert.ok((await page.locator('[data-delivery-column="godown"]').innerText()).includes('40.00'));
+assert.ok((await page.locator('[data-delivery-column="bilty_godown"]').innerText()).includes('240.00'));
+assert.ok((await page.locator('.delivery-entry-row').first().locator('td').nth(6).innerText()).includes('120.00'));
 assert.ok((await page.locator('[data-delivery-column="loading"]').innerText()).includes('30.00'));
 await page.locator('[name^="discount_"]').first().fill('5');
 assert.ok((await page.locator('[data-delivery-column="due"]').innerText()).includes('265.00'));

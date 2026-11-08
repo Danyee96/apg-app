@@ -5145,5 +5145,6 @@ window.APG_TRANSLATIONS = {
   "Total bilty cash received": ["بلٹیوں کی کل وصول شدہ نقد رقم", "Biltyon ki kul wasool shuda naqad raqam"],
   "Loading / Suzuki cash received": ["لوڈنگ / سوزوکی کی وصول شدہ نقد رقم", "Loading / Suzuki ki wasool shuda naqad raqam"],
   "Bilty cash receiving now": ["اب وصول ہونے والی بلٹی کی رقم", "Ab wasool honay wali bilty ki raqam"],
-  "Loading / Suzuki cash receiving now": ["اب وصول ہونے والی لوڈنگ / سوزوکی کی رقم", "Ab wasool honay wali loading / Suzuki ki raqam"]
+  "Loading / Suzuki cash receiving now": ["اب وصول ہونے والی لوڈنگ / سوزوکی کی رقم", "Ab wasool honay wali loading / Suzuki ki raqam"],
+  "Bilty + godown total": ["بلٹی اور گودام کا مجموعہ", "Bilty aur godown ka majmua"]
 };

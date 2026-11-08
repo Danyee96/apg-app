@@ -4946,3 +4946,8 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .walkin-receivables .number { white-space:nowrap; font-variant-numeric:tabular-nums; }
 .walkin-receivables tfoot { background:#e5f2e9; font-weight:800; }
 .walkin-cash-section > .note { margin-top:12px; }
+
+.walkin-payment-control { display:flex; align-items:stretch; gap:8px; }
+.walkin-payment-control input { flex:1; min-width:0; }
+.walkin-payment-control .btn { flex-shrink:0; padding:9px 12px; white-space:nowrap; }
+@media(max-width:400px) { .walkin-payment-control { flex-wrap:wrap; } .walkin-payment-control .btn { width:100%; } }

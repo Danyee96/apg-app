@@ -5189,5 +5189,6 @@ window.APG_TRANSLATIONS = {
   "Bilty / Customer": ["بلٹی / گاہک", "Bilty / gahak"],
   "Receivable": ["واجب الادا رقم", "Wajib ul ada raqam"],
   "Total cash is allocated from top to bottom. Adjust a row to specify who paid; any extra becomes credit on the last bilty.": ["کل نقد رقم اوپر سے نیچے بلٹیوں میں تقسیم ہوگی۔ ہر گاہک کی وصولی واضح کرنے کے لیے اس کی رقم بدل سکتے ہیں؛ زائد رقم آخری بلٹی کے گاہک کی اضافی جمع ہوگی۔", "Kul naqad raqam upar se neechay biltyon mein taqseem hogi. Har gahak ki wasooli wazeh karne ke liye uski raqam badal saktay hain; zaid raqam aakhri bilty ke gahak ki izafi jama hogi."],
-  "Enter the total cash in the collection section. Any unpaid amount stays on the customer\u2019s account.": ["وصولی کے حصے میں کل نقد رقم درج کریں۔ باقی رقم گاہک کے کھاتے میں رہے گی۔", "Wasooli ke hissay mein kul naqad raqam darj karein. Baqi raqam gahak ke khatay mein rahegi."]
+  "Enter the total cash in the collection section. Any unpaid amount stays on the customer\u2019s account.": ["وصولی کے حصے میں کل نقد رقم درج کریں۔ باقی رقم گاہک کے کھاتے میں رہے گی۔", "Wasooli ke hissay mein kul naqad raqam darj karein. Baqi raqam gahak ke khatay mein rahegi."],
+  "Pay in full": ["پوری رقم وصول کریں", "Poori raqam wasool karein"]
 };

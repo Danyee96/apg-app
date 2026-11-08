@@ -5012,3 +5012,21 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .u-services-grid table { min-width:580px; }
 .u-two-grids .u-mobile-bilty { display:none; }
 @media(max-width:750px) { .u-two-grids { grid-template-columns:minmax(0,1fr); } .u-services-grid { border-inline-start:0; border-top:3px solid #b8d6c5; } .u-two-grids .u-mobile-bilty { display:block; font-weight:750; margin-bottom:5px; color:#234338; } .u-ledger-scroll { max-height:78vh; } }
+
+/* Keep delivery actions visible without widening the document list. */
+.u-delivery-list table { table-layout:fixed; white-space:normal; }
+.u-delivery-list th,.u-delivery-list td { padding:14px 12px; overflow-wrap:anywhere; }
+.u-delivery-list th:nth-child(2) { width:18%; }
+.u-delivery-list th:nth-child(3) { width:10%; }
+.u-delivery-list th:last-child { width:11%; }
+.u-delivery-list .btn { width:100%; padding:10px 8px; white-space:normal; gap:5px; }
+.u-delivery-list .cash-bilty-chip { max-width:100%; overflow-wrap:anywhere; }
+.u-delivery-list .u-list-label { display:none; }
+@media(max-width:850px) {
+ .u-delivery-list table,.u-delivery-list tbody { display:block; }
+ .u-delivery-list thead { display:none; }
+ .u-delivery-list tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-bottom:1px solid #eaf0ec; padding:8px; }
+ .u-delivery-list td { display:block; border:0; text-align:start; min-width:0; padding:10px; }
+ .u-delivery-list .u-list-label { display:block; font-size:10px; color:#81938e; margin-bottom:5px; }
+ .u-delivery-list td:last-child { align-self:end; }
+}

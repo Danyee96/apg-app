@@ -19,7 +19,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();
+ migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -201,6 +201,7 @@ try {
    if(one("SELECT id FROM delivery_revisions WHERE delivery_id=? LIMIT 1",[$id]))$d['print_header']=['reference'=>$d['reference'],'dated'=>$d['dated'],'received_date'=>$d['dated'],'receiver'=>$d['receiver'],'cnic'=>$d['cnic'],'mobile'=>$d['mobile']];
   }
   if(!empty($d['cash_workflow'])){$invoice=delivery_cash_invoice($id);$frozen=[];foreach(query('SELECT di.item_id,c.*,a.name customer FROM delivery_cash_lines c JOIN delivery_items di ON di.id=c.delivery_item_id JOIN accounts a ON a.id=c.account_id WHERE c.delivery_id=?',[$id]) as $line)$frozen[$line['item_id']]=$line;foreach($d['items'] as &$item){$line=$frozen[$item['id']]??null;if($line){foreach(['account_id','customer','party_to','bilty','bilty_amount','godown','advance'] as $key)$item[$key]=$line[$key];$item['total']=(int)$line['bilty_amount']+(int)$line['godown'];}}unset($item);$d['cash_summary']=array_intersect_key($invoice,array_flip(['due','received','outstanding','credit','status']));$d['cash_started']=$invoice['header']['posted_voucher_id']!==null||!empty($invoice['header']['assessment_complete']);}
+  $d['previous_collections']=query('SELECT c.amount,r.dated,d.reference FROM delivery_customer_collections c JOIN delivery_cash_receipts r ON r.id=c.receipt_id JOIN deliveries d ON d.id=r.delivery_id WHERE c.source_delivery_id=? ORDER BY r.dated,r.id',[$id]);
   response($d);}
  if($action==='update_delivery'&&$method==='POST'){
   $id=(int)($p['id']??0);$dated=day($p);$receiver=text($p,'receiver',100,true);$lines=$p['items']??[];

@@ -5270,5 +5270,11 @@ window.APG_TRANSLATIONS = {
   "Previous Balance": ["پچھلا بقایا", "Pichla baqaya"],
   "Total Receivable": ["کل قابل وصول رقم", "Kul qabil e wasool raqam"],
   "Current delivery balance": ["موجودہ ڈیلیوری کا بقایا", "Maujooda delivery ka baqaya"],
-  "Previous Balance is counted once per customer in totals. Earlier balances remain on their original deliveries.": ["مجموعے میں ہر گاہک کا پچھلا بقایا ایک ہی بار شامل ہے۔ یہ بقایا اپنی اصل ڈیلیوریوں پر برقرار رہتا ہے۔", "Majmooe mein har gahak ka pichla baqaya aik hi baar shamil hai. Yeh baqaya apni asal deliveries par barqarar rehta hai."]
+  "Previous Balance is counted once per customer in totals. Earlier balances remain on their original deliveries.": ["مجموعے میں ہر گاہک کا پچھلا بقایا ایک ہی بار شامل ہے۔ یہ بقایا اپنی اصل ڈیلیوریوں پر برقرار رہتا ہے۔", "Majmooe mein har gahak ka pichla baqaya aik hi baar shamil hai. Yeh baqaya apni asal deliveries par barqarar rehta hai."],
+  "Previous Balance is counted once per customer. Cash above the current bilty amount pays older unpaid bilties.": ["پچھلا بقایا ہر گاہک کے لیے ایک بار شمار ہوتا ہے۔ موجودہ بلٹی کی رقم سے زائد وصولی پرانی غیر ادا شدہ بلٹیوں میں جمع ہوتی ہے۔", "Pichla baqaya har gahak ke liye aik baar shumar hota hai. Maujooda bilty ki raqam se zyada wasooli purani ghair ada shuda biltiyon mein jama hoti hai."],
+  "Previous balance cash received": ["پچھلے بقایا کی وصولی", "Pichlay baqaya ki wasooli"],
+  "Wait for customer balances to load before saving.": ["محفوظ کرنے سے پہلے گاہک کے بقایا کی تفصیل آنے دیں۔", "Save karne se pehle gahak ke baqaya ki tafseel aane dein."],
+  "Customer balances changed. Refresh balances and try again.": ["گاہک کے بقایا میں تبدیلی ہوئی ہے۔ بقایا تازہ کریں اور دوبارہ کوشش کریں۔", "Gahak ke baqaya mein tabdeeli hui hai. Baqaya taza karein aur dobara koshish karein."],
+  "Previous balance cash": ["پچھلے بقایا کی نقد وصولی", "Pichlay baqaya ki naqad wasooli"],
+  "Previous balance collections": ["پچھلے بقایا کی وصولیاں", "Pichlay baqaya ki wasooliyan"]
 };

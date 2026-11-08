@@ -22,9 +22,9 @@ try {
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);
  assert.equal(await page.locator('.u-bilty-grid th').filter({hasText:/^Received to date$/}).count(),0);
  assert.deepEqual(await page.locator('[data-u-previous-balance]').allTextContents(),['Rs 200','Rs 200']);
- assert.deepEqual(await page.locator('[data-u-total-receivable]').allTextContents(),['Rs 1,400','Rs 1,400']);
+ assert.deepEqual(await page.locator('[data-u-total-receivable]').allTextContents(),['Rs 900','Rs 1,400']);
  assert.equal(await page.locator('[data-u-total="previous_balance"]').innerText(),'Rs 200');
- assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 2,600');
+ assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 2,100');
  const align=await page.evaluate(()=>[...document.querySelectorAll('[data-u-bilty-row]')].map(row=>{const right=document.querySelector('[data-u-service-row="'+row.dataset.uBiltyRow+'"]');return Math.abs(row.getBoundingClientRect().top-right.getBoundingClientRect().top);}));assert.ok(align.every(delta=>delta<2));
  assert.ok(Number(await first.first().evaluate(el=>getComputedStyle(el).color.match(/\d+/g)[0]))>100);
  if(process.env.APG_UNIFIED_REVIEW)await page.screenshot({path:process.env.APG_UNIFIED_REVIEW});
@@ -33,11 +33,11 @@ try {
  const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,5000);assert.equal(before.lines[0].suzuki_received,0);
  // Reopening does not invent a new receipt date or reset historical payments.
  assert.equal(await page.locator('[data-u-date]').first().innerText(),'');await page.locator('[data-action="u-full"]').click();
- await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);assert.equal(await page.locator('[data-u-total="previous_balance"]').innerText(),'Rs 200');assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 2,100');
+ await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);assert.equal(await page.locator('[data-u-total="previous_balance"]').innerText(),'Rs 200');assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 0');
  await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===2);
- const settled=await page.evaluate(()=>unifiedEditor.doc);assert.ok(settled.lines.every(row=>row.payment_status==='fully_paid'));await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 200');
+ const settled=await page.evaluate(()=>unifiedEditor.doc);assert.ok(settled.lines.every(row=>row.payment_status==='fully_paid'));await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===0);assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 0');assert.equal(await page.evaluate(()=>unifiedEditor.doc.previous_collections.reduce((sum,row)=>sum+row.amount,0)),20000);
  assert.equal(settled.lines[0].bilty_received_date,before.lines[0].bilty_received_date);
- await page.locator('[data-action="u-print"]').click();await page.locator('#thermal-preview-sheet').waitFor();assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('One unified receiver'));await page.locator('[data-action="thermal-close"]').first().click();
+ await page.locator('[data-action="u-print"]').click();await page.locator('#thermal-preview-sheet').waitFor();assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('One unified receiver'));await page.locator('#thermal-values').selectOption('cash');assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('2,750'));await page.locator('[data-action="thermal-close"]').first().click();
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>APG.setLanguage('ur'));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  assert.equal(await page.locator('.u-services-grid').count(),1);assert.ok(await page.locator('.u-mobile-bilty').first().isVisible());
  await page.evaluate(()=>APG.setLanguage('en'));

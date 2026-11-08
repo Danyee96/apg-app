@@ -2103,6 +2103,7 @@ function buildThermalRecord(context) {
       cnic: d.cnic,
     };
     const cashSlip = context.variant === "cash";
+    const previousCash = (d.previous_collections || []).reduce((sum,row)=>sum+Number(row.amount||0),0);
     title = cashSlip ? "Cash received slip" : d.cash_workflow ? "Delivery handover" : "Delivery receipt";
     reference = h.reference || d.reference;
     date = h.dated;
@@ -2155,9 +2156,10 @@ function buildThermalRecord(context) {
             slipMoney("Discounts", sum("discount")) +
             slipMoney("Bilty cash", sum("bilty_received")) +
             slipMoney("Services cash", sum("service_received")) +
+            (previousCash ? slipMoney("Previous balance cash",previousCash) : "") +
             slipMoney(
               "Cash received",
-              sum("bilty_received") + sum("service_received"),
+              sum("bilty_received") + sum("service_received") + previousCash,
               true,
             ),
         )
@@ -2167,6 +2169,7 @@ function buildThermalRecord(context) {
             slipMoney("Loading", sum("loading")) +
             slipMoney("Suzuki kiraya", sum("suzuki")),
         );
+    if(cashSlip&&previousCash)content+=slipSection('Previous balance collections',(d.previous_collections||[]).map(row=>slipMoney(row.reference,row.amount)).join(''));
     if(d.cash_summary)content+=slipSection('Cash receiving',slipText('Cash status',cashStatus(d.cash_summary.status))+slipMoney('Amount due',d.cash_summary.due)+slipMoney('Cash received',d.cash_summary.received)+slipMoney('Customer balance',d.cash_summary.outstanding,true)+slipMoney('Customer credit',d.cash_summary.credit));
     if (!rows.length)
       content += slipNote(

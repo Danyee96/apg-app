@@ -22,10 +22,11 @@ def check(base,database,password):
  item=ops.call('shipment',params={'id':shipment['id']})['items'][0]
  handed=ops.call('save_delivery',{'delivery_mode':'walkin','dated':'2026-11-06','receiver':'Cash review receiver','items':[{'id':item['id'],'loading':'10'}]},status=201);assert not handed.get('pending')
  id=handed['id'];invoice=ops.call('delivery_cash_invoice',params={'id':id});cash=invoice['cash_accounts'][0]['id'];assert invoice['due']==28000
- db=sqlite3.connect(database);db.row_factory=sqlite3.Row;before_vouchers=db.execute('select count(*) from vouchers').fetchone()[0]
+ db=sqlite3.connect(database);db.row_factory=sqlite3.Row;before_receipts=db.execute("select count(*) from vouchers where kind='RV'").fetchone()[0]
  payload={'delivery_id':id,'version':invoice['version'],'request_key':str(uuid.uuid4()),'dated':'2026-11-06','cash_account_id':cash,'notes':'Operator collection','items':[{'id':invoice['lines'][0]['delivery_item_id'],'bilty_received':'200','service_received':'10'}]}
  pending=ops.call('receive_delivery_cash',payload,status=201);assert pending['pending'];assert ops.call('receive_delivery_cash',payload,status=201)['replayed']
- assert db.execute('select count(*) from vouchers').fetchone()[0]==before_vouchers;assert db.execute('select count(*) from delivery_cash_receipts').fetchone()[0]==0
+ # Billing may be assessed before approval; cash must remain entirely unposted.
+ assert db.execute("select count(*) from vouchers where kind='RV'").fetchone()[0]==before_receipts;assert db.execute('select count(*) from delivery_cash_receipts where delivery_id=?',(id,)).fetchone()[0]==0
  assert ops.call('delivery',params={'id':id})['cash_summary']['status']=='pending_approval';assert ops.call('delivery',params={'id':id})['cash_summary']['received']==0;assert admin.call('ledger',params={'account_id':customer})['closing']==0
  assert not other.call('pending_cash_collections')['rows'];assert any(row['id']==pending['id'] and row['delivery_mode']=='walkin' for row in admin.call('pending_cash_collections')['rows'])
  other.call('cash_collection_submission',params={'id':pending['id']},status=403)
@@ -40,7 +41,7 @@ def check(base,database,password):
  current=ops.call('delivery_cash_invoice',params={'id':id});assert current['received']==23000 and current['outstanding']==5000 and current['pending_cash'] is None
  assert admin.call('ledger',params={'account_id':customer})['closing']==5000
  receipt=db.execute('select * from delivery_cash_receipts where id=?',(approved['id'],)).fetchone();assert receipt['created_by']=='cash-review-ops-0'
- record=db.execute('select * from cash_collection_submissions where id=?',(pending['id'],)).fetchone();assert record['status']=='approved' and json.loads(record['payload'])['items'][0]['bilty_received']=='200.00' and json.loads(record['approved_payload'])['items'][0]['bilty_received']=='220'
+ record=db.execute('select * from cash_collection_submissions where id=?',(pending['id'],)).fetchone();assert record['status']=='approved' and float(json.loads(record['payload'])['items'][0]['bilty_received'])==200 and json.loads(record['approved_payload'])['items'][0]['bilty_received']=='220'
  totals=db.execute('select sum(l.debit),sum(l.credit) from voucher_lines l join vouchers v on v.id=l.voucher_id where v.memo like ?',('%'+handed['reference']+'%',)).fetchone();assert totals[0]==totals[1]
  next_payload={**payload,'version':current['version'],'request_key':str(uuid.uuid4()),'items':[{'id':current['lines'][0]['delivery_item_id'],'bilty_received':'50','service_received':'0'}]}
  second=ops.call('receive_delivery_cash',next_payload,status=201);admin.call('discard_cash_collection',{'id':second['id']});admin.call('discard_cash_collection',{'id':second['id']},status=409)

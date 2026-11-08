@@ -330,8 +330,6 @@ function navigationHub() {
         "goods-analytics",
         "booking",
         "deliveries",
-        "delivery-cash",
-        "pending-cash",
         "customers",
       ],
     ],
@@ -442,8 +440,6 @@ const navs = [
   ["pending-deliveries", "clock", "Pending delivery goods"],
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Delivery goods"],
-  ["delivery-cash", "wallet", "Delivery Cash Receiving"],
-  ["pending-cash", "clock", "Pending cash collections"],
   ["customers", "users", "Customers"],
   ["accounts", "wallet", "Accounts & vouchers"],
   ["reports", "report", "Reports"],
@@ -455,7 +451,8 @@ const navs = [
   ["archive", "report", "Imported backup"],
 ];
 function initialView() {
-  const requested = new URLSearchParams(location.search).get("view");
+  let requested = new URLSearchParams(location.search).get("view");
+  if(["delivery-cash","pending-cash"].includes(requested)){unifiedTab=requested==="pending-cash"?"approvals":"all";requested="deliveries";}
   return navs.some(([view]) => view === requested) && canView(requested)
     ? requested
     : "navigation";
@@ -472,7 +469,7 @@ function sidebarNavigation() {
   };
   return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
-    group('nav-delivery','Delivery goods','truck',['deliveries','delivery-cash','pending-cash'])+
+    link('deliveries')+
     ['booking','goods-analytics','goods-categories','customers'].map(link).join('')+
     '<div class="nav-label">FINANCE & WORKSPACE</div>'+['accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
 }
@@ -523,6 +520,7 @@ function empty(text = "No records found. Try a different search.") {
   return `<div class="empty">${icon("box")}<div>${text}</div></div>`;
 }
 async function navigate(view, reset = true) {
+  if(view==='delivery-cash'||view==='pending-cash'){unifiedEditor=null;unifiedTab=view==='pending-cash'?'approvals':'all';view='deliveries';}
   if (!canView(view)) {
     toast("Your account does not have access to this screen.");
     return false;
@@ -606,13 +604,13 @@ async function render() {
         html = await shipments();
         break;
       case "pending-cash":
-        html=await pendingCashCollections();
+        unifiedEditor=null;unifiedTab="approvals";html=await unifiedPage();
         break;
       case "delivery-cash":
-        html = await deliveryCashPage();
+        unifiedEditor=null;html=await unifiedPage();
         break;
       case "deliveries":
-        html = await deliveries();
+        html = await unifiedPage();
         break;
       case "accounts":
         html = await accounts();
@@ -650,6 +648,7 @@ async function render() {
     if (id === requestID && $("#main")) {
       $("#main").innerHTML = html;
       applyPermissions($("#main"));
+      if(state.view==="deliveries"||state.view==="delivery-cash"||state.view==="pending-cash")unifiedAfterRender();
     }
   } catch (e) {
     if (id === requestID && $("#main"))
@@ -897,7 +896,7 @@ function reports() {
       )
       .join(
         "",
-      )}</div><div class="note-box warning" style="margin-top:24px">Historical statements and balances require reconciliation. New delivery collections are recorded through Delivery Cash Receiving.</div>`
+      )}</div><div class="note-box warning" style="margin-top:24px">Historical statements and balances require reconciliation. Delivery collections are recorded in the unified Delivery Goods workspace.</div>`
   );
 }
 const financialReportCards = [
@@ -1431,7 +1430,7 @@ async function showDelivery(id) {
     ]) +
       `<hr class="divider"><div class="table-scroll"><table><thead><tr><th>Bilty</th><th>Customer / party</th><th class="number">Discount</th><th class="number">Bilty cash</th><th class="number">Service cash</th></tr></thead><tbody>${d.items.map((i) => `<tr><td>${esc(i.bilty)}</td><td>${esc(i.customer || "—")}<small>Party to: ${esc(i.party_to || "—")}</small></td><td class="number">${cash(i.discount)}</td><td class="number">${cash(i.bilty_received)}</td><td class="number">${cash(i.service_received)}</td></tr>`).join("")}</tbody></table></div><div class="summary-total"><span>Total cash recorded</span><b>${cash(d.items.reduce((s, i) => s + i.bilty_received + i.service_received, 0))}</b></div>${d.cash_summary ? `<section class="shipment-breakdown">${deliveryFacts([["Cash status",cashStatus(d.cash_summary.status)],["Amount due",cash(d.cash_summary.due)],["Customer balance",cash(d.cash_summary.outstanding)],["Customer credit",cash(d.cash_summary.credit)]])}</section>` : ""}`,
     (can("deliveries.edit") ? `<button class="btn primary" data-action="edit-delivery" data-id="${d.id}">${icon("edit")}Edit delivery</button>` : "") +
-    ((isSuper() || isOperations() && can("deliveries.create")) && d.cash_workflow ? `<button class="btn primary" data-action="receive-delivery-cash" data-id="${d.id}">Delivery Cash Receiving</button>` : "") +
+    ((isSuper() || isOperations() && can("deliveries.create")) && d.cash_workflow ? `<button class="btn primary" data-action="receive-delivery-cash" data-id="${d.id}">Open / collect</button>` : "") +
     btn("Print receipt", "print-dialog", false, "print") +
       btn("Close", "close-modal"),
   );
@@ -1811,36 +1810,10 @@ function walkinCashFields(rows) {
  return `<section class="walkin-cash-section"><div class="delivery-summary-head"><div><h3>Walk-in cash collection</h3><span>${isOperations()?'Cash requires admin approval':'Saved together with this delivery'}</span></div></div><div class="form-grid three">${selectField('walkin_cash_account','Cash / bank account',accounts.map(row=>[row.id,row.name]),account)}<div class="field"><label for="f-walkin_total_received">Total cash received (Rs)</label><div class="walkin-payment-control"><input id="f-walkin_total_received" name="walkin_total_received" type="number" value="0" min="0" step="0.01" inputmode="decimal" data-money="true" required><button type="button" class="btn" data-action="walkin-pay-all">Pay in full</button></div></div>${field('walkin_cash_notes','Collection notes','','text','maxlength="500"')}</div><p class="note">Total cash is allocated from top to bottom. Adjust a row to specify who paid; any extra becomes credit on the last bilty.</p><div class="table-scroll walkin-receivables"><table><thead><tr><th>Bilty / Customer</th><th>Receivable</th><th>Cash received</th><th>Remaining balance</th><th></th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${esc(row.bilty)}</strong><small>${esc(row.customer||'—')} · ${esc(row.party_to||'—')}</small></td><td class="number" data-walkin-due="${row.id}"></td><td>${deliveryRowInput(row,'walkin_received','Cash received (Rs)','0')}</td><td class="number" data-walkin-balance="${row.id}"></td><td><button type="button" class="link" data-action="walkin-pay-full" data-id="${row.id}">Paid in full</button></td></tr>`).join('')}</tbody><tfoot><tr><th>Totals</th><td class="number" data-walkin-total-due></td><td class="number" data-walkin-total-received></td><td class="number" data-walkin-total-balance></td><td></td></tr></tfoot></table></div></section>`;
 }
 let deliveryEdit = null;
-async function editDelivery(id) {
-  if(!can("deliveries.edit"))throw Error("You do not have permission to edit deliveries.");
-  const delivery = await api("delivery",null,{id});
-  const values={dated:delivery.dated,receiver:delivery.receiver,mobile:delivery.mobile||"",cnic:delivery.cnic||"",remarks:delivery.remarks||""};
-  closeModal();selected.clear();
-  for(const item of delivery.items){const row={...item};const original=delivery.print_items?.find(line=>String(line.source_id)===String(row.delivery_source_id));if(original){row.bilty_amount=original.bilty_amount;row.godown=original.godown;row.total=Number(original.bilty_amount)+Number(original.godown);row.loading=original.loading;row.suzuki=original.suzuki;}
-    selected.set(row.id,row);for(const key of ["loading","suzuki","discount","bilty_received","service_received"])values[key+"_"+row.id]=(Number(row[key]||0)/100).toFixed(2);}
-  recordDelivery(values,{id:delivery.id,version:delivery.version,reference:delivery.reference,cash_workflow:delivery.cash_workflow,cash_started:delivery.cash_started});
-}
+async function editDelivery(id) { return unifiedOpen(id); }
 function recordDelivery(values = {}, edit = null) {
-  deliveryEdit = edit;
-  deliveryWalkin = !edit && values.delivery_mode==='walkin';
-  let rows = [...selected.values()];
-  modal(
-    edit?.pending_id ? "Approve delivery goods · " + esc(edit.reference) : edit ? "Edit delivery · " + esc(edit.reference) : "Delivery goods",
-    rows.length + " bilty selected · Record the handover details.",
-    `<form id="delivery-form"><input type="hidden" name="walkin_request_key" value="${esc(values.walkin_request_key||crypto.randomUUID())}">${isOperations() && !edit ? '<div class="note-box">Save the delivery goods now. Any cash you collect requires admin approval.</div>' : ""}<div id="delivery-warning" class="note-box warning" role="status" hidden></div><div class="form-grid">${!edit && canView('delivery-cash') ? selectField('delivery_mode','Delivery type',[['standard','Standard delivery · collect cash later'],['walkin','Walk-in delivery · collect cash now']],'standard') : ""}${field("dated", "Delivery date *", today(), "date", "required")}${field("receiver", "Receiver name *", "", "text", "required")}${field("mobile", "Receiver mobile", "", "tel")}${field("cnic", "Receiver CNIC")}${field("remarks", "Remarks", "", "text", "", true)}</div><hr class="divider">${deliveryEntryTable(rows)}<div id="delivery-combined" class="shipment-breakdown" aria-live="polite"></div><section id="delivery-prior-balances" class="customer-prior-balances" data-customer-balance-context data-context="handover" data-exclude="${edit?.id||0}" hidden></section>${deliveryWalkin?walkinCashFields(rows):''}<div class="note-box">${deliveryWalkin?"Enter the total cash in the collection section. Any unpaid amount stays on the customer’s account.":edit?.id && !edit.cash_workflow ? "Confirm loading and Suzuki charges above, including any charges agreed at handover. Enter the cash actually collected; amounts above the charges will show a warning and can still be saved. Any amount not collected remains for account review; this handover does not create a ledger posting." : "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving. Operator cash collections require admin approval. Any unpaid amount stays against the bilty’s customer."}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button type="submit" class="btn primary">${icon("check")}Save delivery</button></div></form>`,
-  );
-  $("#modal").classList.add("delivery-dialog");
-  const form = $("#delivery-form");
-  if(edit){$(".delivery-lookup",form).hidden=true;$$('[data-action="delivery-remove"]',form).forEach(button=>button.remove());$('button[type="submit"]',form).innerHTML=icon("check")+(edit.pending_id ? "Approve & save delivery" : "Save changes");}
-  for (const [name, value] of Object.entries(values)) {
-    const input = form.elements.namedItem(name);
-    if (input) input.value = value;
-  }
-  if(edit?.cash_started){for(const input of $$('[name="dated"],[name^="loading_"],[name^="suzuki_"],[name^="discount_"]',form))input.readOnly=true;form.insertAdjacentHTML("afterbegin",'<p class="note-box">Cash processing has started. You can correct receiver details and remarks; invoiced amounts and the handover date stay locked.</p>');}
-  if(!edit)updateDeliveryModeButton(form);
-  updateDeliveryWarnings();
-  loadCustomerDues($('#delivery-prior-balances'));
-  modalSnapshot = modalValues();
+ if(edit?.id)return unifiedOpen(edit.id);
+ return unifiedNew([...selected.values()],values);
 }
 let deliveryMatches = new Map(), deliveryLookupSequence = 0, deliveryLookupTimer;
 function deliveryValues() { return Object.fromEntries(new FormData($("#delivery-form"))); }
@@ -3094,10 +3067,10 @@ async function action(name, el) {
       await showDeliveryCashDetails(el.dataset.id,null,true);
       break;
     case "view-delivery-cash":
-      await showDeliveryCashDetails(el.dataset.id);
+      await unifiedOpen(el.dataset.id);
       break;
     case "receive-delivery-cash":
-      await receiveDeliveryCash(el.dataset.id);
+      await unifiedOpen(el.dataset.id);
       break;
     case "cash-mode":
       cashMode=el.dataset.value;state.page=0;state.search='';await render();
@@ -3109,7 +3082,7 @@ async function action(name, el) {
       await editDelivery(el.dataset.id);
       break;
     case "delivery":
-      await showDelivery(el.dataset.id);
+      await unifiedOpen(el.dataset.id);
       break;
     case "clear-selection":
       selected.clear();
@@ -3597,7 +3570,7 @@ window.addEventListener("afterprint", () =>
   document.body.classList.remove("print-dialog", "print-page"),
 );
 window.addEventListener("beforeunload", (e) => {
-  if (currentForm) {
+  if (currentForm || unifiedEditor?.dirty) {
     e.preventDefault();
     e.returnValue = "";
   }
@@ -3971,7 +3944,7 @@ window.addEventListener("apg-language-change", () => { if (thermalSnapshot) upda
 // Refresh shared admin views after changes from another account. Never replace a draft or open record.
 let workspaceRevision = null, workspaceRefreshBusy = false;
 function workspaceRefreshSafe() {
-  return session?.user && isSuper() && !document.hidden && !currentForm && !selected.size &&
+  return session?.user && isSuper() && !document.hidden && !currentForm && !unifiedEditor && !selected.size &&
     !$('#modal').open && !$('#print-preview').open &&
     !document.activeElement?.closest('input,textarea,select,[contenteditable="true"]');
 }
@@ -4118,7 +4091,7 @@ async function pendingCashCollections(){
  const data=await api('pending_cash_collections',null,{page:state.page});listData=data;
  return head('Pending cash collections',isSuper()?'Review operator cash collections before posting customer and cash balances.':'Your cash submissions stay here until admin approval.',btn('Refresh','refresh',false,'refresh'))+`<section class="panel"><div class="table-scroll"><table><thead><tr><th>Submission</th><th>Delivery</th><th>Submitted by</th><th>Date</th><th>Receiver</th><th>Cash submitted</th><th></th></tr></thead><tbody>${data.rows.map(row=>`<tr><td>PENDING-CASH-${row.id}<small>${esc(row.submitted_at)}</small></td><td>${esc(row.reference)}${row.delivery_mode==='walkin'?tag('Walk-in delivery','green'):''}</td><td>${esc(row.submitted_name)}</td><td>${fmtdate(row.dated)}</td><td>${esc(row.receiver)}</td><td><strong>${cash(row.amount)}</strong></td><td><button class="btn primary" data-action="review-pending-cash" data-id="${row.id}">${isSuper()?'Review & approve':'View submission'}</button>${isSuper()?` <button class="btn" data-action="discard-pending-cash" data-id="${row.id}">Discard entry</button>`:''}</td></tr>`).join('')}</tbody></table></div>${data.rows.length?'':empty('No cash collections awaiting approval.')}${pagination(data)}</section>`;
 }
-async function reviewPendingCash(id){const review=await api('cash_collection_submission',null,{id});await receiveDeliveryCash(review.delivery_id,review);}
+async function reviewPendingCash(id){const review=await api('cash_collection_submission',null,{id});await unifiedOpen(review.delivery_id,id);}
 
 function updateDeliveryModeButton(form){const type=form.elements.namedItem('delivery_mode');if(type)$('button[type="submit"]',form).innerHTML=icon('check')+(type.value==='walkin'?(isOperations()?'Save delivery & submit cash':'Save delivery & receive cash'):'Save delivery');}
 document.addEventListener('change',event=>{if(event.target.name==='delivery_mode'&&event.target.closest('#delivery-form'))recordDelivery(deliveryValues(),deliveryEdit);});

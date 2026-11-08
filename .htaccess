@@ -5,8 +5,8 @@ RewriteEngine On
 
 # Serve only the application's explicit public entry points and assets.
 # Everything else (storage, Git metadata, source and documentation) is private.
-RewriteRule ^public/(index\.php|api\.php|app\.js|language\.js|translations\.js|style\.css)$ - [L]
+RewriteRule ^public/(index\.php|api\.php|app\.js|delivery-workspace\.js|language\.js|translations\.js|style\.css)$ - [L]
 RewriteRule ^public/?$ public/index.php [L]
 RewriteRule ^$ public/index.php [L]
-RewriteRule ^(index\.php|api\.php|app\.js|language\.js|translations\.js|style\.css)$ public/$1 [L]
+RewriteRule ^(index\.php|api\.php|app\.js|delivery-workspace\.js|language\.js|translations\.js|style\.css)$ public/$1 [L]
 RewriteRule ^ - [F,L]

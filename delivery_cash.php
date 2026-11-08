@@ -26,7 +26,7 @@ function migrate_delivery_cash(): void {
 function sync_delivery_cash_invoice(int $id): void {
  if(one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]))throw new RuntimeException('A cash collection is awaiting approval. Review or discard it before changing charges.',409);
  $invoice=one('SELECT * FROM delivery_cash_invoices WHERE delivery_id=?',[$id]);
- if($invoice && $invoice['posted_voucher_id']!==null)throw new RuntimeException('Cash processing has started. Delivery charges and customer allocations are locked.',409);
+ if($invoice && ($invoice['posted_voucher_id']!==null||!empty($invoice['assessment_complete'])))throw new RuntimeException('Cash processing has started. Delivery charges and customer allocations are locked.',409);
  run('INSERT OR IGNORE INTO delivery_cash_invoices(delivery_id) VALUES(?)',[$id]);
  $frozen=array_column(query('SELECT * FROM delivery_cash_lines WHERE delivery_id=?',[$id]),null,'delivery_item_id');
  run('DELETE FROM delivery_cash_lines WHERE delivery_id=?',[$id]);
@@ -36,19 +36,22 @@ function sync_delivery_cash_invoice(int $id): void {
  }
 }
 function delivery_cash_invoice(int $id): array {
- $header=one('SELECT d.*,c.posted_voucher_id FROM delivery_cash_invoices c JOIN deliveries d ON d.id=c.delivery_id WHERE d.id=?',[$id]);if(!$header)throw new InvalidArgumentException('Delivery cash invoice not found.');
+ $header=one('SELECT d.*,c.posted_voucher_id,c.accounting_model,c.legacy_services,c.reclassification_voucher_id,c.assessment_complete FROM delivery_cash_invoices c JOIN deliveries d ON d.id=c.delivery_id WHERE d.id=?',[$id]);if(!$header)throw new InvalidArgumentException('Delivery cash invoice not found.');
  $lines=array_map('goods_item_labels',query('SELECT b.*,a.name customer,di.discount,COALESCE(di.loading_charge,0) loading,COALESCE(di.suzuki_charge,0) suzuki,i.qty,i.detail,i.goods_category_id,i.goods_subcategory_id,i.goods_custom,s.dated arrival_date,s.reference arrival_reference,st.name station FROM delivery_cash_balances b JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE b.delivery_id=? ORDER BY b.delivery_item_id',[$id]));
+ if(function_exists('unified_enrich_lines')&&isset($header['accounting_model']))$lines=unified_enrich_lines($lines,$id);
  $receipts=query('SELECT r.*,a.name cash_account,(SELECT SUM(l.bilty_received+l.service_received) FROM delivery_cash_receipt_lines l WHERE l.receipt_id=r.id) amount FROM delivery_cash_receipts r LEFT JOIN accounts a ON a.id=r.cash_account_id WHERE r.delivery_id=? ORDER BY r.id',[$id]);
  $due=array_sum(array_column($lines,'bilty_due'))+array_sum(array_column($lines,'service_due'));$received=array_sum(array_column($lines,'bilty_received'))+array_sum(array_column($lines,'service_received'));$balance=$due-$received;
  // Balance status is per customer/bilty: a credit for one customer never settles another's debt.
  $outstanding=array_sum(array_map(fn($line)=>max(0,(int)$line['balance']),$lines));$credit=array_sum(array_map(fn($line)=>max(0,-(int)$line['balance']),$lines));
+ if((int)$header['accounting_model']===2){$outstanding=array_sum(array_map(fn($l)=>max(0,$l['bilty_balance'])+$l['service_outstanding'],$lines));$credit=array_sum(array_map(fn($l)=>max(0,-$l['bilty_balance'])+$l['service_credit'],$lines));}
  $result=['header'=>$header,'lines'=>$lines,'receipts'=>$receipts,'due'=>$due,'received'=>$received,'balance'=>$balance,'outstanding'=>$outstanding,'credit'=>$credit,'status'=>!$receipts?'awaiting_cash':($outstanding>0?'customer_due':($credit>0?'customer_credit':'paid'))];
+ $result['bilty_outstanding']=array_sum(array_map(fn($l)=>max(0,(int)$l['bilty_due']-(int)$l['bilty_received']),$lines));$result['service_outstanding']=array_sum(array_map(fn($l)=>$l['service_outstanding']??max(0,(int)$l['service_due']-(int)$l['service_received']),$lines));$result['customer_credit']=array_sum(array_map(fn($l)=>max(0,(int)$l['bilty_received']-(int)$l['bilty_due']),$lines));$result['service_credit']=array_sum(array_map(fn($l)=>$l['service_credit']??0,$lines));
  $result['version']=shipment_version($result);$result['pending_cash']=one("SELECT id,submitted_name,submitted_at FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]);if($result['pending_cash'])$result['status']='pending_approval';return $result;
 }
 function delivery_system_voucher(string $kind,string $dated,string $memo,array $entries): int {
  $entries=array_values(array_filter($entries,fn($row)=>$row[1]!==0||$row[2]!==0));
  if(array_sum(array_column($entries,1))!==array_sum(array_column($entries,2)))throw new RuntimeException('Delivery accounting entries do not balance.');
- run('INSERT INTO vouchers(reference,kind,dated,memo,created_by) VALUES(?,?,?,?,?)',['pending-'.bin2hex(random_bytes(8)),$kind,$dated,$memo,$_SESSION['username']]);$id=(int)db()->lastInsertId();run('UPDATE vouchers SET reference=? WHERE id=?',[$kind.'-'.str_pad((string)$id,6,'0',STR_PAD_LEFT),$id]);
+ run('INSERT INTO vouchers(reference,kind,dated,memo,created_by) VALUES(?,?,?,?,?)',['pending-'.bin2hex(random_bytes(8)),$kind,$dated,$memo,$_SESSION['username']??'migration']);$id=(int)db()->lastInsertId();run('UPDATE vouchers SET reference=? WHERE id=?',[$kind.'-'.str_pad((string)$id,6,'0',STR_PAD_LEFT),$id]);
  foreach($entries as $row)run('INSERT INTO voucher_lines(voucher_id,account_id,debit,credit) VALUES(?,?,?,?)',[$id,...$row]);audit('posted','voucher',$id);return $id;
 }
 function validate_delivery_cash_amounts(array $p,array $invoice,string $dated): array {
@@ -62,6 +65,7 @@ function validate_delivery_cash_amounts(array $p,array $invoice,string $dated): 
 }
 function can_submit_delivery_cash(array $user): bool {return $user['role']==='operations'&&can_access($user,'deliveries.create');}
 function record_delivery_cash(array $p,array $user,bool $insideTransaction=false,int $approvalId=0): array {
+ if((int)(one('SELECT accounting_model FROM delivery_cash_invoices WHERE delivery_id=?',[(int)($p['delivery_id']??0)])['accounting_model']??0)===2)return unified_record_cash($p,$user,$insideTransaction,$approvalId);
  $id=(int)($p['delivery_id']??0);$dated=day($p);$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');
  $payloadHash=shipment_version($p);
  $save=function()use($p,$user,$id,$dated,$key,$payloadHash,$approvalId){
@@ -114,6 +118,7 @@ function cash_submission_version(array $row): string {
  return shipment_version(['submission'=>$row,'invoice_version'=>delivery_cash_invoice((int)$row['delivery_id'])['version']]);
 }
 function submit_delivery_cash(array $p,array $user,bool $insideTransaction=false): array {
+ if((int)(one('SELECT accounting_model FROM delivery_cash_invoices WHERE delivery_id=?',[(int)($p['delivery_id']??0)])['accounting_model']??0)===2)return unified_submit_cash($p,$user,$insideTransaction);
  $id=(int)($p['delivery_id']??0);$dated=day($p);$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
  $save=function()use($p,$user,$id,$dated,$key,$hash){
   $existing=one('SELECT * FROM cash_collection_submissions WHERE request_key=?',[$key]);if($existing){if((int)$existing['submitted_by']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);if($existing['status']==='discarded')throw new RuntimeException('This cash collection was discarded. Reopen the invoice to submit again.',409);return ['id'=>$existing['status']==='approved'?$existing['receipt_id']:$existing['id'],'delivery_id'=>$id,'pending'=>$existing['status']==='pending','status'=>$existing['status'],'replayed'=>true];}
@@ -145,7 +150,7 @@ function delivery_cash_approval_routes(string $action,string $method,array $p,ar
    $id=(int)($p['pending_id']??0);$row=one("SELECT * FROM cash_collection_submissions WHERE id=? AND status='pending'",[$id]);if(!$row)throw new RuntimeException('This cash collection is no longer pending.',409);
    if(!hash_equals(cash_submission_version($row),(string)($p['pending_version']??'')))throw new RuntimeException('This cash submission changed. Reopen it before approving.',409);
    if((int)($p['delivery_id']??0)!==(int)$row['delivery_id'])throw new InvalidArgumentException('The cash submission belongs to a different delivery.');
-   $invoice=delivery_cash_invoice((int)$row['delivery_id']);$approved=['delivery_id'=>(int)$row['delivery_id'],'version'=>$invoice['version'],'request_key'=>'cash-approval-'.str_pad((string)$id,16,'0',STR_PAD_LEFT),'dated'=>day($p),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$p['items']??[]];
+   $invoice=delivery_cash_invoice((int)$row['delivery_id']);$approved=['delivery_id'=>(int)$row['delivery_id'],'version'=>$invoice['version'],'request_key'=>'cash-approval-'.str_pad((string)$id,16,'0',STR_PAD_LEFT),'dated'=>day($p),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$p['items']??[],'initial'=>!empty(json_decode($row['payload'],true)['initial'])];
    $receipt=record_delivery_cash($approved,['username'=>$row['submitted_name']],true,$id);
    run("UPDATE cash_collection_submissions SET status='approved',approved_by=?,approved_at=CURRENT_TIMESTAMP,receipt_id=?,approved_payload=? WHERE id=?",[$user['id'],$receipt['id'],json_encode($approved,JSON_THROW_ON_ERROR),$id]);audit('approved','cash_collection',$id);return $receipt;
   });response($result,201);
@@ -169,13 +174,13 @@ function delivery_customer_dues(array $p): array {
  $accounts=query('SELECT id,name FROM accounts WHERE customer=1 AND id IN ('.$marks.') ORDER BY name',$ids);if(count($accounts)!==count($ids))throw new InvalidArgumentException('Choose valid customers.');
  $exclude=filter_var($p['exclude_delivery_id']??0,FILTER_VALIDATE_INT);if($exclude===false||$exclude<0)throw new InvalidArgumentException('Choose a valid delivery.');
  $where=" WHERE b.account_id IN ($marks) AND b.delivery_id<>? AND NOT(d.delivery_mode='walkin' AND NOT EXISTS(SELECT 1 FROM delivery_cash_receipts vr WHERE vr.delivery_id=d.id) AND EXISTS(SELECT 1 FROM cash_collection_submissions vs WHERE vs.delivery_id=d.id))";$args=[...$ids,$exclude];
- $from=' FROM delivery_cash_balances b JOIN deliveries d ON d.id=b.delivery_id';
- $summary=query('SELECT b.account_id,SUM(CASE WHEN b.balance>0 THEN b.balance ELSE 0 END) outstanding,SUM(CASE WHEN b.balance<0 THEN -b.balance ELSE 0 END) credit,SUM(CASE WHEN b.balance>0 THEN 1 ELSE 0 END) bilties'.$from.$where.' GROUP BY b.account_id',$args);$map=array_column($summary,null,'account_id');
+ $from=' FROM (SELECT l.*,l.bilty_due-l.bilty_received customer_balance FROM delivery_unified_lines l) b JOIN deliveries d ON d.id=b.delivery_id';
+ $summary=query('SELECT b.account_id,SUM(CASE WHEN b.customer_balance>0 THEN b.customer_balance ELSE 0 END) outstanding,SUM(CASE WHEN b.customer_balance<0 THEN -b.customer_balance ELSE 0 END) credit,SUM(CASE WHEN b.customer_balance>0 THEN 1 ELSE 0 END) bilties'.$from.$where.' GROUP BY b.account_id',$args);$map=array_column($summary,null,'account_id');
  $customers=[];foreach($accounts as $account){$sum=$map[$account['id']]??[];$customers[]=['account_id'=>$account['id'],'customer'=>$account['name'],'outstanding'=>(int)($sum['outstanding']??0),'credit'=>(int)($sum['credit']??0),'bilties'=>(int)($sum['bilties']??0)];}
  $result=['customers'=>$customers,'exclude_delivery_id'=>$exclude];
  if(!empty($p['details'])){
   if(count($ids)!==1)throw new InvalidArgumentException('Choose one customer to view details.');$total=$customers[0]['bilties'];$page=max(0,min(max(0,(int)ceil($total/50)-1),(int)($p['page']??0)));
-  $result['rows']=query('SELECT b.delivery_id,b.delivery_item_id,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due+b.service_due due,b.bilty_received+b.service_received received,b.balance,d.reference,d.dated,(SELECT COUNT(*) FROM cash_collection_submissions s WHERE s.delivery_id=d.id AND s.status=\'pending\') pending_cash'.$from.$where.' AND b.balance>0 ORDER BY d.dated,b.delivery_id,b.delivery_item_id LIMIT 50 OFFSET '.($page*50),$args);$result['total']=$total;$result['page']=$page;$result['page_size']=50;
+  $result['rows']=query('SELECT b.delivery_id,b.delivery_item_id,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due+b.service_due due,b.bilty_received+b.service_received received,b.customer_balance balance,d.reference,d.dated,(SELECT COUNT(*) FROM cash_collection_submissions s WHERE s.delivery_id=d.id AND s.status=\'pending\') pending_cash'.$from.$where.' AND b.customer_balance>0 ORDER BY d.dated,b.delivery_id,b.delivery_item_id LIMIT 50 OFFSET '.($page*50),$args);$result['total']=$total;$result['page']=$page;$result['page_size']=50;
  }
  return $result;
 }

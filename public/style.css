@@ -4827,3 +4827,53 @@ html[dir="rtl"] .nav-group:not([open]) > summary .nav-group-arrow svg { transfor
 html[lang="ur"] .nav-submenu .nav-link { font-size:13px; }
 html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 @media(prefers-reduced-motion:reduce) { .nav-group-arrow svg { transition:none; } }
+
+/* Delivery entry: one bilty per row, with a single next-row lookup. */
+.delivery-dialog { width:min(1620px,96vw); max-width:96vw; }
+.delivery-entry-section { border:1px solid #d7e6e1; border-radius:16px; overflow:hidden; margin-bottom:22px; background:#fff; }
+.delivery-entry-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 22px 12px; }
+.delivery-entry-heading h3 { margin:0 0 6px; font-size:19px; }
+.delivery-entry-heading p,.delivery-scroll-hint { color:#658079; font-size:13px; margin:0; }
+.delivery-scroll-hint { padding:0 22px 16px; }
+.delivery-grid-scroll { overflow:auto; max-height:58vh; overscroll-behavior:contain; }
+.delivery-grid-scroll:focus-visible { outline:2px solid #078477; outline-offset:-2px; }
+.delivery-entry-table { min-width:1400px; width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+.delivery-entry-table th,.delivery-entry-table td { padding:14px 12px; border-bottom:1px solid #e3ece8; vertical-align:middle; }
+.delivery-entry-table thead th { position:sticky; top:0; z-index:2; background:#eef5f2; color:#42645a; font-size:11px; letter-spacing:.035em; white-space:normal; }
+.delivery-entry-table th:first-child,.delivery-entry-table td:first-child { width:44px; min-width:44px; text-align:center; }
+.delivery-entry-table tbody th { text-align:start; min-width:145px; background:#fff; }
+.delivery-entry-table tbody tr:nth-child(even):not(.delivery-draft-row) { background:#fafcfb; }
+.delivery-entry-table small { display:block; margin-top:5px; color:#71857f; font-size:11px; font-weight:400; }
+.delivery-party-cell { min-width:160px; max-width:220px; overflow-wrap:anywhere; }
+.delivery-goods-cell { min-width:120px; max-width:180px; overflow-wrap:anywhere; }
+.delivery-entry-table .number { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.delivery-edit-cell { min-width:94px; }
+.delivery-edit-cell input { width:78px; min-width:0; padding:11px 7px; border:1px solid #cedfd7; border-radius:8px; background:#fff; color:#254e43; font:inherit; font-weight:650; text-align:end; direction:ltr; }
+.delivery-edit-cell input:focus { outline:2px solid #7bc4ad; outline-offset:1px; border-color:#078477; }
+.delivery-row-total { background:#eff8f4; color:#087d6e; font-size:15px; font-weight:850; min-width:120px; }
+.delivery-entry-table tfoot th,.delivery-entry-table tfoot td { position:sticky; bottom:0; z-index:2; background:#e4f2eb; color:#224d3e; font-weight:800; border-top:2px solid #bbd9cc; }
+.delivery-entry-table .delivery-draft-row td { background:#f6faf8; text-align:start; }
+.delivery-row-lookup { display:flex; align-items:center; gap:12px; flex-wrap:wrap; max-width:1000px; }
+.delivery-row-lookup label { font-size:13px; font-weight:750; margin:0; }
+.delivery-row-lookup input { flex:0 1 240px; width:240px; min-width:130px; padding:12px; border:1px solid #c7dcd2; border-radius:9px; font:inherit; }
+.delivery-row-lookup span { color:#6b8178; font-size:12px; }
+.delivery-draft-row #delivery-matches { max-width:1000px; white-space:normal; }
+.delivery-grand-total { margin-bottom:8px; }
+.delivery-grand-total small { display:block; margin-top:6px; color:#5b7c70; font-size:12px; }
+.delivery-grand-total strong { font-size:32px; }
+@media(max-width:700px) {
+ .delivery-dialog { width:calc(100vw - 20px); max-width:calc(100vw - 20px); }
+ .delivery-entry-heading { align-items:flex-start; padding:16px 14px 12px; }
+ .delivery-entry-heading h3 { font-size:17px; }
+ .delivery-entry-heading p { font-size:12px; }
+ .delivery-entry-heading .btn { flex-shrink:0; padding:10px; font-size:12px; }
+ .delivery-scroll-hint { padding:0 14px 12px; font-size:12px; }
+ .delivery-grid-scroll { max-height:55vh; }
+ .delivery-grand-total { flex-wrap:wrap; }
+ .delivery-grand-total strong { font-size:28px; }
+}
+
+.delivery-entry-table tbody th { font-size:13px; letter-spacing:normal; text-transform:none; color:#244b40; }
+.delivery-entry-table tfoot th { text-align:start; letter-spacing:normal; text-transform:none; font-size:13px; }
+
+.delivery-entry-table tfoot th:first-child { text-align:start; }

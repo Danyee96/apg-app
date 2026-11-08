@@ -5127,5 +5127,19 @@ window.APG_TRANSLATIONS = {
   "Not enough free space to verify and restore this backup.": [
     "اس بیک اپ کی جانچ اور بحالی کے لیے جگہ کافی نہیں۔",
     "Is backup ki jaanch aur bahali ke liye jagah kafi nahin."
-  ]
+  ],
+  "Delivery items": ["ڈیلیوری کی بلٹیاں", "Delivery ki biltiyan"],
+  "Enter a bilty number in the next row. Charges and totals update as you type.": ["اگلی قطار میں بلٹی نمبر درج کریں۔ رقمیں لکھتے ہی میزان بدل جائے گا۔", "Agli qataar mein bilty number darj karein. Raqmein likhtay hi total badal jayega."],
+  "Scroll across to enter charges and view all columns. All amounts are in Rs.": ["چارجز درج کرنے اور تمام کالم دیکھنے کے لیے دائیں یا بائیں اسکرول کریں۔ تمام رقمیں روپے میں ہیں۔", "Charges darj karne aur tamam columns dekhne ke liye daein ya baein scroll karein. Tamam raqmein rupay mein hain."],
+  "Next bilty number": ["اگلی بلٹی کا نمبر", "Agli bilty ka number"],
+  "One matching arrival fills the row automatically.": ["ایک ہی بلٹی ملنے پر تفصیل خود بھر جائے گی۔", "Aik hi bilty milne par tafseel khud bhar jayegi."],
+  "Column totals": ["کالموں کا میزان", "Columns ka total"],
+  "Row total": ["بلٹی کی واجب الادا رقم", "Bilty ki wajib ul ada raqam"],
+  "Grand total": ["کل واجب الادا رقم", "Kul wajib ul ada raqam"],
+  "Bilty / arrival": ["بلٹی / آمد", "Bilty / aamad"],
+  "Customer / Party to": ["گاہک / وصول کنندہ", "Gahak / wasool kuninda"],
+  "Bilty + godown + loading + Suzuki − advance − discount": ["بلٹی + گودام + لوڈنگ + سوزوکی − پیشگی − رعایت", "Bilty + godown + loading + Suzuki − advance − riayat"],
+  "Amount due at cash receiving. Cash is entered in the next step for walk-in deliveries.": ["یہ رقم نقد وصولی کے وقت واجب الادا ہوگی۔ فوری ڈیلیوری کی رقم اگلے مرحلے میں درج کریں۔", "Yeh raqam naqad wasooli ke waqt wajib ul ada hogi. Walk-in delivery ki raqam aglay marhalay mein darj karein."],
+  "Fetch and add the entered bilty before saving, or clear its number.": ["محفوظ کرنے سے پہلے درج کردہ بلٹی تلاش کرکے شامل کریں، یا اس کا نمبر مٹا دیں۔", "Save karne se pehle darj karda bilty talash karke shamil karein, ya iska number mita dein."],
+  "Save the goods handover here. Cash is collected separately in Delivery Cash Receiving. Operator cash collections require admin approval. Any unpaid amount stays against the bilty\u2019s customer.": ["یہاں سامان کی حوالگی محفوظ کریں۔ نقد رقم ڈیلیوری کی نقد وصولی میں الگ درج کریں۔ آپریٹر کی وصول کردہ رقم ایڈمن کی منظوری کے بعد کھاتوں میں آئے گی۔ بقایا رقم بلٹی کے گاہک کے نام رہے گی۔", "Yahan samaan ki hawalgi save karein. Naqad raqam Delivery Cash Receiving mein alag darj karein. Operator ki wasool karda raqam admin ki manzoori ke baad khaton mein aayegi. Baqaya raqam bilty ke gahak ke naam rahegi."]
 };

@@ -11,6 +11,9 @@ try {
  await page.locator('[name="receiver"]').fill('One unified receiver');
  for(let n=0;n<2;n++){await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);}
  assert.equal(await page.locator('[data-u-service-row]').count(),2);
+ for(const width of [1680,1366]){await page.setViewportSize({width,height:1050});await page.waitForTimeout(100);assert.ok(await page.locator('.u-ledger-scroll,.u-pane').evaluateAll(elements=>elements.every(el=>el.scrollWidth<=el.clientWidth+1)));assert.ok(await page.evaluate(()=>[...document.querySelectorAll('.u-two-grids section')].every(section=>section.querySelector('thead').getBoundingClientRect().bottom<=section.querySelector('tbody tr').getBoundingClientRect().top+1)));}
+ await page.setViewportSize({width:1680,height:1050});
+
  await page.locator('[name^="u_loading_"]:not([name^="u_loading_cash_"])').first().fill('100');
  await page.locator('[name^="u_suzuki_"]:not([name^="u_suzuki_cash_"])').first().fill('50');
  const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');await page.locator('[name^="u_loading_cash_"]').first().fill('20');await page.locator('[name^="u_suzuki_cash_"]').first().fill('30');

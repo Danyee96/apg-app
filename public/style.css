@@ -5030,3 +5030,42 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
  .u-delivery-list .u-list-label { display:block; font-size:10px; color:#81938e; margin-bottom:5px; }
  .u-delivery-list td:last-child { align-self:end; }
 }
+
+/* Fit both entry ledgers to the workspace, with no nested scrolling. */
+.u-ledger-scroll { overflow:visible; max-height:none; }
+.u-two-grids { grid-template-columns:minmax(0,2.3fr) minmax(0,1fr); }
+.u-pane { overflow:visible; min-width:0; }
+.u-two-grids table { min-width:0; white-space:normal; }
+.u-two-grids h2 { position:static; height:auto; min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px; }
+.u-two-grids .u-currency-note { margin:0; font-size:10px; font-weight:500; }
+.u-two-grids th { position:static; height:auto; padding:10px 5px; font-size:9px; line-height:1.4; overflow-wrap:anywhere; }
+.u-two-grids tbody td { padding:10px 5px; font-size:11px; white-space:normal; }
+.u-two-grids .number { font-size:11px; }
+.u-two-grids small { font-size:9px; }
+.u-two-grids .u-amount { padding:8px 3px; font-size:11px; min-height:34px; appearance:textfield; -moz-appearance:textfield; }
+.u-two-grids .u-amount::-webkit-inner-spin-button,.u-two-grids .u-amount::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.u-bilty-grid th:nth-child(1) { width:11%; }
+.u-bilty-grid th:nth-child(2) { width:17%; }
+.u-bilty-grid th:nth-child(3) { width:4%; }
+.u-bilty-grid th:nth-child(4) { width:auto; }
+.u-bilty-grid th:empty { width:28px; }
+.u-two-grids tfoot td,.u-two-grids tfoot th { position:static; height:auto; padding:12px 5px; font-size:10px; overflow-wrap:anywhere; }
+@media(max-width:1100px) {
+ .u-two-grids { grid-template-columns:minmax(0,1fr); }
+ .u-services-grid { border-inline-start:0; border-top:3px solid #b8d6c5; }
+ .u-two-grids .u-mobile-bilty { display:block; font-weight:750; }
+}
+@media(max-width:650px) {
+ .u-two-grids table,.u-two-grids tbody { display:block; }
+ .u-two-grids thead { display:none; }
+ .u-two-grids tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); height:auto; padding:8px; border-bottom:1px solid #d6e3db; gap:4px; }
+ .u-two-grids tbody td { display:block; height:auto; min-width:0; border:0; padding:8px; text-align:start; font-size:12px; }
+ .u-two-grids tbody td::before { content:attr(data-label); display:block; font-size:10px; color:#648071; margin-bottom:6px; }
+ .u-two-grids .u-amount { font-size:14px; padding:10px; }
+ .u-two-grids tfoot { display:block; }
+ .u-two-grids tfoot tr { display:flex; flex-wrap:wrap; }
+ .u-two-grids tfoot td,.u-two-grids tfoot th { flex:1 0 25%; }
+}
+
+.u-two-grids .icon-btn { width:22px; height:28px; min-width:0; padding:3px; }
+.u-two-grids th { overflow-wrap:normal; }

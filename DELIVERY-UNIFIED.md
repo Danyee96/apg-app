@@ -48,4 +48,4 @@ New saves retain the original entered amount in `delivery_last_bilty_receipts`, 
 
 ## Keyboard entry
 
-Enter moves through Discount → REC B AMT → Loading charges → Suzuki charges → REC L AMT → REC S AMT within a bilty. It never submits the form from those inputs. After REC S AMT, new deliveries return focus to the bilty lookup. Adding a bilty focuses its first editable entry field. Existing deliveries without a lookup continue to the next bilty, then the received-date field. Read-only fields are skipped.
+Enter moves through REC B AMT → Discount → Loading charges → Suzuki charges → REC L AMT → REC S AMT within a bilty. It never submits the form from those inputs. After REC S AMT, new deliveries return focus to the bilty lookup. Adding a bilty focuses its first editable entry field. Existing deliveries without a lookup continue to the next bilty, then the received-date field. Read-only fields are skipped.

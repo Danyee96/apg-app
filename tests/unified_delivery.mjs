@@ -14,7 +14,7 @@ try {
   await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.locator('#u-bilty-lookup').press('Enter');await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);
   if(n===0){
    const key=await page.locator('[data-u-bilty-row]').first().getAttribute('data-u-bilty-row');
-   const order=['discount','bilty','loading','suzuki','loading_cash','service_cash'];
+   const order=['bilty','discount','loading','suzuki','loading_cash','service_cash'];
    for(const field of order){const name='u_'+field+'_'+key;await page.waitForFunction(name=>document.activeElement?.name===name,name);await page.locator('[name="'+name+'"]').fill('0');await page.locator('[name="'+name+'"]').press('Enter');}
    assert.equal(await page.evaluate(()=>document.activeElement.id),'u-bilty-lookup');assert.equal(keyboardSaves,0);
   }

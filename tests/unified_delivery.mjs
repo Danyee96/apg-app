@@ -9,14 +9,26 @@ try {
  await page.locator('.nav-link[data-view="deliveries"]').click();await page.locator('.u-delivery-list').waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'deliveries');await page.reload();await page.locator('.u-delivery-list').waitFor();await page.locator('[data-action="u-tab"][data-value="balances"]').click();await page.locator('[data-action="u-tab"][data-value="balances"].primary').waitFor();await page.reload();await page.locator('[data-action="u-tab"][data-value="balances"].primary').waitFor();await page.locator('[data-action="u-tab"][data-value="all"]').click();await page.locator('.u-delivery-list').waitFor();assert.equal(await page.locator('.u-delivery-list th').filter({hasText:/^Status$/}).count(),0);assert.ok(await page.locator('.u-delivery-list').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await page.getByRole('button',{name:'Add New',exact:true}).click();await page.locator('#unified-delivery-form').waitFor();
  assert.equal(await page.locator('[name="delivery_mode"]').count(),0);assert.equal(await page.locator('#modal').evaluate(el=>el.open),false);
  await page.locator('[name="receiver"]').fill('One unified receiver');
- for(let n=0;n<2;n++){await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);}
+ let keyboardSaves=0;page.on('request',request=>{if(request.url().includes('action=save_unified_delivery'))keyboardSaves++;});
+ for(let n=0;n<2;n++){
+  await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.locator('#u-bilty-lookup').press('Enter');await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);
+  if(n===0){
+   const key=await page.locator('[data-u-bilty-row]').first().getAttribute('data-u-bilty-row');
+   const order=['discount','bilty','loading','suzuki','loading_cash','service_cash'];
+   for(const field of order){const name='u_'+field+'_'+key;await page.waitForFunction(name=>document.activeElement?.name===name,name);await page.locator('[name="'+name+'"]').fill('0');await page.locator('[name="'+name+'"]').press('Enter');}
+   assert.equal(await page.evaluate(()=>document.activeElement.id),'u-bilty-lookup');assert.equal(keyboardSaves,0);
+  }
+ }
+ assert.equal(keyboardSaves,0);
+
  assert.equal(await page.locator('[data-u-service-row]').count(),2);
  for(const width of [1680,1366]){await page.setViewportSize({width,height:1050});await page.waitForTimeout(100);assert.ok(await page.locator('.u-ledger-scroll,.u-pane').evaluateAll(elements=>elements.every(el=>el.scrollWidth<=el.clientWidth+1)));assert.ok(await page.evaluate(()=>[...document.querySelectorAll('.u-two-grids section')].every(section=>section.querySelector('thead').getBoundingClientRect().bottom<=section.querySelector('tbody tr').getBoundingClientRect().top+1)));}
  await page.setViewportSize({width:1680,height:1050});
 
  await page.locator('[name^="u_loading_"]:not([name^="u_loading_cash_"])').first().fill('100');
  await page.locator('[name^="u_suzuki_"]:not([name^="u_suzuki_cash_"])').first().fill('50');
- const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');assert.equal(await page.locator('.u-services-grid input[name^="u_service_cash_"]').count(),2);assert.equal(await page.locator('input[name^="u_loading_cash_"],input[name^="u_suzuki_cash_"]').count(),0);await page.locator('[name^="u_service_cash_"]').first().fill('0');assert.equal(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText(),'');await page.locator('[name^="u_service_cash_"]').first().fill('50');assert.ok(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText());
+ const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');assert.equal(await page.locator('.u-services-grid input[name^="u_service_cash_"]').count(),2);assert.equal(await page.locator('input[name^="u_loading_cash_"]').count(),2);await page.locator('[name^="u_loading_cash_"]').first().fill('25');assert.equal(await page.locator('[data-u-total="loading_now"]').innerText(),'Rs 25');await page.locator('[name^="u_service_cash_"]').first().fill('0');assert.equal(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText(),'');await page.locator('[name^="u_service_cash_"]').first().fill('50');assert.ok(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText());
+ assert.equal(await page.locator('[data-u-charge="bilty_total"] strong').innerText(),'Rs 2,400');assert.equal(await page.locator('[data-u-charge="loading"] strong').innerText(),'Rs 100');assert.equal(await page.locator('[data-u-charge="suzuki"] strong').innerText(),'Rs 50');
  const rowKey=await first.first().getAttribute('name');assert.ok(await page.locator('[data-u-date="'+rowKey+'"]').innerText());
  await first.first().fill('0');assert.equal(await page.locator('[data-u-date="'+rowKey+'"]').innerText(),'');await first.first().fill('500');
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);
@@ -29,13 +41,17 @@ try {
  assert.ok(Number(await first.first().evaluate(el=>getComputedStyle(el).color.match(/\d+/g)[0]))>100);
  if(process.env.APG_UNIFIED_REVIEW)await page.screenshot({path:process.env.APG_UNIFIED_REVIEW});
  const response=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.locator('#unified-delivery-form [type="submit"]').click();const saved=await (await response).json();await page.locator('.u-history details').waitFor();
- assert.equal(await first.first().inputValue(),'0');assert.ok((await page.locator('#u-totals').innerText()).includes('Rs 500'));
- const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,5000);assert.equal(before.lines[0].suzuki_received,0);
+ assert.equal(await first.first().inputValue(),'500');assert.ok((await page.locator('#u-totals').innerText()).includes('Rs 500'));
+ const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,2500);assert.equal(before.lines[0].suzuki_received,5000);
  // Reopening does not invent a new receipt date or reset historical payments.
- assert.equal(await page.locator('[data-u-date]').first().innerText(),'');await page.locator('[data-action="u-full"]').click();
+ assert.ok((await page.locator('[data-u-date]').first().innerText()).includes('Last received'));
+ // Unchanged saves preserve the visible last receipt without posting another payment.
+ const unchangedKey=await page.evaluate(()=>unifiedEditor.request_key);const unchanged=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.locator('#unified-delivery-form [type="submit"]').click();await unchanged;await page.waitForFunction(old=>unifiedEditor?.request_key!==old&&unifiedEditor?.doc?.receipts.length===1&&!unifiedEditor.biltyEntries.size,unchangedKey);assert.equal(await first.first().inputValue(),'500');assert.equal(await page.evaluate(()=>uAmounts(unifiedEditor.rows[0]).b),0);
+ await page.locator('[data-action="u-new-receipt"]').first().click();assert.equal(Number(await first.first().inputValue()),0);await first.first().fill('200');await page.locator('[name^="u_loading_cash_"]').first().fill('10');await page.waitForFunction(()=>!!unifiedEditor?.prior);await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===2);assert.equal(await first.first().inputValue(),'200');assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].bilty_received),70000);assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].loading_received),3500);assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].suzuki_received),5000);
+ await page.locator('[data-action="u-full"]').click();
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);assert.equal(await page.locator('[data-u-total="previous_balance"]').innerText(),'Rs 200');assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 0');
- await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===2);
- const settled=await page.evaluate(()=>unifiedEditor.doc);assert.ok(settled.lines.every(row=>row.payment_status==='fully_paid'));await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===0);assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 0');assert.equal(await page.evaluate(()=>unifiedEditor.doc.previous_collections.reduce((sum,row)=>sum+row.amount,0)),20000);
+ await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===3);
+ const settled=await page.evaluate(()=>unifiedEditor.doc);assert.equal(await first.first().inputValue(),'700');assert.equal(settled.lines[0].last_bilty_received,70000);assert.ok(settled.lines.every(row=>row.payment_status==='fully_paid'));await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===0);assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 0');assert.equal(await page.evaluate(()=>unifiedEditor.doc.previous_collections.reduce((sum,row)=>sum+row.amount,0)),20000);
  assert.equal(settled.lines[0].bilty_received_date,before.lines[0].bilty_received_date);
  await page.locator('[data-action="u-print"]').click();await page.locator('#thermal-preview-sheet').waitFor();assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('One unified receiver'));await page.locator('#thermal-values').selectOption('cash');assert.ok((await page.locator('#thermal-preview-sheet').innerText()).includes('2,750'));await page.locator('[data-action="thermal-close"]').first().click();
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>APG.setLanguage('ur'));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));

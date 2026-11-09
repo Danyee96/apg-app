@@ -5203,3 +5203,12 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
  .daily-cleared-banner { flex-wrap:wrap; }
  .daily-filter-note { padding-inline:12px; }
 }
+
+/* Charges stay prominent independently of whether cash has been collected. */
+.u-charge-highlights { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+.u-charge-card { background:#fff; border:1px solid #c9ded6; border-radius:13px; padding:20px; min-width:0; }
+.u-charge-card:first-child { background:#e4f4ed; border-color:#9acbb8; }
+.u-charge-card span { display:block; font-size:13px; font-weight:650; color:#52746a; line-height:1.5; }
+.u-charge-card strong { display:block; margin-top:10px; color:#087d6c; font-size:clamp(23px,2.2vw,34px); font-weight:800; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.u-cash-summary-title { font-size:15px; margin:0 0 18px; }
+@media(max-width:650px){.u-charge-highlights{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.u-charge-card{padding:15px}.u-charge-card:first-child{grid-column:1/-1}.u-charge-card strong{font-size:25px}}

@@ -26,7 +26,7 @@ Operator receipts post immediately through both unified delivery save and older 
 
 ## Combined service collection input
 
-The service grid uses one REC S AMT input per bilty for new cash. Both preview calculations and server posting allocate new cash to unpaid loading first, then Suzuki. Any supported overpayment remains Suzuki service credit; it never clears bilty/customer debt. Imported combined service accounts stay combined without guessing their original split. The entered date is assigned only to components receiving cash. Existing receipt history and independent service ledgers are preserved. The API continues to accept older explicitly split inputs, but rejects a combined amount alongside positive split amounts to prevent double counting.
+The service grid uses REC L AMT for loading cash and REC S AMT for Suzuki cash, with separate dates, received totals and footer totals. Pay in full fills each remaining component. Combined historical receipts retain their original classification and dates; the new fields do not redistribute previously collected cash. On legacy invoices, Pay in full allocates only the remaining combined service balance across the new loading/Suzuki inputs. The API continues to accept older combined inputs for compatibility, but rejects a combined amount alongside positive split amounts to prevent double counting.
 
 ## Previous customer balance in the bilty grid
 
@@ -39,3 +39,13 @@ REC B AMT now covers the selected bilty first, then that customer's older positi
 New UI requests explicitly opt in using `include_previous_balances` and a server-provided `previous_balance_version`. Previous-debt changes reject atomically with a refresh instruction. The original request key remains the replay guard. In one transaction, new receipts are appended against the original older delivery documents and cash/customer accounts; a `delivery_customer_collections` link makes those receipts visible in the collecting entry's Payment History and the cash-summary print totals. The immutable old receipts/charges and service ledgers are preserved. A previous-only payment creates no artificial zero receipt against an already-paid current bilty. Older clients without the opt-in retain their existing bilty-only allocation.
 
 Validation: `tests/customer_collection.py` exercises current+previous collection, older partial receipts/date preservation, two same-customer rows, previous-only cash, idempotence, stale snapshot rollback, overpayment credit, separate services and customer isolation. Browser checks exercise preview, Pay in full, saved balances/history and responsive layouts.
+
+## Last REC B AMT display
+
+Reopened deliveries show the last positive REC B AMT and its date. An unchanged displayed receipt is historical and contributes zero to a new collection. Editing the field or choosing New receipt makes it a new payment; Pay in full still fills only unpaid amounts. The REC B AMT column total follows the displayed values, while Cash receiving now uses only newly entered receipts.
+
+New saves retain the original entered amount in `delivery_last_bilty_receipts`, including amounts allocated to previous customer debts. Zero-payment saves preserve this snapshot. Older entries fall back to the latest positive recorded receipt for the bilty; historical amounts that were split between bilties before this change cannot always reconstruct the original input. A later receipt entered through another collection endpoint takes precedence over an older display snapshot. These display records do not post to financial accounts.
+
+## Keyboard entry
+
+Enter moves through Discount → REC B AMT → Loading charges → Suzuki charges → REC L AMT → REC S AMT within a bilty. It never submits the form from those inputs. After REC S AMT, new deliveries return focus to the bilty lookup. Adding a bilty focuses its first editable entry field. Existing deliveries without a lookup continue to the next bilty, then the received-date field. Read-only fields are skipped.

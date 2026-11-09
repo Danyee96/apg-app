@@ -25,6 +25,7 @@ def check(base,database,password):
  loading_before=admin.call('ledger',params={'account_id':'SYS-LOADING-RECEIVABLE'})['closing'];suzuki_before=admin.call('ledger',params={'account_id':'SYS-SUZUKI-RECEIVABLE'})['closing']
  data=payload(shipment('UNIFIED-001'));saved=admin.call('save_unified_delivery',data,status=201);assert admin.call('save_unified_delivery',data,status=201)['replayed']
  doc=admin.call('unified_delivery',params={'id':saved['id']});line=doc['lines'][0]
+ assert line['last_bilty_received']==50000 and line['last_bilty_received_date']==day
  assert line['bilty_balance']==70000 and line['loading_balance']==8000 and line['suzuki_balance']==2000
  assert admin.call('ledger',params={'account_id':customer})['closing']==70000
  assert admin.call('ledger',params={'account_id':'SYS-LOADING-RECEIVABLE'})['closing']==loading_before+8000
@@ -34,7 +35,7 @@ def check(base,database,password):
  def existing(doc,b='0',l='0',s='0'):
   line=doc['lines'][0];return {'id':doc['header']['id'],'version':doc['version'],'request_key':str(uuid.uuid4()),'dated':doc['header']['dated'],'received_date':'2026-11-08','receiver':doc['header']['receiver'],'mobile':doc['header']['mobile'],'cnic':doc['header']['cnic'],'remarks':doc['header']['remarks'],'cash_account_id':cash,'items':[{'id':line['delivery_item_id'],'discount':str(line['discount']/100),'loading':str(line['loading']/100),'suzuki':str(line['suzuki']/100),'bilty_received':b,'loading_received':l,'suzuki_received':s}]}
  # Reopening/saving zero increments leaves dates and cumulative payments untouched.
- admin.call('save_unified_delivery',existing(doc),status=201);again=admin.call('unified_delivery',params={'id':saved['id']});assert len(again['receipts'])==1
+ admin.call('save_unified_delivery',existing(doc),status=201);again=admin.call('unified_delivery',params={'id':saved['id']});assert len(again['receipts'])==1 and again['lines'][0]['last_bilty_received']==50000
  assert tuple(again['lines'][0][key] for key in ['bilty_received_date','loading_received_date','suzuki_received_date'])==old_dates
  later=existing(again,'700','80','20');admin.call('save_unified_delivery',later,status=201);assert admin.call('save_unified_delivery',later,status=201)['replayed']
  settled=admin.call('unified_delivery',params={'id':saved['id']});assert settled['lines'][0]['payment_status']=='fully_paid' and len(settled['receipts'])==2

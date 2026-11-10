@@ -14,7 +14,7 @@ try {
   await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.locator('#u-bilty-lookup').press('Enter');await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);
   if(n===0){
    const key=await page.locator('[data-u-bilty-row]').first().getAttribute('data-u-bilty-row');
-   const order=['bilty','discount','loading','suzuki','loading_cash','service_cash'];
+   const order=['bilty','discount','loading','suzuki','service_cash'];
    for(const field of order){const name='u_'+field+'_'+key;await page.waitForFunction(name=>document.activeElement?.name===name,name);await page.locator('[name="'+name+'"]').fill('0');await page.locator('[name="'+name+'"]').press('Enter');}
    assert.equal(await page.evaluate(()=>document.activeElement.id),'u-bilty-lookup');assert.equal(keyboardSaves,0);
   }
@@ -27,8 +27,17 @@ try {
 
  await page.locator('[name^="u_loading_"]:not([name^="u_loading_cash_"])').first().fill('100');
  await page.locator('[name^="u_suzuki_"]:not([name^="u_suzuki_cash_"])').first().fill('50');
- const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');assert.equal(await page.locator('.u-services-grid input[name^="u_service_cash_"]').count(),2);assert.equal(await page.locator('input[name^="u_loading_cash_"]').count(),2);await page.locator('[name^="u_loading_cash_"]').first().fill('25');assert.equal(await page.locator('[data-u-total="loading_now"]').innerText(),'Rs 25');await page.locator('[name^="u_service_cash_"]').first().fill('0');assert.equal(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText(),'');await page.locator('[name^="u_service_cash_"]').first().fill('50');assert.ok(await page.locator('[data-u-date^="u_service_cash_"]').first().innerText());
- assert.equal(await page.locator('[data-u-charge="bilty_total"] strong').innerText(),'Rs 2,400');assert.equal(await page.locator('[data-u-charge="loading"] strong').innerText(),'Rs 100');assert.equal(await page.locator('[data-u-charge="suzuki"] strong').innerText(),'Rs 50');
+ const first=page.locator('[name^="u_bilty_"]');await first.first().fill('500');
+ assert.deepEqual(await page.locator('.u-services-grid th').allTextContents(),['Loading AMT','Suzuki AMT','REC S AMT','Collection date']);
+ assert.equal(await page.locator('input[name^="u_loading_cash_"]').count(),0);
+ const service=page.locator('[name^="u_service_cash_"]').first(),serviceDate=page.locator('[data-u-service-date]').first();
+ assert.equal(await service.inputValue(),'150');assert.ok(await serviceDate.innerText());assert.equal(await page.locator('[data-u-total="service_display"]').innerText(),'Rs 150');
+ await service.fill('0');assert.equal(await serviceDate.innerText(),'');
+ await page.locator('[name^="u_bilty_"]').first().fill('400');assert.equal(Number(await service.inputValue()),0);assert.equal(await serviceDate.innerText(),'');await first.first().fill('500');
+ await page.locator('[name^="u_loading_"]').first().fill('0');assert.equal(await service.inputValue(),'50');await service.fill('0');await page.locator('[name^="u_loading_"]').first().focus();assert.equal(Number(await service.inputValue()),0);assert.equal(await serviceDate.innerText(),'');await page.locator('[name^="u_loading_"]').first().fill('100');assert.equal(await service.inputValue(),'150');
+ await service.fill('50');assert.ok(await serviceDate.innerText());
+
+ assert.equal(await page.locator('[data-u-charge="bilty_total"] strong').innerText(),'Rs 2,400');assert.equal(await page.locator('[data-u-charge="service_total"] strong').innerText(),'Rs 150');assert.equal(await page.locator('[data-u-charge="grand_total"] strong').innerText(),'Rs 2,550');
  const rowKey=await first.first().getAttribute('name');assert.ok(await page.locator('[data-u-date="'+rowKey+'"]').innerText());
  await first.first().fill('0');assert.equal(await page.locator('[data-u-date="'+rowKey+'"]').innerText(),'');await first.first().fill('500');
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);
@@ -42,12 +51,13 @@ try {
  if(process.env.APG_UNIFIED_REVIEW)await page.screenshot({path:process.env.APG_UNIFIED_REVIEW});
  const response=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.locator('#unified-delivery-form [type="submit"]').click();const saved=await (await response).json();await page.locator('.u-history details').waitFor();
  assert.equal(await first.first().inputValue(),'500');assert.ok((await page.locator('#u-totals').innerText()).includes('Rs 500'));
- const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,2500);assert.equal(before.lines[0].suzuki_received,5000);
+ const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,5000);assert.equal(before.lines[0].suzuki_received,0);assert.equal(await service.inputValue(),'50');assert.ok(await serviceDate.innerText());assert.equal(await page.evaluate(()=>uServiceReceipt(unifiedEditor.rows[0])),0);assert.equal(await page.locator('[name^="u_service_cash_"]').nth(1).inputValue(),'0');assert.equal(await page.locator('[data-u-service-date]').nth(1).innerText(),'');
+ const splitReview=await page.evaluate(()=>{const e=unifiedEditor,row=e.rows[0],previous=e.review;e.review={payload:{items:[{id:row.key,loading_received:'20',suzuki_received:'30',service_received:'50'}]}};const split=uServiceAllocation(row,10000,5000);e.review=previous;return split;});assert.deepEqual(splitReview,{l:2000,s:3000,legacy:0});
  // Reopening does not invent a new receipt date or reset historical payments.
  assert.ok((await page.locator('[data-u-date]').first().innerText()).includes('Last received'));
  // Unchanged saves preserve the visible last receipt without posting another payment.
  const unchangedKey=await page.evaluate(()=>unifiedEditor.request_key);const unchanged=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.locator('#unified-delivery-form [type="submit"]').click();await unchanged;await page.waitForFunction(old=>unifiedEditor?.request_key!==old&&unifiedEditor?.doc?.receipts.length===1&&!unifiedEditor.biltyEntries.size,unchangedKey);assert.equal(await first.first().inputValue(),'500');assert.equal(await page.evaluate(()=>uAmounts(unifiedEditor.rows[0]).b),0);
- await page.locator('[data-action="u-new-receipt"]').first().click();assert.equal(Number(await first.first().inputValue()),0);await first.first().fill('200');await page.locator('[name^="u_loading_cash_"]').first().fill('10');await page.waitForFunction(()=>!!unifiedEditor?.prior);await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===2);assert.equal(await first.first().inputValue(),'200');assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].bilty_received),70000);assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].loading_received),3500);assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].suzuki_received),5000);
+ assert.equal(await page.locator('[data-action="u-new-receipt"]').count(),0);await first.first().fill('200');await service.fill('10');await page.waitForFunction(()=>!!unifiedEditor?.prior);await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===2);assert.equal(await first.first().inputValue(),'200');assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].bilty_received),70000);assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].loading_received),6000);assert.equal(await page.evaluate(()=>unifiedEditor.doc.lines[0].suzuki_received),0);
  await page.locator('[data-action="u-full"]').click();
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);assert.equal(await page.locator('[data-u-total="previous_balance"]').innerText(),'Rs 200');assert.equal(await page.locator('[data-u-total="total_receivable"]').innerText(),'Rs 0');
  await page.locator('#unified-delivery-form [type="submit"]').click();await page.waitForFunction(()=>unifiedEditor?.doc?.receipts.length===3);

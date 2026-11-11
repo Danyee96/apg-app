@@ -5300,6 +5300,7 @@ window.APG_TRANSLATIONS = {
   "New receipt": ["نئی وصولی", "Nayi wasooli"],
   "Last received": ["آخری وصولی", "Aakhri wasooli"],
   "REC B AMT shows the last saved receipt. Enter an amount to record another payment.": ["REC B AMT میں آخری محفوظ وصولی دکھائی گئی ہے۔ مزید وصولی درج کرنے کے لیے رقم لکھیں۔", "REC B AMT mein aakhri save shuda wasooli dikhai gayi hai. Mazeed wasooli darj karne ke liye raqam likhein."],
+  "Total REC B AMT shown": ["دکھائی گئی کل بلٹی وصولی", "Dikhai gai kul bilty wasooli"],
   "Total amount (Bilty + Godown)": ["کل رقم (بلٹی + گودام)", "Kul raqam (Bilty + Godown)"],
   "Total amount (Loading + Suzuki)": ["کل رقم (لوڈنگ + سوزوکی)", "Kul raqam (Loading + Suzuki)"],
   "Total amount (Bilty + Godown + Loading + Suzuki)": ["کل رقم (بلٹی + گودام + لوڈنگ + سوزوکی)", "Kul raqam (Bilty + Godown + Loading + Suzuki)"],

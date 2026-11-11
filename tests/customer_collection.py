@@ -29,6 +29,7 @@ def check(base,database,password):
  old_b=admin.call('save_unified_delivery',entry(item('PRIOR-B',1300),'0','2026-11-07',loading='50'),status=201)['id']
  original=[tuple(row) for row in db.execute('SELECT * FROM delivery_cash_receipts WHERE delivery_id=?',(old_a,))]
  preview=balance();assert preview['customers'][0]['outstanding']==200000
+ details=ops.call('delivery_customer_dues',{'account_ids':[customer],'details':True});assert [row['delivery_id'] for row in details['rows']]==[old_b,old_a]
  cash_before=admin.call('ledger',params={'account_id':cash})['closing'];service_before=admin.call('ledger',params={'account_id':'SYS-LOADING-RECEIVABLE'})['closing']
  pay=entry(item('PRIOR-CURRENT',900),'2800',discount='100');pay.update(include_previous_balances=True,previous_balance_version=preview['balance_version'])
  # If the current receipt fails after older allocations, all postings roll back.
@@ -70,6 +71,16 @@ def check(base,database,password):
  credited=admin.call('unified_delivery',params={'id':saved['id']});assert credited['lines'][0]['bilty_balance']==-10000 and balance(saved['id'])['customers'][0]['outstanding']==0
  # No cross-customer allocation: a second customer's invoice remains unchanged.
  assert admin.call('unified_delivery',params={'id':untouched})['lines'][0]['bilty_balance']==99900
+ # Display order must not change how partial payments settle older debts.
+ order_customer=admin.call('save_customer',{'name':'Receipt order customer','group_code':'116'})['id']
+ oldest=admin.call('save_unified_delivery',entry(item('ORDER-OLD',100,order_customer),date='2026-11-06'),status=201)['id']
+ newest=admin.call('save_unified_delivery',entry(item('ORDER-NEW',100,order_customer),date='2026-11-07'),status=201)['id']
+ order_preview=ops.call('delivery_customer_dues',{'account_ids':[order_customer],'details':True})
+ assert [row['delivery_id'] for row in order_preview['rows']]==[newest,oldest]
+ order_payment=entry(item('ORDER-CURRENT',100,order_customer),'150');order_payment.update(include_previous_balances=True,previous_balance_version=order_preview['balance_version'])
+ ops.call('save_unified_delivery',order_payment,status=201)
+ assert admin.call('unified_delivery',params={'id':oldest})['lines'][0]['bilty_balance']==5000
+ assert admin.call('unified_delivery',params={'id':newest})['lines'][0]['bilty_balance']==10000
  assert not db.execute('SELECT voucher_id FROM voucher_lines GROUP BY voucher_id HAVING SUM(debit)<>SUM(credit)').fetchall();assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok' and not db.execute('PRAGMA foreign_key_check').fetchall();db.close()
  print('PASS: current plus previous customer collection; oldest debts first; same-customer rows counted once; previous-only payments; services untouched; preserved history; collector identity; idempotence; stale rollback; ledger reconciliation.')
 if __name__=='__main__':main(check)

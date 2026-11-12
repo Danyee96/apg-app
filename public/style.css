@@ -5002,6 +5002,7 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .u-delivery-expense .field { min-width:0; }
 .u-delivery-expense .field input,
 .u-delivery-expense .field select { width:100%; }
+.u-expense-picker .customer-picker-results { top:100%; z-index:12; }
 .u-delivery-expense p { margin:16px 0 0; padding:12px 14px; border-radius:8px; background:#f2f7f4; color:#49665b; overflow-wrap:anywhere; }
 #u-totals .delivery-facts { grid-template-columns:repeat(4,minmax(0,1fr)); margin:0; }
 #u-previous .delivery-facts { grid-template-columns:repeat(4,minmax(0,1fr)); margin:14px 0 8px; }

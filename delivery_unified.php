@@ -44,6 +44,14 @@ function migrate_delivery_last_receipts(): void {
   run("INSERT OR IGNORE INTO meta(key,value) VALUES('delivery_last_receipts_version','1')");
  });
 }
+function migrate_delivery_expenses(): void {
+ if(one("SELECT value FROM meta WHERE key='delivery_expenses_version'"))return;
+ transaction(function(){
+  run('CREATE TABLE IF NOT EXISTS delivery_expenses(id INTEGER PRIMARY KEY AUTOINCREMENT,delivery_id INTEGER NOT NULL REFERENCES deliveries(id),operator_entry_id INTEGER NOT NULL UNIQUE REFERENCES operator_cash_entries(id))');
+  run('CREATE INDEX IF NOT EXISTS idx_delivery_expenses_delivery ON delivery_expenses(delivery_id)');
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('delivery_expenses_version','1')");
+ });
+}
 function unified_enrich_lines(array $lines,int $id): array {
  $sums=array_column(query('SELECT l.delivery_item_id,SUM(l.loading_received) loading_received,SUM(l.suzuki_received) suzuki_received,SUM(l.legacy_service_received) legacy_service_received,MAX(CASE WHEN l.bilty_received>0 AND r.date_known=1 THEN COALESCE(l.bilty_received_date,r.dated) END) bilty_received_date,MAX(CASE WHEN l.loading_received>0 AND r.date_known=1 THEN COALESCE(l.loading_received_date,r.dated) END) loading_received_date,MAX(CASE WHEN l.suzuki_received>0 AND r.date_known=1 THEN COALESCE(l.suzuki_received_date,r.dated) END) suzuki_received_date,MAX(CASE WHEN l.legacy_service_received>0 AND r.date_known=1 THEN COALESCE(l.legacy_service_received_date,r.dated) END) legacy_received_date FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id WHERE r.delivery_id=? GROUP BY l.delivery_item_id',[$id]),null,'delivery_item_id');
  foreach($lines as &$line){$sum=$sums[$line['delivery_item_id']]??[];foreach(['loading_received','suzuki_received','legacy_service_received'] as $key)$line[$key]=(int)($sum[$key]??0);foreach(['bilty_received_date','loading_received_date','suzuki_received_date','legacy_received_date'] as $key)$line[$key]=$sum[$key]??null;
@@ -125,6 +133,8 @@ function unified_adopt(int $id): void {
 }
 function unified_document(int $id): array {
  transaction(fn()=>unified_adopt($id));$invoice=delivery_cash_invoice($id);
+ $invoice['delivery_expenses']=query('SELECT e.id,e.amount,e.notes,e.dated,e.actor_name,u.full_name operator_name,u.username FROM delivery_expenses x JOIN operator_cash_entries e ON e.id=x.operator_entry_id JOIN users u ON u.id=e.operator_id WHERE x.delivery_id=? ORDER BY e.id DESC',[$id]);
+ $current=current_user();$invoice['expense_operators']=$current['role']==='super_admin'?query("SELECT id,username,full_name FROM users WHERE role='operations' AND active=1 ORDER BY full_name,username"):[];
  $last=array_column(query('SELECT x.* FROM delivery_last_bilty_receipts x JOIN delivery_items di ON di.id=x.delivery_item_id WHERE di.delivery_id=? AND NOT EXISTS(SELECT 1 FROM delivery_cash_receipt_lines newer WHERE newer.delivery_item_id=x.delivery_item_id AND newer.receipt_id>x.receipt_floor AND newer.bilty_received>0)',[$id]),null,'delivery_item_id');foreach($invoice['lines'] as &$line){$saved=$last[$line['delivery_item_id']]??null;if($saved){$line['last_bilty_received']=(int)$saved['amount'];$line['last_bilty_received_date']=$saved['dated'];}}unset($line);
  $invoice['cash_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id");
  foreach($invoice['receipts'] as &$receipt)$receipt['items']=query('SELECT * FROM delivery_cash_receipt_lines WHERE receipt_id=? ORDER BY delivery_item_id',[$receipt['id']]);unset($receipt);
@@ -187,6 +197,14 @@ foreach(['bilty_received','loading_received','suzuki_received','legacy_service_r
   $result=['id'=>$id,'reference'=>$invoice['header']['reference'],'pending_cash'=>false];
   if(!empty($p['include_previous_balances'])){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Cash receiving access is required.',403);$allocation=unified_collect_previous($p,$invoice,$cashItems,$user);$cashItems=$allocation['items'];$result['previous_collected']=$allocation['previous_collected'];$result['previous_receipts']=$allocation['previous_receipts'];$total=array_sum(array_map(fn($item)=>money($item,'bilty_received')+money($item,'loading_received')+money($item,'suzuki_received')+money($item,'legacy_service_received'),$cashItems));}
   if($total>0&&!$pending){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Walk-in delivery requires cash receiving access.',403);$cash=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>'unified-cash-'.hash('sha256',$key),'dated'=>!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$cashItems,'initial'=>$initial];$recorded=unified_record_cash($cash,$user,true);$result['pending_cash']=!empty($recorded['pending']);$result['cash_id']=$recorded['id'];}
+  $expense=money($p,'delivery_expense');if($expense){
+   if($initial||!operator_cash_allowed($user))throw new RuntimeException('Only a munshi or super admin can add expenses to an existing delivery.',403);
+   $owner=operator_cash_owner($user,['operator_id'=>(int)($p['expense_operator_id']??0)]);if(!$owner||empty($owner['active']))throw new InvalidArgumentException('Choose an active munshi for this expense.');
+   $note=text($p,'expense_note',500,true);$cash=text($p,'cash_account_id',40,true);$dated=!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d');if($dated>date('Y-m-d'))throw new InvalidArgumentException('Expense date cannot be in the future.');
+   if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');
+   $period=operator_cash_open((int)$owner['id'],true);$title='Delivery expense · '.$invoice['header']['reference'];$voucher=delivery_system_voucher('PV',$dated,$title,[['5-501-OPS',$expense,0],[$cash,0,$expense]]);
+   run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,expense_account_id,voucher_id,actor_id,actor_name) VALUES(?,?,'expense',?,?,?,?,?,?,?,?,?)",[$period['id'],$owner['id'],$dated,$expense,$title,$note,$cash,'5-501-OPS',$voucher,$user['id'],$user['username']]);$expenseId=(int)db()->lastInsertId();run('INSERT INTO delivery_expenses(delivery_id,operator_entry_id) VALUES(?,?)',[$id,$expenseId]);audit('recorded delivery expense','operator_cash',$expenseId);$result['expense_id']=$expenseId;
+  }
   // Preserve the amount actually entered, including cash allocated to older bilties.
   // Zero-value saves must not erase the last genuine collection.
   if(empty($result['pending_cash']))foreach($input as $row){$received=money($row,'bilty_received');if($received>0){$lineId=$initial?($map[(int)$row['id']]??0):(int)$row['id'];$date=!empty($row['bilty_received_date'])?day($row,'bilty_received_date'):(!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'));run('INSERT INTO delivery_last_bilty_receipts(delivery_item_id,amount,dated,receipt_floor) VALUES(?,?,?,?) ON CONFLICT(delivery_item_id) DO UPDATE SET amount=excluded.amount,dated=excluded.dated,receipt_floor=excluded.receipt_floor,recorded_at=CURRENT_TIMESTAMP',[$lineId,$received,$date,(int)(one('SELECT MAX(id) id FROM delivery_cash_receipts')['id']??0)]);}}

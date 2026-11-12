@@ -19,7 +19,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_delivery_last_receipts();migrate_operator_cash();
+ migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_delivery_last_receipts();migrate_operator_cash();migrate_delivery_expenses();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);

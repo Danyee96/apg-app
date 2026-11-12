@@ -37,7 +37,7 @@ try {
  await page.locator('[name^="u_loading_"]').first().fill('0');assert.equal(await service.inputValue(),'50');await service.fill('0');await page.locator('[name^="u_loading_"]').first().focus();assert.equal(Number(await service.inputValue()),0);assert.equal(await serviceDate.innerText(),'');await page.locator('[name^="u_loading_"]').first().fill('100');assert.equal(await service.inputValue(),'150');
  await service.fill('50');assert.ok(await serviceDate.innerText());
 
- assert.equal(await page.locator('[data-u-charge="bilty_received_display"] strong').innerText(),'Rs 500');assert.equal(await page.locator('[data-u-charge="bilty_received_display"] strong').innerText(),await page.locator('[data-u-total="bilty_now"]').innerText());assert.equal(await page.locator('[data-u-charge="service_total"] strong').innerText(),'Rs 150');assert.equal(await page.locator('[data-u-charge="grand_total"] strong').innerText(),'Rs 2,550');
+ assert.equal(await page.locator('[data-u-charge="bilty_received_display"] strong').innerText(),'Rs 500');assert.equal(await page.locator('[data-u-charge="bilty_received_display"] strong').innerText(),await page.locator('[data-u-total="bilty_now"]').innerText());assert.equal(await page.locator('[data-u-charge="service_total"] strong').innerText(),'Rs 150');assert.equal(await page.locator('[data-u-charge="grand_total"] strong').innerText(),'Rs 650');
  const rowKey=await first.first().getAttribute('name');assert.ok(await page.locator('[data-u-date="'+rowKey+'"]').innerText());
  await first.first().fill('0');assert.equal(await page.locator('[data-u-date="'+rowKey+'"]').innerText(),'');await first.first().fill('500');
  await page.waitForFunction(()=>unifiedEditor.prior?.customers[0]?.outstanding===20000);

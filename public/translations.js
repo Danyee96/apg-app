@@ -5306,6 +5306,8 @@ window.APG_TRANSLATIONS = {
   "Delivery expenses": ["ڈیلیوری کے اخراجات", "Delivery ke akhrajaat"],
   "Add expense (Rs)": ["اخراجات درج کریں (روپے)", "Akhrajaat darj karein (Rs)"],
   "Expense note": ["اخراجات کی تفصیل", "Akhrajaat ki tafseel"],
+  "Expense account": ["اخراجات کا کھاتہ", "Akhrajaat ka khata"],
+  "Search expense accounts…": ["اخراجات کا کھاتہ تلاش کریں…", "Akhrajaat ka khata talash karein…"],
   "Munshi": ["منشی", "Munshi"],
   "Choose munshi": ["منشی منتخب کریں", "Munshi muntakhib karein"],
   "Total shown after expenses": ["اخراجات کے بعد دکھائی گئی کل رقم", "Akhrajaat ke baad dikhai gai kul raqam"],

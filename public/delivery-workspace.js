@@ -128,7 +128,7 @@ document.addEventListener('keydown',event=>{
  if(event.key==='Tab'&&event.shiftKey){const previous=index>0?fields[index-1]:null;if(previous){event.preventDefault();event.stopImmediatePropagation();previous.focus();previous.select?.();previous.scrollIntoView({block:'nearest',inline:'nearest'});}return;}
  event.preventDefault();event.stopImmediatePropagation();if(event.repeat)return;
  let next=index>=0?fields[index+1]:null;
- if(!next){next=$('#u-bilty-lookup');if(!next){const rowIndex=unifiedEditor.rows.findIndex(row=>String(row.key)===match[2]);next=uRowEntryFields(unifiedEditor.rows[rowIndex+1]?.key)[0]||input.form.elements.namedItem('received_date');}}
+ if(!next){next=$('#u-bilty-lookup');if(!next){const rowIndex=unifiedEditor.rows.findIndex(row=>String(row.key)===match[2]);next=uRowEntryFields(unifiedEditor.rows[rowIndex+1]?.key)[0]||input.form.querySelector('[type="submit"]:not(:disabled)');}}
  if(next){next.focus();next.select?.();next.scrollIntoView({block:'nearest',inline:'nearest'});}
 });
 document.addEventListener('change',event=>{const id=event.target.id;if(!['u-report-date-mode','u-report-date','u-report-sort'].includes(id))return;if(id==='u-report-date-mode'){unifiedReportDateMode=event.target.value;if(unifiedReportDateMode==='single'){state.from=state.from||today();state.to=state.from;}}if(id==='u-report-date')state.from=state.to=event.target.value||today();if(id==='u-report-sort')unifiedReportSort=event.target.value;state.page=0;render();});

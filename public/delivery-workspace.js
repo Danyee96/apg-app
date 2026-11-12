@@ -122,6 +122,7 @@ function uRowEntryFields(key){
 document.addEventListener('keydown',event=>{
  if(!['Enter','Tab'].includes(event.key)||event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
  if(event.target.id==='u-bilty-lookup'){if(event.key==='Tab'&&event.shiftKey)return;event.preventDefault();event.stopImmediatePropagation();if(!event.repeat){clearTimeout(uLookupTimer);if(event.target.value.trim())uFetch();else{unifiedLookupSequence++;const save=event.target.form.querySelector('[type="submit"]:not(:disabled)');if(save){save.focus();save.scrollIntoView({block:'nearest'});}}}return;}
+ if(event.key==='Enter'&&event.target.closest('#unified-delivery-form .u-header-fields')){const fields=[...event.target.closest('.u-header-fields').querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')],index=fields.indexOf(event.target);if(index<0)return;event.preventDefault();event.stopImmediatePropagation();if(event.repeat)return;const next=fields.slice(index+1).find(field=>!field.readOnly)||uRowEntryFields(unifiedEditor.rows[0]?.key)[0]||$('#u-bilty-lookup')||event.target.form.querySelector('[type="submit"]:not(:disabled)');if(next){next.focus();if(['text','search','tel','number'].includes(next.type))next.select?.();next.scrollIntoView({block:'nearest',inline:'nearest'});}return;}
  const input=event.target,match=input.name?.match(/^u_(discount|bilty|loading|suzuki|loading_cash|service_cash)_(\d+)$/);
  if(!match||!input.closest('#unified-delivery-form'))return;
  const fields=uRowEntryFields(match[2]),index=fields.indexOf(input);

@@ -121,7 +121,7 @@ function uRowEntryFields(key){
 }
 document.addEventListener('keydown',event=>{
  if(!['Enter','Tab'].includes(event.key)||event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
- if(event.target.id==='u-bilty-lookup'){if(event.key!=='Enter')return;event.preventDefault();event.stopImmediatePropagation();if(!event.repeat){clearTimeout(uLookupTimer);if(event.target.value.trim())uFetch();else{unifiedLookupSequence++;const save=event.target.form.querySelector('[type="submit"]:not(:disabled)');if(save){save.focus();save.scrollIntoView({block:'nearest'});}}}return;}
+ if(event.target.id==='u-bilty-lookup'){if(event.key==='Tab'&&event.shiftKey)return;event.preventDefault();event.stopImmediatePropagation();if(!event.repeat){clearTimeout(uLookupTimer);if(event.target.value.trim())uFetch();else{unifiedLookupSequence++;const save=event.target.form.querySelector('[type="submit"]:not(:disabled)');if(save){save.focus();save.scrollIntoView({block:'nearest'});}}}return;}
  const input=event.target,match=input.name?.match(/^u_(discount|bilty|loading|suzuki|loading_cash|service_cash)_(\d+)$/);
  if(!match||!input.closest('#unified-delivery-form'))return;
  const fields=uRowEntryFields(match[2]),index=fields.indexOf(input);

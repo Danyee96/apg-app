@@ -11,7 +11,7 @@ try {
  await page.locator('[name="receiver"]').fill('One unified receiver');
  let keyboardSaves=0;page.on('request',request=>{if(request.url().includes('action=save_unified_delivery'))keyboardSaves++;});
  for(let n=0;n<2;n++){
-  await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.locator('#u-bilty-lookup').press('Enter');await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);
+  await page.locator('#u-bilty-lookup').fill('U-UI-'+n);await page.locator('#u-bilty-lookup').press(n?'Tab':'Enter');await page.waitForFunction(n=>document.querySelectorAll('[data-u-bilty-row]').length===n+1,n);
   if(n===0){
    const key=await page.locator('[data-u-bilty-row]').first().getAttribute('data-u-bilty-row');
    const order=['bilty','discount','loading','suzuki','service_cash'];
@@ -55,7 +55,7 @@ try {
  const align=await page.evaluate(()=>[...document.querySelectorAll('[data-u-bilty-row]')].map(row=>{const right=document.querySelector('[data-u-service-row="'+row.dataset.uBiltyRow+'"]');return Math.abs(row.getBoundingClientRect().top-right.getBoundingClientRect().top);}));assert.ok(align.every(delta=>delta<2));
  assert.ok(Number(await first.first().evaluate(el=>getComputedStyle(el).color.match(/\d+/g)[0]))>100);
  if(process.env.APG_UNIFIED_REVIEW)await page.screenshot({path:process.env.APG_UNIFIED_REVIEW});
- assert.equal(await page.locator('#u-bilty-lookup').inputValue(),'');await page.locator('#u-bilty-lookup').press('Enter');assert.equal(await page.locator('#unified-delivery-form [type="submit"]').evaluate(el=>el===document.activeElement),true);assert.equal(keyboardSaves,0);
+ assert.equal(await page.locator('#u-bilty-lookup').inputValue(),'');await page.locator('#u-bilty-lookup').press('Tab');assert.equal(await page.locator('#unified-delivery-form [type="submit"]').evaluate(el=>el===document.activeElement),true);assert.equal(keyboardSaves,0);await page.locator('#u-bilty-lookup').press('Enter');assert.equal(await page.locator('#unified-delivery-form [type="submit"]').evaluate(el=>el===document.activeElement),true);assert.equal(keyboardSaves,0);
  const response=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.keyboard.press('Enter');const saved=await (await response).json();await page.locator('.u-history details').waitFor();
  assert.equal(await first.first().inputValue(),'500');assert.ok((await page.locator('#u-totals').innerText()).includes('Rs 500'));
  const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,5000);assert.equal(before.lines[0].suzuki_received,0);assert.equal(await service.inputValue(),'50');assert.ok(await serviceDate.innerText());assert.equal(await page.evaluate(()=>uServiceReceipt(unifiedEditor.rows[0])),0);assert.equal(await page.locator('[name^="u_service_cash_"]').nth(1).inputValue(),'0');assert.equal(await page.locator('[data-u-service-date]').nth(1).innerText(),'');

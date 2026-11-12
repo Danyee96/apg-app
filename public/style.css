@@ -4996,6 +4996,13 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .u-empty { padding:25px; text-align:center; color:#6d8375; background:#f3f8f4; border-radius:12px; }
 .u-collection-bar { display:flex; gap:16px; align-items:flex-end; padding:18px; margin:18px 0; }
 .u-collection-bar .form-grid { flex:1; }
+.u-delivery-expense { padding:22px 24px; margin:18px 0; }
+.u-delivery-expense h2 { margin:0 0 18px; font-size:19px; line-height:1.3; }
+.u-delivery-expense .form-grid { gap:16px 20px; }
+.u-delivery-expense .field { min-width:0; }
+.u-delivery-expense .field input,
+.u-delivery-expense .field select { width:100%; }
+.u-delivery-expense p { margin:16px 0 0; padding:12px 14px; border-radius:8px; background:#f2f7f4; color:#49665b; overflow-wrap:anywhere; }
 #u-totals .delivery-facts { grid-template-columns:repeat(4,minmax(0,1fr)); margin:0; }
 #u-previous .delivery-facts { grid-template-columns:repeat(4,minmax(0,1fr)); margin:14px 0 8px; }
 .u-save-bar { position:sticky; bottom:0; z-index:4; padding:14px 0; display:flex; justify-content:space-between; gap:12px; background:#f6faf7f2; backdrop-filter:blur(8px); border-top:1px solid #d6e3db; }
@@ -5006,6 +5013,7 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .u-history p { margin:10px 0; font-size:12px; color:#658070; }
 @media(max-width:1000px) { .u-document-header { display:block; } .u-reference { margin-bottom:14px; } .u-header-fields { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:650px) { .u-header-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } .u-collection-bar { display:block; } .u-collection-bar .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .u-collection-bar > .btn { margin-top:12px; } #u-totals .delivery-facts,#u-previous .delivery-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } .u-ledger-scroll { max-height:62vh; } .u-save-bar .btn { font-size:12px; padding:11px; } .u-match { align-items:flex-start; flex-direction:column; } .u-list-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:650px) { .u-delivery-expense { padding:18px; } .u-delivery-expense .form-grid { grid-template-columns:minmax(0,1fr); gap:14px; } }
 
 .u-two-grids { grid-template-columns:minmax(0,1.8fr) minmax(0,1fr); min-width:0; }
 .u-pane { overflow-x:auto; }

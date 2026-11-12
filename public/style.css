@@ -4967,6 +4967,7 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .u-lookup > input { width:250px; max-width:100%; min-height:42px; border:1px solid #ccdcd4; border-radius:8px; padding:10px 12px; font:inherit; }
 #u-bilty-results { flex-basis:100%; }
 .u-match { display:flex; justify-content:space-between; align-items:center; width:100%; gap:14px; padding:13px; background:white; border:1px solid #d4e3da; border-radius:8px; color:#254b3c; text-align:start; margin:6px 0; cursor:pointer; }
+.u-match:focus-visible { outline:3px solid #00877b; outline-offset:2px; background:#e5f5ed; }
 .u-ledger-scroll { overflow:auto; max-height:65vh; border:1px solid #cfdfd5; border-radius:14px; background:white; }
 .u-two-grids { display:grid; grid-template-columns:minmax(1280px,1.7fr) minmax(650px,1fr); gap:0; min-width:1930px; }
 .u-two-grids section { min-width:0; }

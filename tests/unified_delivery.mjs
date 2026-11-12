@@ -20,6 +20,12 @@ try {
   }
  }
  assert.equal(keyboardSaves,0);
+ const tabKey=await page.locator('[data-u-bilty-row]').first().getAttribute('data-u-bilty-row');
+ const tabOrder=['bilty','discount','loading','suzuki','service_cash'];
+ await page.locator('[name="u_bilty_'+tabKey+'"]').focus();
+ for(const field of tabOrder){assert.equal(await page.evaluate(()=>document.activeElement.name),'u_'+field+'_'+tabKey);await page.keyboard.press('Tab');}
+ assert.equal(await page.evaluate(()=>document.activeElement.id),'u-bilty-lookup');
+ await page.locator('[name="u_loading_'+tabKey+'"]').focus();await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement.name),'u_discount_'+tabKey);
 
  assert.equal(await page.locator('[data-u-service-row]').count(),2);
  for(const width of [1680,1366]){await page.setViewportSize({width,height:1050});await page.waitForTimeout(100);assert.ok(await page.locator('.u-ledger-scroll,.u-pane').evaluateAll(elements=>elements.every(el=>el.scrollWidth<=el.clientWidth+1)));assert.ok(await page.evaluate(()=>[...document.querySelectorAll('.u-two-grids section')].every(section=>section.querySelector('thead').getBoundingClientRect().bottom<=section.querySelector('tbody tr').getBoundingClientRect().top+1)));}
@@ -49,7 +55,8 @@ try {
  const align=await page.evaluate(()=>[...document.querySelectorAll('[data-u-bilty-row]')].map(row=>{const right=document.querySelector('[data-u-service-row="'+row.dataset.uBiltyRow+'"]');return Math.abs(row.getBoundingClientRect().top-right.getBoundingClientRect().top);}));assert.ok(align.every(delta=>delta<2));
  assert.ok(Number(await first.first().evaluate(el=>getComputedStyle(el).color.match(/\d+/g)[0]))>100);
  if(process.env.APG_UNIFIED_REVIEW)await page.screenshot({path:process.env.APG_UNIFIED_REVIEW});
- const response=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.locator('#unified-delivery-form [type="submit"]').click();const saved=await (await response).json();await page.locator('.u-history details').waitFor();
+ assert.equal(await page.locator('#u-bilty-lookup').inputValue(),'');await page.locator('#u-bilty-lookup').press('Enter');assert.equal(await page.locator('#unified-delivery-form [type="submit"]').evaluate(el=>el===document.activeElement),true);assert.equal(keyboardSaves,0);
+ const response=page.waitForResponse(r=>r.url().includes('action=save_unified_delivery'));await page.keyboard.press('Enter');const saved=await (await response).json();await page.locator('.u-history details').waitFor();
  assert.equal(await first.first().inputValue(),'500');assert.ok((await page.locator('#u-totals').innerText()).includes('Rs 500'));
  const before=await page.evaluate(id=>api('unified_delivery',null,{id}),saved.id);assert.equal(before.lines[0].loading_received,5000);assert.equal(before.lines[0].suzuki_received,0);assert.equal(await service.inputValue(),'50');assert.ok(await serviceDate.innerText());assert.equal(await page.evaluate(()=>uServiceReceipt(unifiedEditor.rows[0])),0);assert.equal(await page.locator('[name^="u_service_cash_"]').nth(1).inputValue(),'0');assert.equal(await page.locator('[data-u-service-date]').nth(1).innerText(),'');
  const splitReview=await page.evaluate(()=>{const e=unifiedEditor,row=e.rows[0],previous=e.review;e.review={payload:{items:[{id:row.key,loading_received:'20',suzuki_received:'30',service_received:'50'}]}};const split=uServiceAllocation(row,10000,5000);e.review=previous;return split;});assert.deepEqual(splitReview,{l:2000,s:3000,legacy:0});

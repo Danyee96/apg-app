@@ -40,6 +40,8 @@ def check(base,database,password):
  current=admin.call('unified_delivery',params={'id':saved['id']});assert current['lines'][0]['bilty_received']==80000 and current['lines'][0]['bilty_balance']==0
  assert sum(row['amount'] for row in admin.call('delivery',params={'id':saved['id']})['previous_collections'])==200000
  assert sum(row['amount'] for row in current['previous_collections'])==200000 and len(current['previous_collections'])==2
+ custody=ops.call('daily_expense');assert custody['total']==1 and custody['totals']['received']==280000 and custody['rows'][0]['amount']==280000 and custody['rows'][0]['title']=='Delivery '+current['header']['reference'];assert custody['rows'][0]['running_balance']==280000
+ custody_detail=ops.call('daily_expense_entry',params={'id':custody['rows'][0]['id']});assert custody_detail['entry']['amount']==280000 and len(custody_detail['allocations'])==3 and sum(row['amount'] for row in custody_detail['allocations'])==280000 and {row['bilty'] for row in custody_detail['items']}=={'PRIOR-A','PRIOR-B','PRIOR-CURRENT'}
  assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before+280000
  assert admin.call('ledger',params={'account_id':customer})['closing']==0
  assert admin.call('ledger',params={'account_id':'SYS-LOADING-RECEIVABLE'})['closing']==service_before
@@ -58,6 +60,7 @@ def check(base,database,password):
  old_d=admin.call('save_unified_delivery',entry(item('PRIOR-D',200)),status=201)['id'];preview=balance(saved['id'])
  previous_only={'id':saved['id'],'version':current['version'],'request_key':str(uuid.uuid4()),'dated':current['header']['dated'],'received_date':'2026-11-08','receiver':current['header']['receiver'],'cash_account_id':cash,'include_previous_balances':True,'previous_balance_version':preview['balance_version'],'items':[{'id':current['lines'][0]['delivery_item_id'],'discount':'100','loading':'0','suzuki':'0','bilty_received':'200','service_received':'0'}]}
  ops.call('save_unified_delivery',previous_only,status=201);updated=admin.call('unified_delivery',params={'id':saved['id']});assert len(updated['receipts'])==1 and len(updated['previous_collections'])==3 and updated['lines'][0]['bilty_received']==80000
+ custody=ops.call('daily_expense');assert custody['rows'][0]['amount']==20000 and custody['rows'][0]['title']=='Delivery '+current['header']['reference'];assert ops.call('daily_expense_entry',params={'id':custody['rows'][0]['id']})['entry']['amount']==20000
  # Stale previous balances reject atomically and leave the new bilty pending.
  stale_preview=balance();stale=entry(item('PRIOR-STALE',100),'150');stale.update(include_previous_balances=True,previous_balance_version=stale_preview['balance_version'])
  added=admin.call('save_unified_delivery',entry(item('PRIOR-ADDED',1000)),status=201)['id']
@@ -81,6 +84,9 @@ def check(base,database,password):
  ops.call('save_unified_delivery',order_payment,status=201)
  assert admin.call('unified_delivery',params={'id':oldest})['lines'][0]['bilty_balance']==5000
  assert admin.call('unified_delivery',params={'id':newest})['lines'][0]['bilty_balance']==10000
+ custody=ops.call('daily_expense');period=custody['period']['id'];owner=custody['operator']['id'];balance_before=custody['totals']['balance'];assert any(row['title']=='Delivery '+current['header']['reference'] and row['amount']==280000 for row in custody['rows'])
+ admin.call('clear_operator_receivable',{'request_key':str(uuid.uuid4()),'period_id':period,'version':custody['version'],'notes':'Reconciliation test'},status=201)
+ history=admin.call('daily_expense',params={'operator_id':owner,'period_id':period});assert history['totals']['balance']==balance_before and any(row['title']=='Delivery '+current['header']['reference'] and row['amount']==280000 for row in history['rows'])
  assert not db.execute('SELECT voucher_id FROM voucher_lines GROUP BY voucher_id HAVING SUM(debit)<>SUM(credit)').fetchall();assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok' and not db.execute('PRAGMA foreign_key_check').fetchall();db.close()
  print('PASS: current plus previous customer collection; oldest debts first; same-customer rows counted once; previous-only payments; services untouched; preserved history; collector identity; idempotence; stale rollback; ledger reconciliation.')
 if __name__=='__main__':main(check)

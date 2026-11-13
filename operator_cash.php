@@ -106,6 +106,29 @@ function operator_cash_clear(array $p,array $user): array {
   return ['id'=>$period['id'],'amount'=>$totals['balance']];
  });
 }
+// A single customer payment can create receipts on several old deliveries.
+// Present those immutable ledger entries once, under the delivery where cash was taken.
+function operator_cash_entries_cte(): string {
+ return "WITH batches AS (
+  SELECT DISTINCT c.source_request_key,c.source_delivery_id,json_extract(u.result_json,'$.cash_id') current_receipt
+  FROM delivery_customer_collections c JOIN delivery_unified_requests u ON u.request_key=c.source_request_key
+  WHERE EXISTS(SELECT 1 FROM operator_cash_entries oe WHERE oe.period_id=? AND oe.receipt_id=c.receipt_id)
+ ), receipt_batches AS (
+  SELECT c.receipt_id,b.source_request_key,b.source_delivery_id FROM batches b JOIN delivery_customer_collections c ON c.source_request_key=b.source_request_key
+  UNION SELECT current_receipt,source_request_key,source_delivery_id FROM batches WHERE current_receipt IS NOT NULL
+ ), grouped AS (
+  SELECT MAX(e.id) anchor_id,SUM(e.amount) group_amount,MAX(m.source_delivery_id) source_delivery_id,MAX(m.source_request_key) source_request_key,COUNT(*) member_count
+  FROM operator_cash_entries e LEFT JOIN receipt_batches m ON m.receipt_id=e.receipt_id WHERE e.period_id=?
+  GROUP BY CASE WHEN m.source_request_key IS NULL THEN 'entry:'||e.id ELSE 'batch:'||m.source_request_key END
+ ), entries AS (
+  SELECT e.id,e.period_id,e.operator_id,e.kind,e.dated,e.created_at,g.group_amount amount,
+   CASE WHEN g.source_delivery_id IS NULL THEN e.title ELSE 'Delivery '||d.reference END title,
+   e.notes,e.cash_account_id,e.expense_account_id,e.receipt_id,e.voucher_id,e.actor_id,e.actor_name,e.request_key,e.request_hash,
+   g.source_delivery_id,g.source_request_key,g.member_count,
+   SUM(CASE WHEN e.kind='collection' THEN g.group_amount ELSE -g.group_amount END) OVER(ORDER BY e.id ROWS UNBOUNDED PRECEDING) running_balance
+  FROM grouped g JOIN operator_cash_entries e ON e.id=g.anchor_id LEFT JOIN deliveries d ON d.id=g.source_delivery_id
+ ) ";
+}
 function operator_cash_ledger(array $p,array $user): array {
  $operators=$user['role']==='super_admin'?query("SELECT u.id,u.username,u.full_name,u.active,u.role,COALESCE(t.balance,0) balance FROM users u LEFT JOIN (SELECT p.operator_id,SUM(CASE WHEN e.kind='collection' THEN e.amount ELSE -e.amount END) balance FROM operator_cash_periods p LEFT JOIN operator_cash_entries e ON e.period_id=p.id WHERE p.closed_at IS NULL GROUP BY p.operator_id) t ON t.operator_id=u.id WHERE u.role='operations' OR EXISTS(SELECT 1 FROM operator_cash_periods p WHERE p.operator_id=u.id) ORDER BY balance DESC,u.full_name,u.username"):[];
  $owner=operator_cash_owner($user,$p);if(!$owner&&$operators)$owner=one('SELECT * FROM users WHERE id=?',[$operators[0]['id']]);
@@ -113,8 +136,8 @@ function operator_cash_ledger(array $p,array $user): array {
  if(!$owner)return $result;
  $operator=(int)$owner['id'];$periodId=(int)($p['period_id']??0);$period=$periodId?one('SELECT p.*,u.full_name cleared_by_name FROM operator_cash_periods p LEFT JOIN users u ON u.id=p.closed_by WHERE p.id=? AND p.operator_id=?',[$periodId,$operator]):operator_cash_open($operator);if($periodId&&!$period)throw new RuntimeException('This ledger period is not available to your account.',403);
  $result['period_token']=operator_cash_token($operator);$result['period']=$period;$result['totals']=operator_cash_totals($period);$result['version']=$period?operator_cash_version($period):null;
- if($period){$args=[(int)$period['id']];$where=' WHERE 1=1';$where.=rangeWhere('dated',$args);$search=text($p,'search',250);if($search!==''){$where.=" AND (title LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')";$pattern='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%';$args[]=$pattern;$args[]=$pattern;}$kind=text($p,'kind',20);if(in_array($kind,['collection','expense'],true)){$where.=' AND kind=?';$args[]=$kind;}
-  $base="WITH entries AS(SELECT e.*,SUM(CASE WHEN kind='collection' THEN amount ELSE -amount END) OVER(ORDER BY id ROWS UNBOUNDED PRECEDING) running_balance FROM operator_cash_entries e WHERE period_id=?) ";$filtered=one($base."SELECT COUNT(*) count,COALESCE(SUM(CASE WHEN kind='collection' THEN amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN kind='expense' THEN amount ELSE 0 END),0) expenses FROM entries".$where,$args);$page=max(0,min(max(0,(int)ceil($filtered['count']/30)-1),(int)($p['page']??0)));
+ if($period){$args=[(int)$period['id'],(int)$period['id']];$where=' WHERE 1=1';$where.=rangeWhere('dated',$args);$search=text($p,'search',250);if($search!==''){$where.=" AND (title LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')";$pattern='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%';$args[]=$pattern;$args[]=$pattern;}$kind=text($p,'kind',20);if(in_array($kind,['collection','expense'],true)){$where.=' AND kind=?';$args[]=$kind;}
+  $base=operator_cash_entries_cte();$filtered=one($base."SELECT COUNT(*) count,COALESCE(SUM(CASE WHEN kind='collection' THEN amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN kind='expense' THEN amount ELSE 0 END),0) expenses FROM entries".$where,$args);$page=max(0,min(max(0,(int)ceil($filtered['count']/30)-1),(int)($p['page']??0)));
   $result['rows']=query($base.'SELECT entries.*,(SELECT name FROM accounts a WHERE a.id=entries.cash_account_id) cash_account FROM entries'.$where.' ORDER BY id DESC LIMIT 30 OFFSET '.($page*30),$args);$result['total']=(int)$filtered['count'];$result['filtered_totals']=$filtered;$result['page']=$page;
  }
  $count=(int)one('SELECT COUNT(*) n FROM operator_cash_periods WHERE operator_id=? AND closed_at IS NOT NULL',[$operator])['n'];$hp=max(0,min(max(0,(int)ceil($count/15)-1),(int)($p['history_page']??0)));$result['history']=['rows'=>query('SELECT p.*,u.full_name cleared_by_name,(SELECT COUNT(*) FROM operator_cash_entries e WHERE e.period_id=p.id) entries FROM operator_cash_periods p LEFT JOIN users u ON u.id=p.closed_by WHERE p.operator_id=? AND p.closed_at IS NOT NULL ORDER BY p.id DESC LIMIT 15 OFFSET '.($hp*15),[$operator]),'total'=>$count,'page'=>$hp,'page_size'=>15];
@@ -123,7 +146,13 @@ function operator_cash_ledger(array $p,array $user): array {
 }
 function operator_cash_entry(int $id,array $user): array {
  $entry=one('SELECT e.*,a.name cash_account,x.name expense_account,v.reference voucher_reference FROM operator_cash_entries e JOIN accounts a ON a.id=e.cash_account_id LEFT JOIN accounts x ON x.id=e.expense_account_id LEFT JOIN vouchers v ON v.id=e.voucher_id WHERE e.id=?',[$id]);if(!$entry)throw new InvalidArgumentException('Entry not found.');if($user['role']!=='super_admin'&&(int)$entry['operator_id']!==(int)$user['id'])throw new RuntimeException('This entry is not available to your account.',403);
- $result=['entry'=>$entry,'items'=>[]];if($entry['receipt_id']){$result['receipt']=one('SELECT r.*,d.reference delivery_reference,d.receiver,d.mobile,d.cnic,d.remarks delivery_remarks FROM delivery_cash_receipts r JOIN deliveries d ON d.id=r.delivery_id WHERE r.id=?',[$entry['receipt_id']]);$result['items']=query('SELECT l.*,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.service_due,a.name customer,di.discount,di.loading_charge,di.suzuki_charge,i.qty,i.detail,s.dated arrival_date,st.name station FROM delivery_cash_receipt_lines l JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE l.receipt_id=? ORDER BY l.delivery_item_id',[$entry['receipt_id']]);}return $result;
+ $group=one(operator_cash_entries_cte().'SELECT * FROM entries WHERE id=?',[$entry['period_id'],$entry['period_id'],$id]);if($group){$entry['amount']=$group['amount'];$entry['title']=$group['title'];}
+ $result=['entry'=>$entry,'items'=>[],'allocations'=>[]];if($entry['receipt_id']){
+  $receiptIds=[(int)$entry['receipt_id']];if(!empty($group['source_request_key'])){$receiptIds=array_map('intval',array_column(query("SELECT e.receipt_id FROM operator_cash_entries e WHERE e.period_id=? AND e.receipt_id IN (SELECT receipt_id FROM delivery_customer_collections WHERE source_request_key=? UNION SELECT json_extract(result_json,'$.cash_id') FROM delivery_unified_requests WHERE request_key=?)",[$entry['period_id'],$group['source_request_key'],$group['source_request_key']]),'receipt_id'));}
+  $marks=implode(',',array_fill(0,count($receiptIds),'?'));$result['allocations']=query("SELECT r.id,d.reference delivery_reference,SUM(l.bilty_received+l.service_received) amount FROM delivery_cash_receipts r JOIN deliveries d ON d.id=r.delivery_id JOIN delivery_cash_receipt_lines l ON l.receipt_id=r.id WHERE r.id IN ($marks) GROUP BY r.id ORDER BY r.id",$receiptIds);
+  $result['receipt']=one('SELECT r.*,d.reference delivery_reference,d.receiver,d.mobile,d.cnic,d.remarks delivery_remarks FROM delivery_cash_receipts r JOIN deliveries d ON d.id=? WHERE r.id=?',[$group['source_delivery_id']??one('SELECT delivery_id FROM delivery_cash_receipts WHERE id=?',[$entry['receipt_id']])['delivery_id'],$entry['receipt_id']]);
+  $result['items']=query("SELECT l.*,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.service_due,a.name customer,di.discount,di.loading_charge,di.suzuki_charge,i.qty,i.detail,s.dated arrival_date,st.name station,d.reference delivery_reference FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id JOIN deliveries d ON d.id=r.delivery_id JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE l.receipt_id IN ($marks)".(!empty($group['source_delivery_id'])?" AND (l.bilty_received<>0 OR l.service_received<>0 OR r.delivery_id=".(int)$group['source_delivery_id'].")":"")." ORDER BY r.id,l.delivery_item_id",$receiptIds);
+ }return $result;
 }
 function operator_cash_routes(string $action,string $method,array $p,array $user): void {
  if(!in_array($action,['daily_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;

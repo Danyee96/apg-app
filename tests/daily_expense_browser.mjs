@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
 try{
  const admin=await browser.newPage({viewport:{width:1500,height:1100}}),ops=await browser.newPage({viewport:{width:1300,height:1000}}),errors=[];
  for(const p of [admin,ops])p.on('pageerror',e=>errors.push(e.message));

@@ -180,8 +180,9 @@ try {
  if($action==='bilties'&&$method==='GET'){
   $groups=text($_GET,'lookup_groups',20);if(in_array($groups,['customer','party'],true)){
    $column=$groups==='customer'?'a.name':'i.party_to';$id=$groups==='customer'?'i.account_id':'i.party_to';$q=trim(text($_GET,'search',120));$args=[];$filter=" WHERE s.kind='incoming' AND i.status='pending' AND NOT EXISTS(SELECT 1 FROM delivery_submission_items ds WHERE ds.item_id=i.id) AND TRIM(COALESCE($column,''))<>''";
-   if($q!==''){$filter.=" AND $column LIKE ? ESCAPE '\\'";$args[]='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$q).'%';}
-   $rows=query("SELECT $id id,$column name,COUNT(*) item_count FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN accounts a ON a.id=i.account_id".$filter." GROUP BY $id,$column ORDER BY $column COLLATE NOCASE,$id LIMIT 50",$args);response(['rows'=>$rows,'limited'=>count($rows)===50]);
+   if($q==='')response(['rows'=>[],'limited'=>false]);
+   $pattern='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$q).'%';$filter.=$groups==='customer'?" AND ($column LIKE ? ESCAPE '\\' OR $id LIKE ? ESCAPE '\\')":" AND $column LIKE ? ESCAPE '\\'";$args[]=$pattern;if($groups==='customer')$args[]=$pattern;
+   $rows=query("SELECT $id id,$column name,COUNT(*) item_count FROM items i JOIN shipments s ON s.id=i.shipment_id LEFT JOIN accounts a ON a.id=i.account_id".$filter." GROUP BY $id,$column ORDER BY $column COLLATE NOCASE,$id LIMIT 4",$args);response(['rows'=>array_slice($rows,0,3),'limited'=>count($rows)>3]);
   }
   $where=' WHERE 1=1';$args=[];if(isset($_GET['bilty_exact'])){$where.=' AND i.bilty=?';$args[]=text($_GET,'bilty_exact',40,true);}$status=text($_GET,'status',20);if(in_array($status,['pending','delivered'],true)){$where.=' AND i.status=?';$args[]=$status;}
   if(!empty($_GET['kind'])){$where.=' AND s.kind=?';$args[]=text($_GET,'kind',10);}

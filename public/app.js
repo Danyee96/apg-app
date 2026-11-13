@@ -1081,7 +1081,7 @@ function openFinancialReport(key) {
     modal(
       report[1],
       "Choose an account to view its recorded ledger.",
-      `<div class="financial-account-list">${accounts.map((a) => `<button type="button" class="quick" data-action="customer-ledger" data-id="${esc(a.id)}"><span class="quick-icon">${icon("wallet")}</span><span><b>${esc(a.name)}</b><small>${esc(a.id)}</small></span>${icon("arrow")}</button>`).join("") || empty("No accounts are recorded in this group.")}</div>`,
+      `<div class="financial-account-list">${accounts.map((a) => `<button type="button" class="quick" data-action="customer-ledger" data-ledger-mode="${key === "cashbook" ? "cashbook" : "detail"}" data-id="${esc(a.id)}"><span class="quick-icon">${icon("wallet")}</span><span><b>${esc(a.name)}</b><small>${esc(a.id)}</small></span>${icon("arrow")}</button>`).join("") || empty("No accounts are recorded in this group.")}</div>`,
     );
     return;
   }
@@ -1150,12 +1150,14 @@ async function ledger() {
   let d = await api("ledger", null, {
     __render: requestID,
     account_id: state.account_id,
+    source: state.ledgerMode === "cashbook" ? (state.cashBookSource || "original") : "all",
     from: state.from || session.history_start || "2017-10-28",
     to: state.to || today(),
     page: state.page,
   });
   listData = d;
   state.page = d.page;
+  if (state.ledgerMode === "cashbook") return cashBookView(d);
   return (
     head(
       state.ledgerMode === "detail"
@@ -1180,6 +1182,11 @@ async function ledger() {
         "",
       )}</div><section class="panel ${state.ledgerMode === "summary" ? "ledger-summary" : ""}"><div class="toolbar"><span class="note">Recorded account transactions · ${num(d.all_time_count)} total</span><div class="buttons">${btn("Full history", "ledger-all-history")}<input class="filter" type="date" id="filter-from" aria-label="Start date" value="${state.from || session.history_start || "2017-10-28"}"><span>–</span><input class="filter" type="date" id="filter-to" aria-label="End date" value="${state.to || today()}"></div></div><div class="table-scroll"><table><thead><tr><th>Date / source</th><th>Reference</th><th>Description</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map((r) => `<tr><td>${fmtdate(r.dated)}<small>${esc(r.source)}</small></td><td>${tag(r.kind)} ${esc(r.reference)}</td><td>${esc(r.memo || "—")}</td><td class="number">${r.debit ? cash(r.debit) : "—"}</td><td class="number">${r.credit ? cash(r.credit) : "—"}</td><td class="number">${cash(Math.abs(r.balance))} ${r.balance >= 0 ? "Dr" : "Cr"}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty(d.all_time_count ? "No entries in this date range. This account has " + num(d.all_time_count) + " entries from " + fmtdate(d.first_date) + " to " + fmtdate(d.last_date) + ". Use Full history to see them." : "No recorded transactions for this account.") : ""}${pagination(d)}</section>`
   );
+}
+function cashBookView(d) {
+  const balance = value => `${cash(Math.abs(value))} ${value >= 0 ? 'Dr' : 'Cr'}`;
+  return head('Cash Book', esc(d.account.name) + ' · ' + esc(d.account.id), `<button class="btn" data-action="financial-report" data-report="cashbook">Choose cash account</button>` + btn('Print full report','print-page',false,'print') + btn('Export this page','export',false,'download')) +
+    `<section class="panel cash-book"><div class="toolbar"><div><strong>Cash Book</strong><small>${esc(d.account.name)} · ${esc(d.account.id)} · ${d.source==='original'?'Original backup · ' + fmtdate(d.backup_date):'New app entries only'}</small></div><div class="buttons"><select class="filter" id="cash-book-source" aria-label="Cash Book data source"><option value="original" ${d.source==='original'?'selected':''}>Original backup</option><option value="new" ${d.source==='new'?'selected':''}>New app entries</option></select>${btn('Full history','ledger-all-history')}<input class="filter" type="date" id="filter-from" aria-label="Start date" value="${esc(d.from)}"><span>–</span><input class="filter" type="date" id="filter-to" aria-label="End date" value="${esc(d.to)}"></div></div><div class="cash-book-opening"><span>Opening balance</span><strong>${balance(d.opening)}</strong></div><div class="table-scroll"><table><thead><tr><th>Date</th><th>Voucher no.</th><th>Particular</th><th class="number">Receipts</th><th class="number">Payments</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${fmtdate(r.dated)}</td><td>${esc(r.reference||r.kind||'—')}</td><td>${esc(r.memo||'—')}</td><td class="number">${r.debit?cash(r.debit):'—'}</td><td class="number">${r.credit?cash(r.credit):'—'}</td><td class="number">${balance(r.balance)}</td></tr>`).join('')}</tbody></table></div>${!d.rows.length?empty('No recorded transactions in this date range.'):''}<div class="cash-book-totals"><span>Period receipts <strong>${cash(d.debit)}</strong></span><span>Period payments <strong>${cash(d.credit)}</strong></span><span>Closing balance <strong>${balance(d.closing)}</strong></span></div>${pagination(d)}</section><p class="note cash-book-note">${d.source==='original'?'Original backup entries only. New app vouchers are shown separately. Historical balances require reconciliation.':'New app vouchers only. Opening balance excludes the original backup for imported accounts.'}</p>`;
 }
 async function settings() {
   let d = await api("settings");
@@ -2212,19 +2219,20 @@ function buildThermalRecord(context) {
         ),
     );
   } else if (context.kind === "ledger") {
-    title = "Account ledger";
+    title = d.cashbook ? "Cash Book" : "Account ledger";
     date = "";
     reference = d.account.id;
     content =
       slipText("Account", d.account.name) +
+      (d.cashbook ? slipText("Data source", d.source === "original" ? "Original backup · " + fmtdate(d.backup_date) : "New app entries only") : "") +
       slipText("From", fmtdate(d.from)) +
       slipText("To", fmtdate(d.to)) +
       slipPageScope(d) +
       slipSection(
         "Period totals · all records",
         slipBalance("Opening", d.opening) +
-          slipMoney("Debits", d.debit) +
-          slipMoney("Credits", d.credit) +
+          slipMoney(d.cashbook ? "Receipts" : "Debits", d.debit) +
+          slipMoney(d.cashbook ? "Payments" : "Credits", d.credit) +
           slipBalance("Closing", d.closing, true),
       );
     content +=
@@ -2236,8 +2244,8 @@ function buildThermalRecord(context) {
               slipText("Type", r.kind) +
               slipText("Source", r.source) +
               slipText("Description", r.memo) +
-              (r.debit ? slipMoney("Debit", r.debit) : "") +
-              (r.credit ? slipMoney("Credit", r.credit) : "") +
+              (r.debit ? slipMoney(d.cashbook ? "Receipts" : "Debit", r.debit) : "") +
+              (r.credit ? slipMoney(d.cashbook ? "Payments" : "Credit", r.credit) : "") +
               slipBalance("Balance", r.balance),
           ),
         )
@@ -2327,7 +2335,7 @@ function buildThermalRecord(context) {
 function visiblePrintContext(source) {
   if (source === "dialog" && recordPrintContext) return recordPrintContext;
   if (source === "page" && state.view === "ledger" && listData?.account)
-    return { kind: "ledger", data: structuredClone(listData) };
+    return { kind: "ledger", data: {...structuredClone(listData),cashbook:state.ledgerMode === "cashbook"} };
   if (source === "page" && state.view === "financial-detail" && listData?.stats)
     return { kind: "financial", data: structuredClone(listData) };
   const root = source === "dialog" ? $("#modal") : $("#main");
@@ -2410,8 +2418,13 @@ function buildLegacyDeliveryA4(context,orientation) {
   const cashSummary=variant!=='receipt'?`<section class="legacy-print-summary">${slipMoney('Total bilty cash received',sum('bilty_received'))}${slipMoney('Loading / Suzuki cash received',sum('service_received'))}${previousCash?slipMoney('Previous balance cash',previousCash):''}${slipMoney('Total cash collected',sum('bilty_received')+sum('service_received')+previousCash,true)}${variant==='cash'?slipMoney('Discounts',sum('discount')):''}</section>`:'';
   return `<article class="a4-document legacy-delivery-document" data-legacy-report="${variant==='receipt'?'R150':variant==='cash'?'R157':'R153'}"><header class="legacy-print-header"><div><h1>AZAD PAKISTAN GOODS</h1><p>Bannu Road, D. I. Khan</p><h2>${esc(title)}</h2></div><div><b>${esc(h.reference||d.reference)}</b><p>${esc(fmtdate(h.dated||d.dated))}</p><small>Amounts in Rs</small></div></header><section class="legacy-print-parties">${slipText('Receiver',h.receiver||d.receiver)}${slipText('Receipt date',h.received_date?fmtdate(h.received_date):'')}${slipText('Mobile',h.mobile||d.mobile)}${slipText('CNIC',h.cnic||d.cnic)}</section>${tables}<p class="slip-note">Previous Balance is counted once per customer in totals. Balances are current at printing.</p>${cashSummary}${variant!=='receipt'&&previous.length?`<section class="legacy-print-previous"><h3>Previous balance collections</h3>${previous.map(row=>slipMoney(row.reference,row.amount)).join('')}</section>`:''}${d.remarks?slipText('Remarks',d.remarks):''}<section class="legacy-print-signatures"><span>Prepared by: ${esc(displayName())}</span><span>Receiver signature: __________________</span></section><footer class="legacy-print-footer">${slipText('Printed on',new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',dateStyle:'medium',timeStyle:'short'}).format(new Date())+' PKT')}</footer></article>`;
 }
+function buildCashBookA4(d){
+ const balance=value=>`${cash(Math.abs(value))} ${value>=0?'Dr':'Cr'}`;
+ return `<article class="a4-document cash-book-print"><header class="legacy-print-header"><div><h1>AZAD PAKISTAN GOODS</h1><h2>Cash Book</h2></div><div><b>${esc(d.account.name)}</b><p>Code: ${esc(d.account.id)}</p><p>${d.source==='original'?'Original backup · '+fmtdate(d.backup_date):'New app entries only'}</p><p>From ${fmtdate(d.from)} to ${fmtdate(d.to)}</p></div></header><p><b>Opening balance: ${balance(d.opening)}</b></p><table class="a4-table"><thead><tr><th>Date</th><th>Voucher no.</th><th>Particular</th><th>Receipts</th><th>Payments</th><th>Balance</th></tr></thead><tbody>${d.rows.map(row=>`<tr><td>${fmtdate(row.dated)}</td><td>${esc(row.reference||row.kind||'—')}</td><td>${esc(row.memo||'—')}</td><td>${row.debit?cash(row.debit):'—'}</td><td>${row.credit?cash(row.credit):'—'}</td><td>${balance(row.balance)}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="3">Period totals</th><td>${cash(d.debit)}</td><td>${cash(d.credit)}</td><td>${balance(d.closing)}</td></tr></tfoot></table><p><b>Closing balance: ${balance(d.closing)}</b></p></article>`;
+}
 function buildA4Document(snapshot,orientation=printOrientation()) {
   if(snapshot.context?.kind === "delivery") return buildLegacyDeliveryA4(snapshot.context,orientation);
+  if(snapshot.context?.kind === "ledger" && snapshot.context.data.cashbook) return buildCashBookA4(snapshot.context.data);
   const source = document.createElement("div");
   source.innerHTML = snapshot.html;
   const slip = source.querySelector(".thermal-slip");
@@ -3173,6 +3186,8 @@ async function action(name, el) {
     case "customer-ledger":
       closeModal();
       state.account_id = el.dataset.id;
+      state.ledgerMode = el.dataset.ledgerMode || "";
+      if(state.ledgerMode === "cashbook")state.cashBookSource = "original";
       state.from = session.history_start || "2017-10-28";
       state.to = today();
       state.page = 0;
@@ -3185,7 +3200,12 @@ async function action(name, el) {
       openThermalPreview("dialog");
       break;
     case "print-page":
-      openThermalPreview("page");
+      if(state.view === 'ledger' && state.ledgerMode === 'cashbook' && listData?.account){
+        const original=listData,rows=[...original.rows],pages=Math.ceil(original.total/original.page_size);
+        for(let page=0;page<pages;page++){if(page===original.page)continue;const data=await api('ledger',null,{account_id:original.account.id,source:original.source,from:original.from,to:original.to,page});if(data.total!==original.total||data.opening!==original.opening||data.closing!==original.closing)throw Error('The cash book changed while preparing the report. Please try printing again.');rows.push(...data.rows.map(row=>({...row,_cashbook_page:page})));}
+        const pageRows=original.rows.map(row=>({...row,_cashbook_page:original.page}));rows.splice(0,original.rows.length,...pageRows);rows.sort((a,b)=>a._cashbook_page-b._cashbook_page);listData={...original,rows,page:0,page_size:Math.max(original.total,1)};
+        try{openThermalPreview('page');}finally{listData=original;}
+      }else openThermalPreview("page");
       break;
     case "thermal-close":
       closeThermalPreview();
@@ -3314,6 +3334,7 @@ document.addEventListener("change", (e) => {
     return;
   }
   const changes = {
+    "cash-book-source": "cashBookSource",
     "archive-table": "archiveTable",
     "customer-group": "group",
     "filter-from": "from",

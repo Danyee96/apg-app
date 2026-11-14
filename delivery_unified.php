@@ -78,8 +78,8 @@ function unified_cash_input(array $p,array $invoice,string $dated): array {
  [$lines,$total,$account]=validate_delivery_cash_amounts($old,$invoice,$dated);return [$lines,$total,$account,$typed];
 }
 function amount_decimal(int $amount): string {return sprintf('%d.%02d',intdiv($amount,100),$amount%100);}
-function unified_record_cash(array $p,array $user,bool $inside=false,int $approvalId=0): array {
- $save=function()use($p,$user,$approvalId){$id=(int)$p['delivery_id'];$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
+function unified_record_cash(array $p,array $user,bool $inside=false,int $approvalId=0,bool $trackOperator=true): array {
+ $save=function()use($p,$user,$approvalId,$trackOperator){$id=(int)$p['delivery_id'];$key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
   $existing=one('SELECT * FROM delivery_cash_receipts WHERE request_key=?',[$key]);if($existing){if((int)$existing['delivery_id']!==$id||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);return ['id'=>$existing['id'],'delivery_id'=>$id,'replayed'=>true];}
   $pending=one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$id]);if($pending&&(int)$pending['id']!==$approvalId)throw new RuntimeException('A cash collection is already awaiting approval for this delivery.',409);
   if(!$approvalId&&one('SELECT id FROM cash_collection_submissions WHERE request_key=?',[$key]))throw new RuntimeException('This cash request key was already used for different values.',409);
@@ -97,7 +97,7 @@ function unified_record_cash(array $p,array $user,bool $inside=false,int $approv
   foreach($lines as $lineId=>[$bilty,$service]){[$loading,$suzuki,$legacyCash]=$typed[$lineId];$dates=[];$source=null;foreach($p['items'] as $row)if((int)$row['id']===$lineId)$source=$row;foreach(['bilty_received'=>$bilty,'loading_received'=>$loading,'suzuki_received'=>$suzuki,'legacy_service_received'=>$legacyCash] as $field=>$value){$date=$value?(empty($source[$field.'_date'])?$dated:day($source,$field.'_date')):null;if($date&&$date<$invoice['header']['dated'])throw new InvalidArgumentException('Cash receiving date cannot be earlier than delivery or a previous collection.');$dates[]=$date;}
    run('INSERT INTO delivery_cash_receipt_lines(receipt_id,delivery_item_id,bilty_received,service_received,loading_received,suzuki_received,legacy_service_received,bilty_received_date,loading_received_date,suzuki_received_date,legacy_service_received_date) VALUES(?,?,?,?,?,?,?,?,?,?,?)',[$receipt,$lineId,$bilty,$service,$loading,$suzuki,$legacyCash,...$dates]);run('UPDATE delivery_items SET bilty_received=bilty_received+?,service_received=service_received+? WHERE id=?',[$bilty,$service,$lineId]);if(!empty($p['initial']))run('UPDATE delivery_cash_lines SET initial_bilty_received=? WHERE delivery_item_id=?',[$bilty,$lineId]);}
   if(!empty($p['initial'])&&(int)$invoice['header']['classification_auto'])run("UPDATE deliveries SET delivery_mode=CASE WHEN EXISTS(SELECT 1 FROM delivery_cash_lines WHERE delivery_id=? AND initial_bilty_received>0 AND initial_bilty_received>=bilty_due) THEN 'walkin' ELSE 'standard' END WHERE id=?",[$id,$id]);
-  operator_cash_record_receipt($receipt,$user);
+  if($trackOperator)operator_cash_record_receipt($receipt,$user);
   audit('received cash','delivery',$id);return ['id'=>$receipt,'delivery_id'=>$id,'voucher_id'=>$voucher];
  };return $inside?$save():transaction($save);
 }

@@ -5235,3 +5235,17 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .cash-book-totals { border-top:1px solid #d3e5d9; }
 .cash-book-note { margin-top:14px; }
 @media(max-width:650px){.u-charge-highlights{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.u-charge-card{padding:15px}.u-charge-card:first-child{grid-column:1/-1}.u-charge-card strong{font-size:25px}}
+.wasooli-intro { margin:0; padding:0 22px 15px; color:#6b847a; font-size:13px; }
+.wasooli-list { border-top:1px solid #e0ebe5; }
+.wasooli-customer { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,210px) auto; gap:20px; align-items:center; padding:18px 22px; border-bottom:1px solid #e8efea; }
+.wasooli-identity { display:flex; align-items:center; gap:14px; min-width:0; }
+.wasooli-identity strong,.wasooli-identity small,.wasooli-due span,.wasooli-due strong,.wasooli-due small { display:block; overflow-wrap:anywhere; }
+.wasooli-identity small,.wasooli-due span,.wasooli-due small { color:#758c82; font-size:12px; margin-top:4px; }
+.wasooli-due strong { color:#087d6c; font-size:19px; margin-top:4px; }
+.wasooli-detail-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:20px; }
+.wasooli-detail-summary div { border:1px solid #d9e9df; background:#f1f8f4; padding:14px; border-radius:10px; }
+.wasooli-detail-summary span,.wasooli-detail-summary strong { display:block; }
+.wasooli-detail-summary span { color:#688579; font-size:12px; }
+.wasooli-detail-summary strong { margin-top:7px; color:#087d6c; font-size:20px; }
+#modal:has(#wasooli-form) .modal-body h3 { margin:22px 0 12px; }
+@media(max-width:700px) { .wasooli-customer { grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:16px; } .wasooli-customer .buttons { grid-column:1/-1; } .wasooli-detail-summary { grid-template-columns:1fr 1fr; } }

@@ -169,7 +169,7 @@ function canView(view) {
     backups: "backups.create",
     archive: "archive.view",
   };
-  if (view === "daily-expense") return isSuper() || isOperations();
+  if (view === "daily-expense" || view === "daily-wasooli") return isSuper() || isOperations();
   if (view === "delivery-cash" || view === "pending-cash") return isSuper() || (isOperations() && can('deliveries.create'));
   if (view === "goods-categories") return isSuper();
   if (view === "goods-analytics") return can("incoming.view");
@@ -297,6 +297,7 @@ function navigationHub() {
     "financial-reports":
       "Explore account activity, balances and accounting reports.",
     "daily-expense": "Delivery collections, expenses and munshi receivables until cleared.",
+    "daily-wasooli": "Find customers and record market collections.",
     settings: "Manage stations, backups and workspace activity.",
     backups: "Automatic midnight backups, manual snapshots and restore history.",
     users: "Create staff accounts and set individual permissions.",
@@ -322,7 +323,7 @@ function navigationHub() {
       "finance",
       "Accounts & reporting",
       "Your accounting tools, together.",
-      ["daily-expense", "accounts", "reports", "financial-reports"],
+      ["daily-expense", "daily-wasooli", "accounts", "reports", "financial-reports"],
     ],
     [
       "workspace",
@@ -427,6 +428,7 @@ const navs = [
   ["deliveries", "truck", "Delivery goods"],
   ["customers", "users", "Customers"],
   ["daily-expense", "wallet", "Daily expense"],
+  ["daily-wasooli", "wallet", "Daily Wasooli"],
   ["accounts", "wallet", "Accounts & vouchers"],
   ["reports", "report", "Reports"],
   ["financial-reports", "wallet", "Financial Reports"],
@@ -466,7 +468,7 @@ function sidebarNavigation() {
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
     link('deliveries')+
     ['booking','goods-analytics','goods-categories','customers'].map(link).join('')+
-    '<div class="nav-label">FINANCE & WORKSPACE</div>'+['daily-expense','accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
+    '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli'])+['accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
 }
 function shell() {
   document.title = "APG — Goods & accounts";
@@ -595,6 +597,9 @@ async function render() {
         break;
       case "daily-expense":
         html = await dailyExpensePage();
+        break;
+      case "daily-wasooli":
+        html = await wasooliPage();
         break;
       case "customers":
         html = await customers();

@@ -6,6 +6,7 @@ require __DIR__.'/../backups.php';
 require __DIR__.'/../delivery_cash.php';
 require __DIR__.'/../delivery_create.php';
 require __DIR__.'/../delivery_unified.php';
+require __DIR__.'/../wasooli.php';
 header('X-Content-Type-Options: nosniff');
 ini_set('session.use_strict_mode','1');session_name('APGSESSION');session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off','path'=>'/']);session_start();
 $_SESSION['csrf']??=bin2hex(random_bytes(24));
@@ -19,7 +20,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_delivery_last_receipts();migrate_operator_cash();migrate_delivery_expenses();
+ migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_delivery_last_receipts();migrate_operator_cash();migrate_delivery_expenses();migrate_wasooli();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -44,6 +45,7 @@ try {
  authorize_action($action,$method,$p??[],$current);
  if($action==='delivery_customer_dues'){if($method!=='POST')fail('Method not allowed.',405);response(delivery_customer_dues($p));}
  operator_cash_routes($action,$method,$p??[],$current);
+ wasooli_routes($action,$method,$p??[],$current);
  delivery_unified_routes($action,$method,$p??[],$current);
  delivery_cash_routes($action,$method,$p??[],$current);
  if($action==='workspace_changes'&&$method==='GET')response(['revision'=>(int)(one('SELECT max(id) revision FROM audit')['revision']??0)]);

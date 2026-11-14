@@ -199,7 +199,7 @@ function delivery_customer_dues(array $p): array {
  $result=['customers'=>$customers,'exclude_delivery_id'=>$exclude,'balance_version'=>shipment_version(delivery_customer_debts($ids,(int)$exclude))];
  if(!empty($p['details'])){
   if(count($ids)!==1)throw new InvalidArgumentException('Choose one customer to view details.');$total=$customers[0]['bilties'];$page=max(0,min(max(0,(int)ceil($total/50)-1),(int)($p['page']??0)));
-  $result['rows']=query('SELECT b.delivery_id,b.delivery_item_id,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due+b.service_due due,b.bilty_received+b.service_received received,b.customer_balance balance,d.reference,d.dated,(SELECT COUNT(*) FROM cash_collection_submissions s WHERE s.delivery_id=d.id AND s.status=\'pending\') pending_cash'.$from.$where.' AND b.customer_balance>0 ORDER BY d.dated DESC,b.delivery_id DESC,b.delivery_item_id DESC LIMIT 50 OFFSET '.($page*50),$args);$result['total']=$total;$result['page']=$page;$result['page_size']=50;
+  $result['rows']=query('SELECT b.delivery_id,b.delivery_item_id,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.bilty_received,b.bilty_due+b.service_due due,b.bilty_received+b.service_received received,b.customer_balance balance,d.reference,d.dated,(SELECT COUNT(*) FROM cash_collection_submissions s WHERE s.delivery_id=d.id AND s.status=\'pending\') pending_cash'.$from.$where.' AND b.customer_balance>0 ORDER BY d.dated DESC,b.delivery_id DESC,b.delivery_item_id DESC LIMIT 50 OFFSET '.($page*50),$args);$result['total']=$total;$result['page']=$page;$result['page_size']=50;
  }
  return $result;
 }

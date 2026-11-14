@@ -144,6 +144,7 @@ function access_routes(string $action,string $method,array $p,array $user): void
  }
 }
 function authorize_action(string $action,string $method,array $p,array $user): void {
+ if(in_array($action,['wasooli_customers','wasooli_customer','wasooli_collect'],true)){if(operator_cash_allowed($user))return;fail('Daily Wasooli is available only to munshis and super admin.',403);}
  if(in_array($action,['daily_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true)){if(!operator_cash_allowed($user))fail('Daily expense is available only to munshis and super admin.',403);if($action==='clear_operator_receivable'&&$user['role']!=='super_admin')fail('Only super admin can clear a receivable.',403);return;}
  if(in_array($action,['unified_deliveries','unified_delivery','unified_customer_balances'],true)){require_permission($user,'deliveries.view');return;}
  if($action==='save_unified_delivery'){if(can_access($user,'deliveries.create')||can_access($user,'deliveries.edit'))return;fail('You do not have permission to edit deliveries.',403);}

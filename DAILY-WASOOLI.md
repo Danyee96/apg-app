@@ -1,0 +1,9 @@
+# Daily Wasooli
+
+Daily Wasooli is available under Daily expense for munshis and the super admin. It lists active customers and supports name, customer code, phone and area search, area filtering, and name/area/customer-number sorting. The displayed receivable is the sum of unpaid **delivery bilty** balances; loading and Suzuki are separate service balances. Details show unpaid bilties, current customer credit and the 30 most recent known payment records, including preserved legacy delivery payments; undated legacy receipts are labelled accordingly.
+
+A collection is applied to the customer's oldest outstanding delivered bilties. It creates the existing delivery cash receipts and balanced cash/customer vouchers, along with one immutable Daily expense entry for the chosen munshi. It never recreates the original delivery assessment. Any excess can be saved as customer credit only after explicit confirmation and requires an eligible delivered bilty. An admin chooses the responsible munshi; a munshi can only record against their own custody ledger. The current period token and customer balance version prevent stale submissions after ledger clearance or concurrent payments. Requests are idempotent and all writes occur in one database transaction.
+
+This feature uses the app's delivery balances rather than the complete historical general ledger. Imported historical accounting balances may differ and remain subject to reconciliation. It does not collect service balances or arbitrary non-delivery account debts. Existing delivery payments and cleared ledger periods are not rewritten.
+
+Validation: `python3 tests/wasooli.py` uses a disposable database to check route search, partial payments across deliveries, accounting, history, custody, overpayment confirmation, permission checks, retries, stale balances and clearance. `tests/wasooli_browser.py` checks navigation, search, details, collection and mobile layout using Playwright.

@@ -52,9 +52,19 @@ function migrate_delivery_expenses(): void {
   run("INSERT OR IGNORE INTO meta(key,value) VALUES('delivery_expenses_version','1')");
  });
 }
+function migrate_service_refunds(): void {
+ if(one("SELECT value FROM meta WHERE key='service_refunds_version'"))return;
+ transaction(function(){
+  if(one("SELECT value FROM meta WHERE key='service_refunds_version'"))return;
+  run('CREATE TABLE IF NOT EXISTS delivery_service_refunds(id INTEGER PRIMARY KEY AUTOINCREMENT,delivery_item_id INTEGER NOT NULL REFERENCES delivery_items(id),receipt_id INTEGER NOT NULL UNIQUE REFERENCES delivery_cash_receipts(id),amount INTEGER NOT NULL CHECK(amount>0))');
+  run('CREATE INDEX IF NOT EXISTS idx_service_refund_item ON delivery_service_refunds(delivery_item_id)');
+  run("INSERT INTO meta(key,value) VALUES('service_refunds_version','1')");
+ });
+}
 function unified_enrich_lines(array $lines,int $id): array {
  $sums=array_column(query('SELECT l.delivery_item_id,SUM(l.loading_received) loading_received,SUM(l.suzuki_received) suzuki_received,SUM(l.legacy_service_received) legacy_service_received,MAX(CASE WHEN l.bilty_received>0 AND r.date_known=1 THEN COALESCE(l.bilty_received_date,r.dated) END) bilty_received_date,MAX(CASE WHEN l.loading_received>0 AND r.date_known=1 THEN COALESCE(l.loading_received_date,r.dated) END) loading_received_date,MAX(CASE WHEN l.suzuki_received>0 AND r.date_known=1 THEN COALESCE(l.suzuki_received_date,r.dated) END) suzuki_received_date,MAX(CASE WHEN l.legacy_service_received>0 AND r.date_known=1 THEN COALESCE(l.legacy_service_received_date,r.dated) END) legacy_received_date FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id WHERE r.delivery_id=? GROUP BY l.delivery_item_id',[$id]),null,'delivery_item_id');
- foreach($lines as &$line){$sum=$sums[$line['delivery_item_id']]??[];foreach(['loading_received','suzuki_received','legacy_service_received'] as $key)$line[$key]=(int)($sum[$key]??0);foreach(['bilty_received_date','loading_received_date','suzuki_received_date','legacy_received_date'] as $key)$line[$key]=$sum[$key]??null;
+ $refunds=array_column(query('SELECT r.delivery_item_id,SUM(r.amount) amount FROM delivery_service_refunds r JOIN delivery_items d ON d.id=r.delivery_item_id WHERE d.delivery_id=? GROUP BY r.delivery_item_id',[$id]),'amount','delivery_item_id');
+ foreach($lines as &$line){$sum=$sums[$line['delivery_item_id']]??[];$line['service_refunded']=(int)($refunds[$line['delivery_item_id']]??0);foreach(['loading_received','suzuki_received','legacy_service_received'] as $key)$line[$key]=(int)($sum[$key]??0);foreach(['bilty_received_date','loading_received_date','suzuki_received_date','legacy_received_date'] as $key)$line[$key]=$sum[$key]??null;
   $line['bilty_balance']=(int)$line['bilty_due']-(int)$line['bilty_received'];$line['service_balance']=(int)$line['service_due']-(int)$line['service_received'];$line['loading_balance']=$line['legacy_service_received']?null:(int)$line['loading']-$line['loading_received'];$line['suzuki_balance']=$line['legacy_service_received']?null:(int)$line['suzuki']-$line['suzuki_received'];
   $line['service_outstanding']=$line['legacy_service_received']?max(0,$line['service_balance']):max(0,(int)$line['loading_balance'])+max(0,(int)$line['suzuki_balance']);$line['service_credit']=$line['legacy_service_received']?max(0,-$line['service_balance']):max(0,-(int)$line['loading_balance'])+max(0,-(int)$line['suzuki_balance']);
   $line['payment_status']=unified_payment_status(max(0,$line['bilty_balance'])+$line['service_outstanding'],(int)$line['bilty_received']+(int)$line['service_received']);$line['walkin']=(int)($line['initial_bilty_received']??0)>0&&(int)$line['initial_bilty_received']>=max(0,(int)$line['bilty_due']);
@@ -178,12 +188,54 @@ function unified_service_allocation(array $line,int $received,bool $legacy): arr
  $loading=min($received,max(0,(int)$line['loading']-(int)$line['loading_received']));
  return [$loading,$received-$loading,0];
 }
+// Return the unused portion of a previously received service advance. The
+// negative receipt keeps service balances and the cash ledger in agreement.
+function unified_refund_service_advance(array $invoice,array $user,array $p,string $requestKey,?array $eligible=null): array {
+ $refunds=[];
+ foreach($invoice['lines'] as $line){
+  if($eligible!==null&&!isset($eligible[(int)$line['delivery_item_id']]))continue;
+  $available=max(0,(int)($line['service_advance']??0)-(int)($line['service_refunded']??0));
+  $amount=max(0,$available-(int)$line['loading']-(int)$line['suzuki']);
+  if($amount)$refunds[]=[$line,$amount];
+ }
+ if(!$refunds)return [];
+ $operatorId=(int)($p['refund_operator_id']??0);
+ if($user['role']==='super_admin'&&!$operatorId){$operators=query("SELECT id FROM users WHERE role='operations' AND active=1 LIMIT 2");if(count($operators)===1)$operatorId=(int)$operators[0]['id'];}
+ $owner=operator_cash_owner($user,['operator_id'=>$operatorId]);
+ if(!$owner||empty($owner['active']))throw new InvalidArgumentException('Choose an active munshi for the advance refund.');
+ $dated=!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d');
+ if($dated>date('Y-m-d'))throw new InvalidArgumentException('Refund date cannot be in the future.');
+ if($dated<$invoice['header']['dated']||($invoice['receipts']&&$dated<max(array_column($invoice['receipts'],'dated'))))throw new InvalidArgumentException('Refund date cannot be earlier than the delivery or the previous collection.');
+ $cash=text($p,'cash_account_id',40,true);
+ if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');
+ $period=operator_cash_open((int)$owner['id'],true);$result=[];
+ foreach($refunds as [$line,$amount]){
+  $legacy=(bool)$invoice['header']['legacy_services'];$loading=0;$suzuki=0;$combined=0;
+  if($legacy)$combined=$amount;
+  else{
+   $suzuki=min($amount,max(0,(int)$line['suzuki_received']-(int)$line['suzuki']));
+   $loading=min($amount-$suzuki,max(0,(int)$line['loading_received']-(int)$line['loading']));
+   if($loading+$suzuki!==$amount)throw new RuntimeException('The advance refund cannot be reconciled with the service receipts.');
+  }
+  $memo='Loading / Suzuki advance refund · '.$invoice['header']['reference'].' · Bilty '.$line['bilty'];
+  $entries=[];foreach(['LOADING'=>$loading,'SUZUKI'=>$suzuki,'LEGACY-SERVICE'=>$combined] as $category=>$value)if($value)$entries[]=['SYS-'.$category.'-RECEIVABLE',$value,0];$entries[]=[$cash,0,$amount];
+  $voucher=delivery_system_voucher('PV',$dated,$memo,$entries);
+  $key='service-refund-'.hash('sha256',$requestKey.'-'.$line['delivery_item_id']);
+  run('INSERT INTO delivery_cash_receipts(delivery_id,request_key,dated,cash_account_id,notes,created_by,voucher_id,request_hash) VALUES(?,?,?,?,?,?,?,?)',[$invoice['header']['id'],$key,$dated,$cash,$memo,$user['username'],$voucher,hash('sha256',$key)]);$receipt=(int)db()->lastInsertId();
+  run('INSERT INTO delivery_cash_receipt_lines(receipt_id,delivery_item_id,bilty_received,service_received,loading_received,suzuki_received,legacy_service_received) VALUES(?,?,0,?,?,?,?)',[$receipt,$line['delivery_item_id'],-$amount,-$loading,-$suzuki,-$combined]);
+  run('UPDATE delivery_items SET service_received=service_received-? WHERE id=?',[$amount,$line['delivery_item_id']]);
+  run('INSERT INTO delivery_service_refunds(delivery_item_id,receipt_id,amount) VALUES(?,?,?)',[$line['delivery_item_id'],$receipt,$amount]);
+  run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,receipt_id,voucher_id,actor_id,actor_name) VALUES(?,?,'expense',?,?,?,?,?,?,?,?,?)",[$period['id'],$owner['id'],$dated,$amount,'Advance refund · '.$invoice['header']['reference'],$memo,$cash,$receipt,$voucher,$user['id'],$user['username']]);
+  $entry=(int)db()->lastInsertId();run('INSERT INTO delivery_expenses(delivery_id,operator_entry_id) VALUES(?,?)',[$invoice['header']['id'],$entry]);audit('refunded service advance','delivery',$invoice['header']['id']);$result[]=$receipt;
+ }
+ return $result;
+}
 function unified_save(array $p,array $user): array {
  $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
  return transaction(function()use($p,$user,$key,$hash){$existing=one('SELECT * FROM delivery_unified_requests WHERE request_key=?',[$key]);if($existing){if((int)$existing['actor_id']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);return [...json_decode($existing['result_json'],true,64,JSON_THROW_ON_ERROR),'replayed'=>true];}
   $id=(int)($p['id']??0);$initial=!$id;$input=$p['items']??[];if(!is_array($input)||!$input||count($input)>1000)throw new InvalidArgumentException('Select between 1 and 1000 pending bilties.');
   if(!$id){require_permission($user,'deliveries.create');$handover=$p;unset($handover['walkin_cash']);$handover['delivery_mode']='standard';$handover['items']=array_map(function($row){$row['bilty_received']='0';$row['service_received']='0';return $row;},$input);$result=create_delivery_entry($handover,$user,true);$id=(int)$result['id'];run('UPDATE deliveries SET classification_auto=1 WHERE id=?',[$id]);run('UPDATE delivery_cash_invoices SET accounting_model=2 WHERE delivery_id=?',[$id]);}
-  else{unified_adopt($id);unified_edit($id,$p,$user);}
+  else{unified_adopt($id);$beforeLines=array_column(delivery_cash_invoice($id)['lines'],null,'delivery_item_id');$refundEligible=[];foreach($input as $row){$old=$beforeLines[(int)($row['id']??0)]??null;if($old&&(money($row,'loading')<(int)$old['loading']||money($row,'suzuki')<(int)$old['suzuki']))$refundEligible[(int)$row['id']]=true;}unified_edit($id,$p,$user);}
   if($initial)unified_assess($id);
   $invoice=delivery_cash_invoice($id);$map=$initial?array_column(query('SELECT item_id,id FROM delivery_items WHERE delivery_id=?',[$id]),'id','item_id'):[];$cashItems=[];$total=0;$cashLines=array_column($invoice['lines'],null,'delivery_item_id');
   foreach($input as $row){$lineId=$initial?($map[(int)$row['id']]??0):(int)$row['id'];$item=['id'=>$lineId];
@@ -206,6 +258,7 @@ foreach(['bilty_received','loading_received','suzuki_received','legacy_service_r
   $result=['id'=>$id,'reference'=>$invoice['header']['reference'],'pending_cash'=>false];
   if(!empty($p['include_previous_balances'])){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Cash receiving access is required.',403);$allocation=unified_collect_previous($p,$invoice,$cashItems,$user);$cashItems=$allocation['items'];$result['previous_collected']=$allocation['previous_collected'];$result['previous_receipts']=$allocation['previous_receipts'];$total=array_sum(array_map(fn($item)=>money($item,'bilty_received')+money($item,'loading_received')+money($item,'suzuki_received')+money($item,'legacy_service_received'),$cashItems));}
   if($total>0&&!$pending){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Walk-in delivery requires cash receiving access.',403);$cash=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>'unified-cash-'.hash('sha256',$key),'dated'=>!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$cashItems,'initial'=>$initial];$recorded=unified_record_cash($cash,$user,true);$result['pending_cash']=!empty($recorded['pending']);$result['cash_id']=$recorded['id'];}
+  $result['service_refunds']=unified_refund_service_advance(delivery_cash_invoice($id),$user,$p,$key,$initial?null:$refundEligible);
   $expense=money($p,'delivery_expense');if($expense){
    if($initial||!operator_cash_allowed($user))throw new RuntimeException('Only a munshi or super admin can add expenses to an existing delivery.',403);
    $operatorId=(int)($p['expense_operator_id']??0);if($user['role']==='super_admin'&&!$operatorId){$operators=query("SELECT id FROM users WHERE role='operations' AND active=1 LIMIT 2");if(count($operators)===1)$operatorId=(int)$operators[0]['id'];}

@@ -58,7 +58,7 @@ def check(base,database,password):
  # Zero initial payment creates an outstanding customer debt, excluding service charges.
  zero=admin.call('save_unified_delivery',payload(shipment('UNIFIED-ZERO'),'0','0','0'),status=201);doc=admin.call('unified_delivery',params={'id':zero['id']});assert doc['lines'][0]['payment_status']=='pending_payment' and not doc['receipts'] and doc['lines'][0]['bilty_received_date'] is None
  # Operator collections post immediately, retain category values and are visible to admin.
- admin.call('save_user',{'username':'unified-ops','full_name':'Unified operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Unified-ops-2026'},status=201)
+ operator_id=admin.call('save_user',{'username':'unified-ops','full_name':'Unified operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Unified-ops-2026'},status=201)['id']
  ops=Client();ops.call('login',{'username':'unified-ops','password':'Unified-ops-2026'})
  # Service advance is frozen and collected once, even with no new cash entered.
  advance_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE','items':[{'account_id':customer,'bilty':'SERVICE-ADVANCE','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'120'}]},status=201)
@@ -74,6 +74,25 @@ def check(base,database,password):
  assert conn.execute('SELECT count(*) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==1
  ops.call('save_unified_delivery',existing(again_advance,'0','0','30'),status=201);settled_advance=admin.call('unified_delivery',params={'id':advance_delivery['id']});assert settled_advance['lines'][0]['service_received']==15000 and settled_advance['lines'][0]['service_outstanding']==0
  assert conn.execute('SELECT SUM(e.amount) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==15000;conn.close()
+ # Reducing prepaid Suzuki before saving refunds the excess once and keeps
+ # the retained loading payment and the munshi's cash balance correct.
+ refundable=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'REFUND','items':[{'account_id':customer,'bilty':'SERVICE-REFUND','qty':1,'bilty_amount':'1000','loading':'500','suzuki':'500','service_advance':'1000'}]},status=201)
+ refund_item=admin.call('shipment',params={'id':refundable['id']})['items'][0]['id']
+ refund_request=payload(refund_item,'0','0','0');refund_request['items'][0].update(loading='500',suzuki='0',service_received='500');refund_request['items'][0].pop('loading_received');refund_request['items'][0].pop('suzuki_received')
+ refund_delivery=ops.call('save_unified_delivery',refund_request,status=201);refund_doc=admin.call('unified_delivery',params={'id':refund_delivery['id']});refund_line=refund_doc['lines'][0]
+ assert refund_line['service_advance']==100000 and refund_line['service_refunded']==50000 and refund_line['service_received']==50000 and refund_line['service_outstanding']==0 and refund_line['service_credit']==0
+ conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.kind,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? ORDER BY e.id',(refund_delivery['id'],)).fetchall();assert ledger==[('collection',100000),('expense',50000)]
+ assert ops.call('save_unified_delivery',refund_request,status=201)['replayed'];ops.call('save_unified_delivery',existing(refund_doc),status=201)
+ assert conn.execute('SELECT COUNT(*) FROM delivery_service_refunds f JOIN delivery_items i ON i.id=f.delivery_item_id WHERE i.delivery_id=?',(refund_delivery['id'],)).fetchone()[0]==1;conn.close()
+ # An existing delivery receives the same adjustment after its charges change.
+ editable=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'EDIT-REFUND','items':[{'account_id':customer,'bilty':'SERVICE-EDIT-REFUND','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'150'}]},status=201)
+ edit_item=admin.call('shipment',params={'id':editable['id']})['items'][0]['id'];edit_delivery=ops.call('save_unified_delivery',payload(edit_item,'0','0','0'),status=201)
+ edit_doc=admin.call('unified_delivery',params={'id':edit_delivery['id']});edit_request=existing(edit_doc);edit_request['items'][0]['suzuki']='0'
+ admin.call('save_user',{'username':'refund-second-ops','full_name':'Second refund operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Refund-ops-2026'},status=201)
+ admin.call('save_unified_delivery',edit_request,status=422);unchanged=admin.call('unified_delivery',params={'id':edit_delivery['id']});assert unchanged['lines'][0]['suzuki']==5000 and unchanged['lines'][0]['service_refunded']==0
+ edit_request['refund_operator_id']=operator_id;admin.call('save_unified_delivery',edit_request,status=201)
+ edit_doc=admin.call('unified_delivery',params={'id':edit_delivery['id']});assert edit_doc['lines'][0]['service_refunded']==5000 and edit_doc['lines'][0]['service_received']==10000 and edit_doc['lines'][0]['service_credit']==0
+ conn=sqlite3.connect(database);assert conn.execute('SELECT e.operator_id,e.kind,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? AND e.kind=\'expense\'',(edit_delivery['id'],)).fetchone()==(operator_id,'expense',5000);conn.close()
  customer_before=admin.call('ledger',params={'account_id':customer})['closing'];cash_before=admin.call('ledger',params={'account_id':cash})['closing']
  proposal=payload(shipment('UNIFIED-OPS'),'1200','100','50');pending=ops.call('save_unified_delivery',proposal,status=201);assert not pending['pending_cash']
  assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before

@@ -19,6 +19,16 @@ function migrate_operator_cash(): void {
   audit('enabled new collections only','operator_cash','1');
  });
 }
+function migrate_labour_advances(): void {
+ if(one("SELECT value FROM meta WHERE key='labour_advances_version'"))return;
+ transaction(function(){
+  if(one("SELECT value FROM meta WHERE key='labour_advances_version'"))return;
+  run('CREATE TABLE IF NOT EXISTS labour_advances(entry_id INTEGER PRIMARY KEY REFERENCES operator_cash_entries(id),labour_name TEXT NOT NULL)');
+  run("CREATE TRIGGER IF NOT EXISTS labour_advances_immutable_update BEFORE UPDATE ON labour_advances BEGIN SELECT RAISE(ABORT,'Labour advances cannot be edited.'); END");
+  run("CREATE TRIGGER IF NOT EXISTS labour_advances_immutable_delete BEFORE DELETE ON labour_advances BEGIN SELECT RAISE(ABORT,'Labour advances cannot be deleted.'); END");
+  run("INSERT INTO meta(key,value) VALUES('labour_advances_version','1')");
+ });
+}
 function operator_cash_allowed(array $user): bool {return in_array($user['role'],['super_admin','operations'],true);}
 function operator_cash_owner(array $user,array $p): ?array {
  $requested=(int)($p['operator_id']??0);
@@ -67,11 +77,14 @@ function operator_cash_expense(array $p,array $user): array {
   if($user['role']==='operations'&&isset($p['operator_id'])&&(int)$p['operator_id']!==(int)$user['id'])throw new RuntimeException('You can only record your own expenses.',403);
   if(!hash_equals(operator_cash_token((int)$owner['id']),(string)($p['period_token']??'')))throw new RuntimeException('The ledger period changed. Refresh before adding the expense.',409);
   $amount=money($p,'amount');if(!$amount)throw new InvalidArgumentException('Expense amount must be greater than zero.');$dated=day($p);if($dated>date('Y-m-d'))throw new InvalidArgumentException('Expense date cannot be in the future.');
-  $title=text($p,'title',150,true);$notes=text($p,'notes',1000);$cash=text($p,'cash_account_id',40,true);$expense=text($p,'expense_account_id',40)?:'5-501-OPS';
+  $expenseType=text($p,'expense_type',30)?:'other';if(!in_array($expenseType,['other','labour_advance'],true))throw new InvalidArgumentException('Choose a valid expense type.');
+  $labourName=$expenseType==='labour_advance'?text($p,'labour_name',120,true):'';
+  $title=$labourName!==''?'Labour advance · '.$labourName:text($p,'title',150,true);$notes=text($p,'notes',1000);$cash=text($p,'cash_account_id',40,true);$expense=text($p,'expense_account_id',40)?:'5-501-OPS';
   if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');
   if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND id LIKE '5-%'",[$expense]))throw new InvalidArgumentException('Choose an active expense account.');
   $period=operator_cash_open((int)$owner['id'],true);$voucher=delivery_system_voucher('PV',$dated,'Munshi expense · '.$owner['username'].' · '.$title,[[$expense,$amount,0],[$cash,0,$amount]]);
   run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,expense_account_id,voucher_id,actor_id,actor_name,request_key,request_hash) VALUES(?,?,'expense',?,?,?,?,?,?,?,?,?,?,?)",[$period['id'],$owner['id'],$dated,$amount,$title,$notes,$cash,$expense,$voucher,$user['id'],$user['username'],$key,$hash]);$id=(int)db()->lastInsertId();audit('recorded expense','operator_cash',$id);
+  if($labourName!=='')run('INSERT INTO labour_advances(entry_id,labour_name) VALUES(?,?)',[$id,$labourName]);
   $balance=operator_cash_totals($period)['balance'];return ['id'=>$id,'period_id'=>$period['id'],'balance'=>$balance,'warning'=>$balance<0?'Expenses exceed collections. The munshi is owed the difference.':null];
  });
 }
@@ -154,10 +167,19 @@ function operator_cash_entry(int $id,array $user): array {
   $result['items']=query("SELECT l.*,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.service_due,a.name customer,di.discount,di.loading_charge,di.suzuki_charge,i.qty,i.detail,s.dated arrival_date,st.name station,d.reference delivery_reference FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id JOIN deliveries d ON d.id=r.delivery_id JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE l.receipt_id IN ($marks)".(!empty($group['source_delivery_id'])?" AND (l.bilty_received<>0 OR l.service_received<>0 OR r.delivery_id=".(int)$group['source_delivery_id'].")":"")." ORDER BY r.id,l.delivery_item_id",$receiptIds);
  }return $result;
 }
+function daily_labour_expense(array $p): array {
+ $date=empty($p['dated'])?date('Y-m-d'):day($p,'dated');
+ $deliveries=query("SELECT d.id,d.reference,d.receiver,COUNT(di.id) bilties,COALESCE(SUM(COALESCE(di.loading_charge,CAST(ROUND(li.LOADING_AMT*100) AS INTEGER),i.loading,0)),0) loading,COALESCE(SUM(COALESCE(di.suzuki_charge,CAST(ROUND(li.SUZUKI_KIRAYA*100) AS INTEGER),i.suzuki,0)),0) suzuki FROM deliveries d JOIN delivery_items di ON di.delivery_id=d.id JOIN items i ON i.id=di.item_id LEFT JOIN legacy_IND li ON li.INDNO=di.legacy_id WHERE d.dated=? GROUP BY d.id ORDER BY d.id DESC",[$date]);
+ $incoming=query("SELECT s.id,s.reference,s.truck,s.labour_bonus,COALESCE(SUM(i.qty),0) quantity,COUNT(i.id) bilties FROM shipments s LEFT JOIN items i ON i.shipment_id=s.id WHERE s.kind='incoming' AND s.dated=? GROUP BY s.id ORDER BY s.id DESC",[$date]);
+ $advances=query("SELECT e.id,e.amount,e.dated,e.notes,e.actor_name,l.labour_name,u.full_name,u.username FROM labour_advances l JOIN operator_cash_entries e ON e.id=l.entry_id JOIN users u ON u.id=e.operator_id WHERE e.dated=? ORDER BY e.id DESC",[$date]);
+ $loading=array_sum(array_column($deliveries,'loading'));$suzuki=array_sum(array_column($deliveries,'suzuki'));$bonus=array_sum(array_column($incoming,'labour_bonus'));$quantity=array_sum(array_column($incoming,'quantity'));$half=intdiv($suzuki+1,2);$shahG=$quantity*100;$advancesTotal=array_sum(array_column($advances,'amount'));$gross=$loading+$half+$bonus+$shahG;
+ return ['dated'=>$date,'loading'=>$loading,'suzuki'=>$suzuki,'half_suzuki'=>$half,'labour_bonus'=>$bonus,'quantity'=>$quantity,'shah_g'=>$shahG,'gross'=>$gross,'advances_total'=>$advancesTotal,'total'=>$gross-$advancesTotal,'deliveries'=>$deliveries,'incoming'=>$incoming,'advances'=>$advances];
+}
 function operator_cash_routes(string $action,string $method,array $p,array $user): void {
- if(!in_array($action,['daily_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;
+ if(!in_array($action,['daily_expense','daily_labour_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;
  if(!operator_cash_allowed($user))fail('Daily expense is available only to munshis and super admin.',403);
  if($action==='daily_expense'&&$method==='GET')response(operator_cash_ledger($_GET,$user));
+ if($action==='daily_labour_expense'&&$method==='GET')response(daily_labour_expense($_GET));
  if($action==='daily_expense_entry'&&$method==='GET')response(operator_cash_entry((int)($_GET['id']??0),$user));
  if($action==='save_daily_expense'&&$method==='POST')response(operator_cash_expense($p,$user),201);
  if($action==='save_daily_cash_received'&&$method==='POST')response(operator_cash_manual_receipt($p,$user),201);

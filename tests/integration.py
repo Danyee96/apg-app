@@ -97,6 +97,10 @@ def main(checker=check):
         password=secrets.token_urlsafe(24)
         hashed=subprocess.run(['php','-r','echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);'],input=password,text=True,capture_output=True,check=True).stdout
         # Reset user-owned custody fixtures before replacing test identities.
+        if target.execute("SELECT 1 FROM sqlite_master WHERE name='labour_advances'").fetchone():
+            target.execute('DROP TRIGGER IF EXISTS labour_advances_immutable_delete')
+            target.execute('DELETE FROM labour_advances')
+            target.execute("CREATE TRIGGER labour_advances_immutable_delete BEFORE DELETE ON labour_advances BEGIN SELECT RAISE(ABORT,'Labour advances cannot be deleted.'); END")
         if target.execute("SELECT 1 FROM sqlite_master WHERE name='operator_cash_entries'").fetchone():
             target.execute('DROP TRIGGER IF EXISTS operator_cash_immutable_delete')
             target.execute('DELETE FROM operator_cash_entries')

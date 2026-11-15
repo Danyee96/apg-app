@@ -60,6 +60,20 @@ def check(base,database,password):
  # Operator collections post immediately, retain category values and are visible to admin.
  admin.call('save_user',{'username':'unified-ops','full_name':'Unified operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Unified-ops-2026'},status=201)
  ops=Client();ops.call('login',{'username':'unified-ops','password':'Unified-ops-2026'})
+ # Service advance is frozen and collected once, even with no new cash entered.
+ advance_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE','items':[{'account_id':customer,'bilty':'SERVICE-ADVANCE','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'120'}]},status=201)
+ arrival=admin.call('shipment',params={'id':advance_shipment['id']});advance_item=arrival['items'][0];assert advance_item['service_advance']==12000
+ before_cash=admin.call('ledger',params={'account_id':cash})['closing']
+ advance_payload=payload(advance_item['id'],'0','0','0');advance_delivery=ops.call('save_unified_delivery',advance_payload,status=201)
+ advance_doc=admin.call('unified_delivery',params={'id':advance_delivery['id']});advance_line=advance_doc['lines'][0]
+ assert advance_line['service_advance']==12000 and advance_line['service_received']==12000 and advance_line['service_outstanding']==3000
+ assert admin.call('ledger',params={'account_id':cash})['closing']==before_cash+12000
+ conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchall();assert ledger==[(12000,)]
+ assert ops.call('save_unified_delivery',advance_payload,status=201)['replayed']
+ ops.call('save_unified_delivery',existing(advance_doc),status=201);again_advance=admin.call('unified_delivery',params={'id':advance_delivery['id']});assert len(again_advance['receipts'])==1
+ assert conn.execute('SELECT count(*) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==1
+ ops.call('save_unified_delivery',existing(again_advance,'0','0','30'),status=201);settled_advance=admin.call('unified_delivery',params={'id':advance_delivery['id']});assert settled_advance['lines'][0]['service_received']==15000 and settled_advance['lines'][0]['service_outstanding']==0
+ assert conn.execute('SELECT SUM(e.amount) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==15000;conn.close()
  customer_before=admin.call('ledger',params={'account_id':customer})['closing'];cash_before=admin.call('ledger',params={'account_id':cash})['closing']
  proposal=payload(shipment('UNIFIED-OPS'),'1200','100','50');pending=ops.call('save_unified_delivery',proposal,status=201);assert not pending['pending_cash']
  assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before

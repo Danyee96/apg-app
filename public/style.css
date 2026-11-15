@@ -2006,6 +2006,7 @@ dialog.bilty-dialog {
 .customer-picker-results[hidden] {
   display: none;
 }
+.customer-area-picker .customer-picker-results { top:100%; z-index:12; }
 .picker-caption {
   display: flex;
   align-items: center;

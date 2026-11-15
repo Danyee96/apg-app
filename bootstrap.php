@@ -56,6 +56,18 @@ function migrate_incoming_bonuses(): void {
  });
 }
 
+function migrate_service_advances(): void {
+ if(one("SELECT value FROM meta WHERE key='service_advances_version'"))return;
+ transaction(function(){
+  if(one("SELECT value FROM meta WHERE key='service_advances_version'"))return;
+  foreach(['items','delivery_cash_lines'] as $table){
+   if(!in_array('service_advance',array_column(query('PRAGMA table_info('.$table.')'),'name'),true))run('ALTER TABLE '.$table.' ADD COLUMN service_advance INTEGER NOT NULL DEFAULT 0');
+  }
+  if(one("SELECT name FROM sqlite_master WHERE type='view' AND name='delivery_unified_lines'")){run('DROP VIEW delivery_unified_lines');run(unified_view_sql());}
+  run("INSERT INTO meta(key,value) VALUES('service_advances_version','1')");
+ });
+}
+
 function close_db(): void {global $apgConnection;$apgConnection=null;}
 
 function migrate_delivery_edits(): void {

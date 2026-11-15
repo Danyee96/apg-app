@@ -1266,6 +1266,16 @@ function modal(title, subtitle, body, footer = "") {
   if (!d.open) d.showModal();
   modalSnapshot = modalValues();
 }
+let customerAreaMatches=[],customerAreaIndex=-1;
+function customerAreaPicker(value){return `<div class="field customer-picker customer-area-picker"><label for="f-area">Area</label><input id="f-area" name="area" value="${esc(value||'')}" type="text" maxlength="100" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="customer-area-results" autocomplete="off" placeholder="Search or enter an area…"><div id="customer-area-results" class="customer-picker-results" role="listbox" aria-label="Area matches" hidden></div><small>Choose an existing area or enter a new one.</small></div>`;}
+function customerAreaSuggestions(){const input=$('#customer-form #f-area'),list=$('#customer-area-results');if(!input||!list)return;const q=input.value.trim().toLocaleLowerCase(),matches=(lookups.areas||[]).filter(row=>String(row.area||'').toLocaleLowerCase().includes(q));customerAreaMatches=matches.slice(0,7);customerAreaIndex=-1;list.innerHTML=`<div class="picker-caption">${q?'Matching areas':'Choose an area'}<span>${matches.length>7?'First 7 · type to narrow':matches.length+' found'}</span></div>${customerAreaMatches.map((row,index)=>`<button type="button" role="option" aria-selected="false" id="customer-area-option-${index}" data-area-index="${index}"><span class="avatar">${esc(row.area.slice(0,2).toUpperCase())}</span><span><b>${esc(row.area)}</b></span>${icon('chevron')}</button>`).join('')||'<div class="picker-no-results">No matching area. You can enter a new one.</div>'}`;list.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');}
+function customerAreaHide(){const input=$('#customer-form #f-area'),list=$('#customer-area-results');if(list)list.hidden=true;if(input){input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');}customerAreaIndex=-1;}
+function customerAreaSelect(index){const row=customerAreaMatches[index],input=$('#customer-form #f-area');if(!row||!input)return;input.value=row.area;input.dispatchEvent(new Event('input',{bubbles:true}));customerAreaHide();input.focus();}
+document.addEventListener('focusin',event=>{if(event.target.matches('#customer-form #f-area'))customerAreaSuggestions();});
+document.addEventListener('input',event=>{if(event.target.matches('#customer-form #f-area'))customerAreaSuggestions();});
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('.customer-area-picker'))customerAreaHide();});
+document.addEventListener('click',event=>{const option=event.target.closest('#customer-area-results [data-area-index]');if(option){event.preventDefault();customerAreaSelect(Number(option.dataset.areaIndex));}});
+document.addEventListener('keydown',event=>{if(!event.target.matches('#customer-form #f-area'))return;const list=$('#customer-area-results');if(event.key==='Escape'&&!list.hidden){event.preventDefault();event.stopImmediatePropagation();customerAreaHide();return;}if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();if(list.hidden)customerAreaSuggestions();if(!customerAreaMatches.length)return;customerAreaIndex=(customerAreaIndex+(event.key==='ArrowDown'?1:-1)+customerAreaMatches.length)%customerAreaMatches.length;list.querySelectorAll('[role=option]').forEach((option,index)=>option.setAttribute('aria-selected',String(index===customerAreaIndex)));const selected=$('#customer-area-option-'+customerAreaIndex);event.target.setAttribute('aria-activedescendant',selected.id);selected.scrollIntoView({block:'nearest'});return;}if(event.key==='Enter'&&!list.hidden&&customerAreaIndex>=0){event.preventDefault();event.stopImmediatePropagation();customerAreaSelect(customerAreaIndex);}});
 async function customerForm(id) {
   let r = id
     ? await api("customer", null, { id })
@@ -1291,7 +1301,7 @@ async function customerForm(id) {
         ["I", "Inactive"],
       ],
       r.status,
-    )}${field("mobile", "Mobile", r.mobile, "tel")}${field("phone", "Phone", r.phone, "tel")}${field("area", "Area", r.area)}${field("contact", "Contact person", r.contact)}${field("address", "Address", r.address, "text", "", true)}${field("email", "Email", r.email, "email")}${field("cnic", "CNIC", r.cnic)}<details class="field wide"><summary>Additional contacts & Urdu details</summary><div class="form-grid">${field("mobile2", "Second mobile", r.mobile2, "tel")}${field("phone2", "Second phone", r.phone2, "tel")}${field("urdu_name", "Urdu name", r.urdu_name, "text", 'dir="auto"', true)}${field("urdu_address", "Urdu address", r.urdu_address, "text", 'dir="auto"', true)}</div><small>Older Urdu text may need conversion from the original font.</small></details></div><div class="error" id="form-error" hidden></div><div class="form-actions"><div>${id ? `<button type="button" class="btn" data-action="customer-ledger" data-id="${esc(r.id)}">${icon("report")}View ledger</button>` : ""}</div><div class="buttons">${btn("Cancel", "close-modal")}<button class="btn primary" type="submit">Save customer</button></div></div></form>`,
+    )}${field("mobile", "Mobile", r.mobile, "tel")}${field("phone", "Phone", r.phone, "tel")}${customerAreaPicker(r.area)}${field("contact", "Contact person", r.contact)}${field("address", "Address", r.address, "text", "", true)}${field("email", "Email", r.email, "email")}${field("cnic", "CNIC", r.cnic)}<details class="field wide"><summary>Additional contacts & Urdu details</summary><div class="form-grid">${field("mobile2", "Second mobile", r.mobile2, "tel")}${field("phone2", "Second phone", r.phone2, "tel")}${field("urdu_name", "Urdu name", r.urdu_name, "text", 'dir="auto"', true)}${field("urdu_address", "Urdu address", r.urdu_address, "text", 'dir="auto"', true)}</div><small>Older Urdu text may need conversion from the original font.</small></details></div><div class="error" id="form-error" hidden></div><div class="form-actions"><div>${id ? `<button type="button" class="btn" data-action="customer-ledger" data-id="${esc(r.id)}">${icon("report")}View ledger</button>` : ""}</div><div class="buttons">${btn("Cancel", "close-modal")}<button class="btn primary" type="submit">Save customer</button></div></div></form>`,
   );
   if (id) {
     $("#f-group_code").disabled = true;
@@ -1370,8 +1380,9 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ...fields.map(([key, label]) => [label, cash(sum(key))]),
     [booking ? "Bilties total" : "Godown charges + Bilty charges", cash(total)],
     ["All charges total", cash(total + services)],
-    ["Advance total", cash(sum("advance"))],
-    ["Charges less advance", cash(total + services - sum("advance"))],
+    [booking ? "Advance total" : "Bilty advance total", cash(sum("advance"))],
+    ...(!booking ? [["Loading / Suzuki advance total", cash(sum("service_advance"))]] : []),
+    ["Charges less advance", cash(total + services - sum("advance") - (booking ? 0 : sum("service_advance")))],
     [booking ? "Truck rent / amount" : "Truck delivery / amount", cash(cents(header.truck_amount))],
     ...(!booking ? [["Labour Bonus", cash(cents(header.labour_bonus))], ["Munshi Bonus", cash(cents(header.munshi_bonus))]] : []),
     ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilty amounts less truck delivery", cash(sum("bilty_amount") - cents(header.truck_amount))]]),
@@ -1436,6 +1447,7 @@ function showBilty(id) {
       ["Local charges", cash(i.local_charge)],
       ["Bilty total", goodsCash(i.total,i.kind)],
       ["Advance", cash(i.advance)],
+      ...(i.kind === "incoming" ? [["Loading / Suzuki advance", cash(i.service_advance)]] : []),
       ["Remarks", i.remarks],
     ]),
     btn("Print bilty", "print-dialog", false, "print") +
@@ -1484,6 +1496,7 @@ function blankItem() {
     rent: "0",
     local_charge: "0",
     advance: "0",
+    service_advance: "0",
     remarks: "",
   };
 }
@@ -1513,7 +1526,7 @@ async function editShipment(id) {
   for (const key of ["truck_amount", "commission", "labour_bonus", "munshi_bonus"]) header[key] = amount(s[key]);
   const items = s.items.map(row => {
     const item = { ...blankItem(), ...row };
-    for (const key of ["bilty_amount", "godown", "loading", "suzuki", "rent", "local_charge", "advance"]) item[key] = amount(row[key]);
+    for (const key of ["bilty_amount", "godown", "loading", "suzuki", "rent", "local_charge", "advance", "service_advance"]) item[key] = amount(row[key]);
     return item;
   });
   closeModal();
@@ -1598,7 +1611,7 @@ function openBilty(index = null) {
   modal(
     index === null ? "Add a bilty" : "Edit bilty " + esc(item.bilty),
     "Choose a customer, enter the goods, then save to your shipment list.",
-    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${!booking ? goodsPicker(item) : ""}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", "Party to", "text", 'maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
+    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${!booking ? goodsPicker(item) : ""}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", "Party to", "text", 'maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance", "service_advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Bilty advance", service_advance: "Loading / Suzuki advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
   );
   $("#modal").classList.add("bilty-dialog");
   updateGoodsOptions();
@@ -1627,8 +1640,13 @@ function updateBiltyTotals() {
   let total = itemTotal(i),
     advance = Math.round(Number(i.advance || 0) * 100);
   const warning = $("#bilty-warning");
-  warning.hidden = advance <= total;
-  warning.textContent = "Advance is greater than the bilty total. You can still save these amounts.";
+  const serviceAdvance = Math.round(Number(i.service_advance || 0) * 100);
+  const serviceTotal = Math.round((Number(i.loading || 0) + Number(i.suzuki || 0)) * 100);
+  const warnings = [];
+  if (advance > total) warnings.push("Bilty advance is greater than the bilty total.");
+  if (currentForm.kind === "incoming" && serviceAdvance > serviceTotal) warnings.push("Loading / Suzuki advance is greater than the service charges.");
+  warning.hidden = !warnings.length;
+  warning.textContent = warnings.join(" ") + (warnings.length ? " You can still save these amounts." : "");
   $("#bilty-live-total").textContent = goodsCash(total, currentForm.kind);
   $("#bilty-live-remaining").textContent = goodsCash(total - advance, currentForm.kind);
   $("#bilty-live-remaining").classList.toggle(

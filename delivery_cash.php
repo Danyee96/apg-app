@@ -31,9 +31,9 @@ function sync_delivery_cash_invoice(int $id): void {
  run('INSERT OR IGNORE INTO delivery_cash_invoices(delivery_id) VALUES(?)',[$id]);
  $frozen=array_column(query('SELECT * FROM delivery_cash_lines WHERE delivery_id=?',[$id]),null,'delivery_item_id');
  run('DELETE FROM delivery_cash_lines WHERE delivery_id=?',[$id]);
- foreach(query('SELECT di.*,i.account_id,i.bilty,i.party_to,i.bilty_amount,i.godown,i.advance FROM delivery_items di JOIN items i ON i.id=di.item_id WHERE di.delivery_id=?',[$id]) as $line){
-  if(isset($frozen[$line['id']]))foreach(['account_id','bilty','party_to','bilty_amount','godown','advance'] as $key)$line[$key]=$frozen[$line['id']][$key];
-  run('INSERT INTO delivery_cash_lines(delivery_item_id,delivery_id,account_id,bilty,party_to,bilty_due,service_due,bilty_amount,godown,advance) VALUES(?,?,?,?,?,?,?,?,?,?)',[$line['id'],$id,$line['account_id'],$line['bilty'],$line['party_to']??'',(int)$line['bilty_amount']+(int)$line['godown']-(int)$line['advance']-(int)$line['discount'],(int)$line['loading_charge']+(int)$line['suzuki_charge'],(int)$line['bilty_amount'],(int)$line['godown'],(int)$line['advance']]);
+ foreach(query('SELECT di.*,i.account_id,i.bilty,i.party_to,i.bilty_amount,i.godown,i.advance,i.service_advance FROM delivery_items di JOIN items i ON i.id=di.item_id WHERE di.delivery_id=?',[$id]) as $line){
+  if(isset($frozen[$line['id']]))foreach(['account_id','bilty','party_to','bilty_amount','godown','advance','service_advance'] as $key)$line[$key]=$frozen[$line['id']][$key];
+  run('INSERT INTO delivery_cash_lines(delivery_item_id,delivery_id,account_id,bilty,party_to,bilty_due,service_due,bilty_amount,godown,advance,service_advance) VALUES(?,?,?,?,?,?,?,?,?,?,?)',[$line['id'],$id,$line['account_id'],$line['bilty'],$line['party_to']??'',(int)$line['bilty_amount']+(int)$line['godown']-(int)$line['advance']-(int)$line['discount'],(int)$line['loading_charge']+(int)$line['suzuki_charge'],(int)$line['bilty_amount'],(int)$line['godown'],(int)$line['advance'],(int)$line['service_advance']]);
  }
 }
 function delivery_cash_invoice(int $id): array {

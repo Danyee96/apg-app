@@ -170,6 +170,7 @@ function canView(view) {
     archive: "archive.view",
   };
   if (["daily-expense", "daily-wasooli", "daily-labour-expense"].includes(view)) return isSuper() || isOperations();
+  if (view === "truck-rent") return can("incoming.view");
   if (view === "delivery-cash" || view === "pending-cash") return isSuper() || (isOperations() && can('deliveries.create'));
   if (view === "goods-categories") return isSuper();
   if (view === "goods-analytics") return can("incoming.view");
@@ -286,6 +287,7 @@ function navigationHub() {
     "goods-categories": "Add main goods categories and their subcategories.",
     "goods-analytics": "Compare goods quantities by category and subcategory.",
     "pending-incoming": "Incoming goods awaiting super admin review and approval.",
+    "truck-rent": "Review truck amounts by date, station, truck or driver.",
     "pending-deliveries": "Delivery goods awaiting super admin review and approval.",
     booking: "Manage outgoing shipments and their bilties.",
     deliveries: "Review handovers, receivers and cash collected.",
@@ -313,6 +315,7 @@ function navigationHub() {
       [
         "overview",
         "incoming",
+        "truck-rent",
         "pending-incoming",
         "goods-analytics",
         "booking",
@@ -421,6 +424,7 @@ const navs = [
   ["navigation", "grid", "Navigation"],
   ["overview", "grid", "Overview"],
   ["incoming", "incoming", "Incoming goods"],
+  ["truck-rent", "truck", "Truck rent"],
   ["goods-analytics", "report", "Goods analytics"],
   ["goods-categories", "box", "Goods categories"],
   ["pending-incoming", "clock", "Pending incoming goods"],
@@ -462,15 +466,15 @@ function sidebarNavigation() {
     if(!row||!canView(view))return '';
     return `<button class="nav-link" data-view="${view}">${icon(row[1])}<span>${row[2]}</span>${view==='navigation'?'<small>HOME</small>':''}</button>`;
   };
-  const group=(id,label,ic,views)=>{
-    const links=views.map(link).join('');if(!links)return '';
+  const group=(id,label,ic,views,extra='')=>{
+    const links=views.map(link).join('')+extra;if(!links)return '';
     return `<details class="nav-group" id="${id}"><summary class="nav-link nav-group-toggle">${icon(ic)}<span>${label}</span><span class="nav-group-arrow">${icon('chevron')}</span></summary><div class="nav-submenu">${links}</div></details>`;
   };
   return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
-    group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
+    group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming','truck-rent'])+
     link('deliveries')+
-    ['booking','goods-analytics','goods-categories','customers'].map(link).join('')+
-    '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+['accounts','reports','financial-reports','settings','backups','users','profile','archive'].map(link).join('');
+    link('booking')+link('customers')+
+    '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+group('nav-accounts-reports','Accounts & Reports','wallet',['accounts','reports','financial-reports'])+group('nav-settings','Settings','settings',['settings','backups','users','profile','archive'],group('nav-goods-settings','Goods Settings','box',['goods-analytics','goods-categories']));
 }
 function shell() {
   document.title = "APG — Goods & accounts";
@@ -531,6 +535,7 @@ async function navigate(view, reset = true) {
     return false;
   currentForm = null;
   closeModal();
+  if(view==='truck-rent'&&state.view!=='truck-rent')truckRentInitialized=false;
   state.view = view;
   if (view !== "bilties") {
     state.inquiry = null;
@@ -627,6 +632,9 @@ async function render() {
       case "incoming":
       case "booking":
         html = await shipments();
+        break;
+      case "truck-rent":
+        html = await truckRentPage();
         break;
       case "pending-cash":
         unifiedEditor=null;unifiedTab="all";html=await unifiedPage();
@@ -765,9 +773,9 @@ async function overview() {
       )}</div><div class="grid-main"><div><section class="panel"><div class="panel-head"><div><h2>Latest goods entries</h2><p>Your most recent incoming shipments and bookings</p></div><button class="link" data-view="incoming">View all →</button></div>${shipmentTable(d.recent, false)}</section><div class="footnote">${icon("shield")} Goods handovers and cash collection are separate. Delivery Cash Receiving creates linked accounting vouchers.</div></div><div><section class="panel"><div class="panel-head"><div><h2>Pending by station</h2><p>Incoming bilties awaiting delivery</p></div>${tag(d.pending + " bilties", "orange")}</div><div class="panel-body">${d.stations.map((s, i) => `<div class="station-row"><div class="station-label"><span>${esc(s.name || "Not recorded")}</span><strong>${s.count}</strong></div><div class="bar"><span style="width:${d.pending ? (s.count / d.pending) * 100 : 0}%;opacity:${1 - i * 0.1}"></span></div></div>`).join("") || '<p class="note">No pending incoming goods.</p>'}${btn("Find pending goods", "delivery-new", false, "search")}</div></section><section class="panel" style="margin-top:22px"><div class="panel-head"><h2>Workspace activity</h2>${icon("clock")}</div><div class="panel-body">${d.activity.length ? d.activity.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)}<small>${esc(a.entity_id)} · ${fmttime(a.created_at)}</small></div>`).join("") : '<p class="note">Your new entries and changes will appear here.</p>'}</div></section></div></div>`
   );
 }
-function shipmentTable(rows, withKind = true) {
+function shipmentTable(rows, withKind = true, showTruckRent = false) {
   return rows.length
-    ? `<div class="table-scroll"><table><thead><tr><th>Reference</th><th>Date</th><th>Station / truck</th><th class="number">Bilties</th>${withKind ? '<th class="number">Bilty total</th>' : "<th>Type</th>"}<th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><button class="link" data-action="shipment" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.station || "Not recorded")}</strong><small>${esc(r.truck || "No truck recorded")}</small></td><td class="number">${num(r.item_count)}</td><td class="${withKind ? "number" : ""}">${withKind ? cash(r.total) : tag(r.kind === "incoming" ? "Incoming" : "Booking", r.kind === "incoming" ? "green" : "")}</td><td><button class="icon-btn" data-action="shipment" data-id="${r.id}" aria-label="Open shipment ${esc(r.reference)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
+    ? `<div class="table-scroll"><table><thead><tr><th>Reference</th><th>Date</th><th>Station / truck</th><th class="number">Bilties</th>${withKind ? '<th class="number">Bilty total</th>' : "<th>Type</th>"}${showTruckRent ? '<th class="number">Truck rent balance</th>' : ''}<th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><button class="link" data-action="shipment" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.station || "Not recorded")}</strong><small>${esc(r.truck || "No truck recorded")}</small></td><td class="number">${num(r.item_count)}</td><td class="${withKind ? "number" : ""}">${withKind ? cash(r.total) : tag(r.kind === "incoming" ? "Incoming" : "Booking", r.kind === "incoming" ? "green" : "")}</td>${showTruckRent ? `<td class="number"><strong>${cash(Number(r.bilty_amount_total||0)-Number(r.truck_amount||0))}</strong></td>` : ""}<td><button class="icon-btn" data-action="shipment" data-id="${r.id}" aria-label="Open shipment ${esc(r.reference)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
     : empty();
 }
 async function shipments() {
@@ -788,8 +796,15 @@ async function shipments() {
         "plus",
       ),
     ) +
-    `<section class="panel">${searchBar("Search reference, truck, driver or bilty…", "", true)}${shipmentTable(d.rows)}${pagination(d)}</section>`
+    `<section class="panel">${searchBar("Search reference, truck, driver or bilty…", "", true)}${shipmentTable(d.rows,true,kind === "incoming")}${pagination(d)}</section>`
   );
+}
+let truckRentInitialized=false;
+async function truckRentPage(){
+ if(!truckRentInitialized){state.from=state.to=today();truckRentInitialized=true;}
+ const data=await api('shipments',null,params({kind:'incoming',truck_report:1}));listData=data;state.page=data.page;
+ const rows=data.rows.map(row=>`<tr><td><button class="link" data-action="shipment" data-id="${row.id}">${esc(row.reference)}</button><small>${fmtdate(row.dated)}</small></td><td>${esc(row.station||'—')}</td><td><strong>${esc(row.truck||'—')}</strong></td><td>${esc(row.driver||'—')}</td><td class="number">${cash(row.bilty_amount_total)}</td><td class="number">${cash(row.truck_amount)}</td><td class="number"><strong>${cash(Number(row.bilty_amount_total)-Number(row.truck_amount))}</strong></td><td><button class="icon-btn" data-action="shipment" data-id="${row.id}" aria-label="Open shipment ${esc(row.reference)}">${icon('chevron')}</button></td></tr>`).join('');
+ return head('Truck rent','Review the truck rent balance for each incoming goods entry.',`<button class="btn" data-action="truck-rent-today">Today</button><button class="btn" data-action="truck-rent-all">All dates</button>`)+`<div class="metrics"><div class="metric"><span>Matching incoming entries</span><strong>${num(data.total)}</strong></div><div class="metric"><span>Total truck rent balance</span><strong>${cash(data.truck_total)}</strong></div></div><p class="note">Truck rent balance = bilty charges minus truck delivery amount. Godown charges are excluded.</p><section class="panel">${searchBar('Search station, truck number, driver or reference…','',true)}<div class="table-scroll"><table><thead><tr><th>Incoming / date</th><th>Station</th><th>Truck</th><th>Driver</th><th class="number">Bilty charges</th><th class="number">Truck amount</th><th class="number">Truck rent balance</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${rows?'':empty('No incoming entries found for these filters.')}${pagination(data)}</section>`;
 }
 async function customers() {
   let d = await api("customers", null, params({ group: state.group }));
@@ -1160,7 +1175,7 @@ async function ledger() {
   let d = await api("ledger", null, {
     __render: requestID,
     account_id: state.account_id,
-    source: state.ledgerMode === "cashbook" ? (state.cashBookSource || "original") : "all",
+    source: state.ledgerMode === "cashbook" ? (state.cashBookSource || "new") : "all",
     from: state.from || session.history_start || "2017-10-28",
     to: state.to || today(),
     page: state.page,
@@ -1195,8 +1210,9 @@ async function ledger() {
 }
 function cashBookView(d) {
   const balance = value => `${cash(Math.abs(value))} ${value >= 0 ? 'Dr' : 'Cr'}`;
+  const dateControls=state.cashBookDateMode==='range'?`<label>From <input class="filter" type="date" id="filter-from" aria-label="Start date" value="${esc(d.from)}"></label><label>To <input class="filter" type="date" id="filter-to" aria-label="End date" value="${esc(d.to)}"></label>`:`<label>Day <input class="filter" type="date" id="cash-book-date" aria-label="Cash Book date" value="${esc(d.from)}"></label>`;
   return head('Cash Book', esc(d.account.name) + ' · ' + esc(d.account.id), `<button class="btn" data-action="financial-report" data-report="cashbook">Choose cash account</button>` + btn('Print full report','print-page',false,'print') + btn('Export this page','export',false,'download')) +
-    `<section class="panel cash-book"><div class="toolbar"><div><strong>Cash Book</strong><small>${esc(d.account.name)} · ${esc(d.account.id)} · ${d.source==='original'?'Original backup · ' + fmtdate(d.backup_date):'New app entries only'}</small></div><div class="buttons"><select class="filter" id="cash-book-source" aria-label="Cash Book data source"><option value="original" ${d.source==='original'?'selected':''}>Original backup</option><option value="new" ${d.source==='new'?'selected':''}>New app entries</option></select>${btn('Full history','ledger-all-history')}<input class="filter" type="date" id="filter-from" aria-label="Start date" value="${esc(d.from)}"><span>–</span><input class="filter" type="date" id="filter-to" aria-label="End date" value="${esc(d.to)}"></div></div><div class="cash-book-opening"><span>Opening balance</span><strong>${balance(d.opening)}</strong></div><div class="table-scroll"><table><thead><tr><th>Date</th><th>Voucher no.</th><th>Particular</th><th class="number">Receipts</th><th class="number">Payments</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${fmtdate(r.dated)}</td><td>${esc(r.reference||r.kind||'—')}</td><td>${esc(r.memo||'—')}</td><td class="number">${r.debit?cash(r.debit):'—'}</td><td class="number">${r.credit?cash(r.credit):'—'}</td><td class="number">${balance(r.balance)}</td></tr>`).join('')}</tbody></table></div>${!d.rows.length?empty('No recorded transactions in this date range.'):''}<div class="cash-book-totals"><span>Period receipts <strong>${cash(d.debit)}</strong></span><span>Period payments <strong>${cash(d.credit)}</strong></span><span>Closing balance <strong>${balance(d.closing)}</strong></span></div>${pagination(d)}</section><p class="note cash-book-note">${d.source==='original'?'Original backup entries only. New app vouchers are shown separately. Historical balances require reconciliation.':'New app vouchers only. Opening balance excludes the original backup for imported accounts.'}</p>`;
+    `<section class="panel cash-book"><div class="toolbar"><div><strong>Cash Book</strong><small>${esc(d.account.name)} · ${esc(d.account.id)} · ${d.source==='original'?'Original backup · ' + fmtdate(d.backup_date):'New app entries only'}</small></div><div class="buttons"><select class="filter" id="cash-book-source" aria-label="Cash Book data source"><option value="new" ${d.source==='new'?'selected':''}>New app entries</option><option value="original" ${d.source==='original'?'selected':''}>Original backup</option></select><button type="button" class="btn ${state.cashBookDateMode!=='range'?'primary':''}" data-action="cash-book-day">Single day</button><button type="button" class="btn ${state.cashBookDateMode==='range'?'primary':''}" data-action="cash-book-range">Date range</button><button type="button" class="btn" data-action="cash-book-today">Today</button>${btn('Full history','ledger-all-history')}${dateControls}</div></div><div class="cash-book-opening"><span>Opening balance</span><strong>${balance(d.opening)}</strong></div><div class="table-scroll"><table><thead><tr><th>Date</th><th>Voucher no.</th><th>Particular</th><th class="number">Receipts / debit</th><th class="number">Payments / credit</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${fmtdate(r.dated)}</td><td>${esc(r.reference||r.kind||'—')}</td><td>${esc(r.memo||'—')}</td><td class="number">${r.debit?cash(r.debit):'—'}</td><td class="number">${r.credit?cash(r.credit):'—'}</td><td class="number">${balance(r.balance)}</td></tr>`).join('')}</tbody></table></div>${!d.rows.length?empty('No recorded transactions in this date range.'):''}<div class="cash-book-totals"><span>Total receipts / debit <strong>${cash(d.debit)}</strong></span><span>Total payments / credit <strong>${cash(d.credit)}</strong></span><span>Net movement <strong>${cash(d.debit-d.credit)}</strong></span><span>Closing balance <strong>${balance(d.closing)}</strong></span></div>${pagination(d)}</section><p class="note cash-book-note">${d.source==='original'?'Original backup entries only. New app vouchers are shown separately. Historical balances require reconciliation.':'New app vouchers only. Opening balance excludes the original backup for imported accounts.'}</p>`;
 }
 async function settings() {
   let d = await api("settings");
@@ -1557,6 +1573,10 @@ function shipmentAmountWarnings() {
   const warnings = currentForm.items.filter(item => Math.round(Number(item.advance || 0) * 100) > itemTotal(item));
   return warnings.length ? `<div class="note-box warning" role="status" style="margin-bottom:18px">${warnings.map(item => `Bilty ${esc(item.bilty)}: advance is greater than its bilty total.`).join("<br>")}<br>You can continue and save these amounts.</div>` : "";
 }
+function shipmentTruckBalance(form) {
+  if (!form.items.length) return '—';
+  return cash(form.items.reduce((sum,item)=>sum+Math.round(Number(item.bilty_amount||0)*100),0)-Math.round(Number(form.header.truck_amount||0)*100));
+}
 function shipmentSidebarTotal(form) {
   return form.kind === "booking"
     ? goodsCash(form.items.reduce((sum, item) => sum + itemTotal(item, form.kind), 0), form.kind)
@@ -1593,7 +1613,7 @@ function shipmentForm() {
             shipmentBreakdown(f.items, f.kind, h, true) +
             shipmentDetailTable(f.items, f.kind, true) + (!booking ? goodsAnalyticsSection(f.items) : "") +
             `<div class="note-box" style="margin-top:20px">${isOperations() && !booking ? "Submitting sends this entry to Pending incoming goods. It will appear in goods and delivery searches only after super admin approval." : "Saving records the shipment and its bilties. It does not automatically post an accounting voucher."}</div>`
-    }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>${booking ? "Bilty totals" : "Truck delivery / amount"}</span><b id="sum-total">${shipmentSidebarTotal(f)}</b></div><p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Truck delivery amount entered in shipment details. Bilty and godown charges are not included."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? (f.pendingId ? "Approve & save incoming goods" : isOperations() && !booking ? "Submit for approval" : "Save " + (booking ? "booking" : "incoming goods")) : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
+    }<div id="form-error" class="error" hidden></div></div></section><aside><section class="panel sticky"><div class="panel-head"><h2>Shipment summary</h2>${icon("box")}</div><div class="panel-body"><div class="summary-row"><span>Type</span><strong>${booking ? "Booking" : "Incoming"}</strong></div><div class="summary-row"><span>Bilties</span><strong id="sum-bilties">${f.items.length}</strong></div><div class="summary-row"><span>Quantity</span><strong id="sum-qty">${num(f.items.reduce((s, i) => s + Number(i.qty || 0), 0))}</strong></div><div class="summary-row"><span>Advance recorded</span><strong id="sum-advance">${cash(f.items.reduce((s, i) => s + Math.round(Number(i.advance || 0) * 100), 0))}</strong></div><div class="summary-total"><span>${booking ? "Bilty totals" : "Truck delivery / amount"}</span><b id="sum-total">${shipmentSidebarTotal(f)}</b></div>${!booking ? `<div class="summary-row"><span>Truck rent balance</span><strong id="sum-truck-balance">${shipmentTruckBalance(f)}</strong></div>` : ""}<p class="note" style="margin-top:22px">${booking ? "Bilty total = rent + loading + bilty amount + local charges. Truck rent and commission remain separate." : "Truck delivery amount entered in shipment details. Bilty and godown charges are not included."}</p></div></section></aside></div><div class="form-actions">${f.step ? btn("Back", "shipment-back") : btn("Cancel", "cancel-shipment")}<button class="btn primary" type="submit">${f.step === 2 ? (f.pendingId ? "Approve & save incoming goods" : isOperations() && !booking ? "Submit for approval" : "Save " + (booking ? "booking" : "incoming goods")) : "Continue"} ${icon(f.step === 2 ? "check" : "arrow")}</button></div></form>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function draftBiltyList() {
@@ -2979,8 +2999,18 @@ async function action(name, el) {
     case "ledger-all-history":
       state.from = session.history_start || "2017-10-28";
       state.to = today();
+      if(state.ledgerMode==='cashbook')state.cashBookDateMode='range';
       state.page = 0;
       await render();
+      break;
+    case "cash-book-day":
+      state.cashBookDateMode='day';state.to=state.from||today();state.from=state.to;state.page=0;await render();
+      break;
+    case "cash-book-range":
+      state.cashBookDateMode='range';state.page=0;await render();
+      break;
+    case "cash-book-today":
+      state.cashBookDateMode='day';state.from=state.to=today();state.page=0;await render();
       break;
     case "dashboard-overview":
       await navigate("overview");
@@ -3013,6 +3043,12 @@ async function action(name, el) {
       state.search = state.from = state.to = "";
       state.page = 0;
       await render();
+      break;
+    case "truck-rent-today":
+      state.from=state.to=today();state.page=0;await render();
+      break;
+    case "truck-rent-all":
+      state.from=state.to='';state.page=0;await render();
       break;
     case "refresh":
       render();
@@ -3215,8 +3251,8 @@ async function action(name, el) {
       closeModal();
       state.account_id = el.dataset.id;
       state.ledgerMode = el.dataset.ledgerMode || "";
-      if(state.ledgerMode === "cashbook")state.cashBookSource = "original";
-      state.from = session.history_start || "2017-10-28";
+      if(state.ledgerMode === "cashbook"){state.cashBookSource = "new";state.cashBookDateMode='day';}
+      state.from = state.ledgerMode === "cashbook" ? today() : (session.history_start || "2017-10-28");
       state.to = today();
       state.page = 0;
       navigate("ledger", false);
@@ -3340,11 +3376,15 @@ document.addEventListener("input", (e) => {
       ),
     );
     $("#sum-total").textContent = shipmentSidebarTotal(currentForm);
+    if ($("#sum-truck-balance")) $("#sum-truck-balance").textContent = shipmentTruckBalance(currentForm);
   }
   if (e.target.closest("#voucher-lines")) updateVoucherSummary();
 });
 document.addEventListener("change", (e) => {
   let t = e.target;
+  if(t.id==='cash-book-date'){
+    state.from=state.to=t.value||today();state.page=0;render();return;
+  }
   if (t.dataset.select) {
     let id = Number(t.dataset.select);
     if (t.checked)
@@ -3373,6 +3413,7 @@ document.addEventListener("change", (e) => {
   };
   if (changes[t.id]) {
     state[changes[t.id]] = t.value;
+    if(state.view==='ledger'&&state.ledgerMode==='cashbook'&&state.from&&state.to&&state.from>state.to){if(t.id==='filter-from')state.to=state.from;else if(t.id==='filter-to')state.from=state.to;}
     state.page = 0;
     render();
   }

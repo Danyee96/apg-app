@@ -140,8 +140,12 @@ try {
  }
  if($action==='shipments'&&$method==='GET'){
   $kind=text($_GET,'kind',10)?:'incoming';if(!in_array($kind,['incoming','booking'],true))fail('Invalid shipment type.');$where=' WHERE s.kind=?';$args=[$kind];
-  if(!empty($_GET['search'])){$where.=" AND (s.reference LIKE ? ESCAPE '\' OR s.truck LIKE ? ESCAPE '\' OR s.driver LIKE ? ESCAPE '\' OR EXISTS(SELECT 1 FROM items x WHERE x.shipment_id=s.id AND (x.bilty LIKE ? ESCAPE '\' OR x.party_to LIKE ? ESCAPE '\')))";$args=[...$args,...array_fill(0,5,pattern())];}
-  $where.=rangeWhere('s.dated',$args);response(paged('shipments s LEFT JOIN stations st ON st.id=s.station_id',$where,$args,'s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count,(SELECT COALESCE(SUM(CASE WHEN s.kind=\'incoming\' THEN i.bilty_amount+i.godown ELSE i.rent+i.loading+i.bilty_amount+i.local_charge END),0) FROM items i WHERE i.shipment_id=s.id) total','s.dated DESC,s.id DESC'));
+  $truckReport=!empty($_GET['truck_report']);if($truckReport&&$kind!=='incoming')fail('Truck rent is available for incoming goods only.');
+  if(!empty($_GET['search'])){$where.=" AND (s.reference LIKE ? ESCAPE '\' OR s.truck LIKE ? ESCAPE '\' OR s.driver LIKE ? ESCAPE '\' OR st.name LIKE ? ESCAPE '\' OR EXISTS(SELECT 1 FROM items x WHERE x.shipment_id=s.id AND (x.bilty LIKE ? ESCAPE '\' OR x.party_to LIKE ? ESCAPE '\')))";$args=[...$args,...array_fill(0,6,pattern())];}
+  $where.=rangeWhere('s.dated',$args);$from='shipments s LEFT JOIN stations st ON st.id=s.station_id';
+  $biltySum='(SELECT COALESCE(SUM(i.bilty_amount),0) FROM items i WHERE i.shipment_id=s.id)';
+  $result=paged($from,$where,$args,$truckReport?'s.id,s.reference,s.dated,s.truck,s.driver,s.truck_amount,st.name station,'.$biltySum.' bilty_amount_total':'s.*,st.name station,(SELECT count(*) FROM items i WHERE i.shipment_id=s.id) item_count,'.$biltySum.' bilty_amount_total,(SELECT COALESCE(SUM(CASE WHEN s.kind=\'incoming\' THEN i.bilty_amount+i.godown ELSE i.rent+i.loading+i.bilty_amount+i.local_charge END),0) FROM items i WHERE i.shipment_id=s.id) total','s.dated DESC,s.id DESC');
+  if($truckReport)$result['truck_total']=(int)one('SELECT COALESCE(SUM('.$biltySum.'-s.truck_amount),0) total FROM '.$from.$where,$args)['total'];response($result);
  }
  if($action==='shipment'&&$method==='GET'){$id=(int)($_GET['id']??0);$s=one('SELECT s.*,st.name station,st.address station_address FROM shipments s LEFT JOIN stations st ON st.id=s.station_id WHERE s.id=?',[$id]);if(!$s)fail('Shipment not found.',404);$s['version']=shipment_version(shipment_snapshot($id));$s['items']=array_map(fn($item)=>goods_item($item,$s['kind']),query('SELECT i.*,a.name customer FROM items i LEFT JOIN accounts a ON a.id=i.account_id WHERE shipment_id=? ORDER BY i.id',[$id]));response($s);}
  if($action==='save_shipment'&&$method==='POST'){

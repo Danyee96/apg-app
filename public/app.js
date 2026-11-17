@@ -170,6 +170,7 @@ function canView(view) {
     archive: "archive.view",
   };
   if (["daily-expense", "daily-wasooli", "daily-labour-expense"].includes(view)) return isSuper() || isOperations();
+  if (view === "temporary-customers") return can("incoming.view") || can("customers.view");
   if (view === "truck-rent") return can("incoming.view");
   if (view === "delivery-cash" || view === "pending-cash") return isSuper() || (isOperations() && can('deliveries.create'));
   if (view === "goods-categories") return isSuper();
@@ -298,6 +299,7 @@ function navigationHub() {
     reports: "Open goods registers, directories and account views.",
     "financial-reports":
       "Explore account activity, balances and accounting reports.",
+    "temporary-customers": "Review temporary customers and their incoming goods.",
     "daily-expense": "Delivery collections, expenses and munshi receivables until cleared.",
     "daily-wasooli": "Find customers and record market collections.",
     "daily-labour-expense": "See each day’s labour payable and its source entries.",
@@ -321,6 +323,7 @@ function navigationHub() {
         "booking",
         "deliveries",
         "customers",
+        "temporary-customers",
       ],
     ],
     [
@@ -432,6 +435,7 @@ const navs = [
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Delivery goods"],
   ["customers", "users", "Customers"],
+  ["temporary-customers", "users", "Temporary customers"],
   ["daily-expense", "wallet", "Daily expense"],
   ["daily-wasooli", "wallet", "Daily Wasooli"],
   ["daily-labour-expense", "wallet", "Daily labour expense"],
@@ -473,7 +477,7 @@ function sidebarNavigation() {
   return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming','truck-rent'])+
     link('deliveries')+
-    link('booking')+link('customers')+
+    link('booking')+group('nav-customers','Customers','users',['customers','temporary-customers'])+
     '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+group('nav-accounts-reports','Accounts & Reports','wallet',['accounts','reports','financial-reports'])+group('nav-settings','Settings','settings',['settings','backups','users','profile','archive'],group('nav-goods-settings','Goods Settings','box',['goods-analytics','goods-categories']));
 }
 function shell() {
@@ -610,6 +614,9 @@ async function render() {
         break;
       case "daily-labour-expense":
         html = await dailyLabourExpensePage();
+        break;
+      case "temporary-customers":
+        html = await temporaryCustomersPage();
         break;
       case "customers":
         html = await customers();
@@ -820,6 +827,22 @@ async function customers() {
     `<section class="panel">${searchBar("Search name, code, mobile or address…", `<select class="filter" id="customer-group" aria-label="Customer group"><option value="">All customer groups</option>${["115", "116", "117", "118"].map((g) => `<option value="${g}" ${state.group === g ? "selected" : ""}>Group ${g}</option>`).join("")}</select>`)}<div class="table-scroll"><table><thead><tr><th>Customer</th><th>Contact</th><th>Area</th><th>Group</th><th>Status</th><th></th></tr></thead><tbody>${d.rows.map((r) => `<tr><td><div class="person"><span class="avatar">${esc(r.name.slice(0, 2).toUpperCase())}</span><div><button class="link" data-action="customer" data-id="${esc(r.id)}">${esc(r.name)}</button><small>${esc(r.id)}</small></div></div></td><td>${esc(r.mobile || r.phone || "—")}<small>${esc(r.email || r.contact || "")}</small></td><td>${esc(r.area || "—")}</td><td>${tag(r.group_code)}</td><td>${tag(r.status === "A" ? "Active" : "Inactive", r.status === "A" ? "green" : "gray")}</td><td><button class="icon-btn" data-action="customer" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.name)}">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty() : ""}${pagination(d)}</section>`
   );
 }
+
+async function temporaryCustomersPage() {
+ const d=await api('temporary_customers',null,params()); listData=d; state.page=d.page;
+ return head('Temporary customers','Customers created during incoming goods. Complete their details to add them to the main customer list.')+
+ `<section class="panel">${searchBar('Search temporary customers by name or account code…')}<div class="table-scroll"><table><thead><tr><th>Customer</th><th>Incoming bilties</th><th>Quantity</th><th></th></tr></thead><tbody>${d.rows.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.id)} · Temporary</small></td><td>${num(r.bilties)}</td><td>${num(r.quantity)}</td><td><div class="buttons"><button class="btn small" data-action="temporary-goods" data-id="${esc(r.id)}">View goods</button>${isSuper()?`<button class="btn small primary" data-action="temporary-convert" data-id="${esc(r.id)}">Complete customer</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>${d.rows.length?'':empty('No temporary customers found.')}${pagination(d)}</section>`;
+}
+async function temporaryGoods(id,page=0){
+ const d=await api('temporary_customer_goods',null,{id,page});
+ modal('Incoming goods · '+esc(d.customer.name),'Approved incoming goods for this temporary customer.',`<div class="table-scroll"><table><thead><tr><th>Bilty / date</th><th>Incoming / station</th><th>Party to</th><th>Goods</th><th>Qty</th><th>Bilty / godown</th><th>Loading / Suzuki</th><th>Advance</th><th>Status</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td><strong>${esc(r.bilty)}</strong><small>${fmtdate(r.dated)}</small></td><td>${esc(r.reference)}<small>${esc(r.station||'—')}</small></td><td>${esc(r.party_to||'—')}</td><td>${esc(r.goods_subcategory||r.goods_custom||r.detail||'—')}</td><td>${num(r.qty)}</td><td>${cash(r.bilty_amount)} / ${cash(r.godown)}</td><td>${cash(r.loading)} / ${cash(r.suzuki)}</td><td>${cash(r.advance)}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>${d.rows.length?'':empty('No approved incoming goods yet.')}<div class="pagination"><span>${num(d.total)} bilties</span><div class="buttons"><button type="button" class="btn small" data-action="temporary-goods-page" data-id="${esc(id)}" data-page="${d.page-1}" ${d.page===0?'disabled':''}>Previous</button><button type="button" class="btn small" data-action="temporary-goods-page" data-id="${esc(id)}" data-page="${d.page+1}" ${(d.page+1)*d.page_size>=d.total?'disabled':''}>Next</button></div></div>`);
+}
+function temporaryConvert(id){
+ const r=listData?.rows.find(a=>a.id===id);if(!r||!isSuper())return;
+ modal('Complete customer · '+esc(r.name),'Add the area and phone number. Existing bilties and balances stay linked to this account.',`<form id="temporary-convert-form"><input type="hidden" name="id" value="${esc(r.id)}"><input type="hidden" name="version" value="${Number(r.version)}"><div class="form-grid">${customerAreaPicker(r.area)}${field('mobile','Phone number *',r.mobile,'tel','required maxlength="40"')}</div><div class="error" id="form-error" hidden></div><div class="form-actions"><button class="btn primary" type="submit">Add to customers</button></div></form>`);
+ $('#temporary-convert-form #f-area').required=true;
+}
+
 async function bilties() {
   let d = await api(
     "bilties",
@@ -1289,14 +1312,14 @@ function modal(title, subtitle, body, footer = "") {
 }
 let customerAreaMatches=[],customerAreaIndex=-1;
 function customerAreaPicker(value){return `<div class="field customer-picker customer-area-picker"><label for="f-area">Area</label><input id="f-area" name="area" value="${esc(value||'')}" type="text" maxlength="100" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="customer-area-results" autocomplete="off" placeholder="Search or enter an area…"><div id="customer-area-results" class="customer-picker-results" role="listbox" aria-label="Area matches" hidden></div><small>Choose an existing area or enter a new one.</small></div>`;}
-function customerAreaSuggestions(){const input=$('#customer-form #f-area'),list=$('#customer-area-results');if(!input||!list)return;const q=input.value.trim().toLocaleLowerCase(),matches=(lookups.areas||[]).filter(row=>String(row.area||'').toLocaleLowerCase().includes(q));customerAreaMatches=matches.slice(0,7);customerAreaIndex=-1;list.innerHTML=`<div class="picker-caption">${q?'Matching areas':'Choose an area'}<span>${matches.length>7?'First 7 · type to narrow':matches.length+' found'}</span></div>${customerAreaMatches.map((row,index)=>`<button type="button" role="option" aria-selected="false" id="customer-area-option-${index}" data-area-index="${index}"><span class="avatar">${esc(row.area.slice(0,2).toUpperCase())}</span><span><b>${esc(row.area)}</b></span>${icon('chevron')}</button>`).join('')||'<div class="picker-no-results">No matching area. You can enter a new one.</div>'}`;list.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');}
-function customerAreaHide(){const input=$('#customer-form #f-area'),list=$('#customer-area-results');if(list)list.hidden=true;if(input){input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');}customerAreaIndex=-1;}
-function customerAreaSelect(index){const row=customerAreaMatches[index],input=$('#customer-form #f-area');if(!row||!input)return;input.value=row.area;input.dispatchEvent(new Event('input',{bubbles:true}));customerAreaHide();input.focus();}
-document.addEventListener('focusin',event=>{if(event.target.matches('#customer-form #f-area'))customerAreaSuggestions();});
-document.addEventListener('input',event=>{if(event.target.matches('#customer-form #f-area'))customerAreaSuggestions();});
+function customerAreaSuggestions(){const input=$(':is(#customer-form,#temporary-convert-form) #f-area'),list=$('#customer-area-results');if(!input||!list)return;const q=input.value.trim().toLocaleLowerCase(),matches=(lookups.areas||[]).filter(row=>String(row.area||'').toLocaleLowerCase().includes(q));customerAreaMatches=matches.slice(0,7);customerAreaIndex=-1;list.innerHTML=`<div class="picker-caption">${q?'Matching areas':'Choose an area'}<span>${matches.length>7?'First 7 · type to narrow':matches.length+' found'}</span></div>${customerAreaMatches.map((row,index)=>`<button type="button" role="option" aria-selected="false" id="customer-area-option-${index}" data-area-index="${index}"><span class="avatar">${esc(row.area.slice(0,2).toUpperCase())}</span><span><b>${esc(row.area)}</b></span>${icon('chevron')}</button>`).join('')||'<div class="picker-no-results">No matching area. You can enter a new one.</div>'}`;list.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');}
+function customerAreaHide(){const input=$(':is(#customer-form,#temporary-convert-form) #f-area'),list=$('#customer-area-results');if(list)list.hidden=true;if(input){input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');}customerAreaIndex=-1;}
+function customerAreaSelect(index){const row=customerAreaMatches[index],input=$(':is(#customer-form,#temporary-convert-form) #f-area');if(!row||!input)return;input.value=row.area;input.dispatchEvent(new Event('input',{bubbles:true}));customerAreaHide();input.focus();}
+document.addEventListener('focusin',event=>{if(event.target.matches(':is(#customer-form,#temporary-convert-form) #f-area'))customerAreaSuggestions();else if(!event.target.closest('.customer-area-picker'))customerAreaHide();});
+document.addEventListener('input',event=>{if(event.target.matches(':is(#customer-form,#temporary-convert-form) #f-area'))customerAreaSuggestions();});
 document.addEventListener('pointerdown',event=>{if(!event.target.closest('.customer-area-picker'))customerAreaHide();});
 document.addEventListener('click',event=>{const option=event.target.closest('#customer-area-results [data-area-index]');if(option){event.preventDefault();customerAreaSelect(Number(option.dataset.areaIndex));}});
-document.addEventListener('keydown',event=>{if(!event.target.matches('#customer-form #f-area'))return;const list=$('#customer-area-results');if(event.key==='Escape'&&!list.hidden){event.preventDefault();event.stopImmediatePropagation();customerAreaHide();return;}if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();if(list.hidden)customerAreaSuggestions();if(!customerAreaMatches.length)return;customerAreaIndex=(customerAreaIndex+(event.key==='ArrowDown'?1:-1)+customerAreaMatches.length)%customerAreaMatches.length;list.querySelectorAll('[role=option]').forEach((option,index)=>option.setAttribute('aria-selected',String(index===customerAreaIndex)));const selected=$('#customer-area-option-'+customerAreaIndex);event.target.setAttribute('aria-activedescendant',selected.id);selected.scrollIntoView({block:'nearest'});return;}if(event.key==='Enter'&&!list.hidden&&customerAreaIndex>=0){event.preventDefault();event.stopImmediatePropagation();customerAreaSelect(customerAreaIndex);}});
+document.addEventListener('keydown',event=>{if(!event.target.matches(':is(#customer-form,#temporary-convert-form) #f-area'))return;const list=$('#customer-area-results');if(event.key==='Escape'&&!list.hidden){event.preventDefault();event.stopImmediatePropagation();customerAreaHide();return;}if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();if(list.hidden)customerAreaSuggestions();if(!customerAreaMatches.length)return;customerAreaIndex=(customerAreaIndex+(event.key==='ArrowDown'?1:-1)+customerAreaMatches.length)%customerAreaMatches.length;list.querySelectorAll('[role=option]').forEach((option,index)=>option.setAttribute('aria-selected',String(index===customerAreaIndex)));const selected=$('#customer-area-option-'+customerAreaIndex);event.target.setAttribute('aria-activedescendant',selected.id);selected.scrollIntoView({block:'nearest'});return;}if(event.key==='Enter'&&!list.hidden&&customerAreaIndex>=0){event.preventDefault();event.stopImmediatePropagation();customerAreaSelect(customerAreaIndex);}});
 async function customerForm(id) {
   let r = id
     ? await api("customer", null, { id })
@@ -1636,7 +1659,7 @@ function openBilty(index = null) {
   modal(
     index === null ? "Add a bilty" : "Edit bilty " + esc(item.bilty),
     "Choose a customer, enter the goods, then save to your shipment list.",
-    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${!booking ? goodsPicker(item) : ""}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", "Party to", "text", 'maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance", "service_advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Bilty advance", service_advance: "Loading / Suzuki advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
+    `<form id="bilty-form"><div class="bilty-dialog-content"><div class="bilty-main-fields"><div class="bilty-section-title"><span>01</span><h3>Customer & goods</h3></div><div class="field customer-picker"><label for="bilty-customer-search">Customer <span class="required">*</span></label><input id="bilty-customer-search" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="bilty-customer-results" autocomplete="off" placeholder="Search by name, account code or phone…" value="${esc(customer?.name || "")}" required><input type="hidden" name="account_id" value="${esc(item.account_id)}"><div id="bilty-customer-results" class="customer-picker-results" role="listbox" aria-label="Customer matches" hidden></div><small id="bilty-customer-hint">${customer ? esc(customer.id) + " · Customer selected" : "Start typing, then choose a customer from the results."}</small></div><div id="quick-customer-form" class="quick-customer-form" hidden></div><div class="form-grid" style="margin-top:20px">${f("bilty", 'Bilty number <span class="required">*</span>', "text", 'required maxlength="40" placeholder="e.g. 10234"')}${f("qty", 'Quantity <span class="required">*</span>', "number", 'required min="1" max="999999" step="1"')}${!booking ? goodsPicker(item) : ""}${f("party_from", "Party from", "text", 'maxlength="100" placeholder="Sender’s name"')}${f("party_to", "Party to", "text", 'maxlength="100" placeholder="Receiver / party name"')}${f("contact", "Contact number", "tel", 'maxlength="40"')}${f("city", "City", "text", 'maxlength="80"')}${f("detail", "Goods description", "text", 'maxlength="250" placeholder="e.g. cartons, bags, spare parts"', true)}</div><details class="bilty-remarks" ${item.remarks ? "open" : ""}><summary>Remarks (optional)</summary><div class="form-grid">${f("remarks", "Remarks", "text", 'maxlength="250"', true)}</div></details></div><aside class="bilty-charge-panel"><div class="bilty-section-title"><span>02</span><h3>Charges & advance</h3></div><div class="bilty-currency">All amounts in Pakistani rupees (Rs)</div><div class="form-grid">${(booking ? ["rent", "loading", "bilty_amount", "local_charge", "advance"] : ["bilty_amount", "godown", "loading", "suzuki", "advance", "service_advance"]).map((k) => f(k, { rent: "Rent", loading: "Loading", bilty_amount: "Bilty amount", local_charge: "Local charges", godown: "Godown charges", advance: "Bilty advance", service_advance: "Loading / Suzuki advance", suzuki: "Suzuki kiraya" }[k] + " (Rs)", "number", 'required min="0" max="9999999999.99" step="0.01"')).join("")}</div><div class="bilty-amount-summary"><div><span>Bilty total</span><strong id="bilty-live-total"></strong></div><div><span>After advance</span><b id="bilty-live-remaining"></b></div></div><p class="note">${booking ? "Total = rent + loading + bilty amount + local charges." : "Total = bilty amount + godown charges. Loading and Suzuki are separate."}</p></aside></div><div class="bilty-popup-footer"><div id="bilty-warning" class="note-box warning" role="status" hidden></div><div class="error" id="form-error" role="alert" hidden></div><div class="bilty-popup-actions"><span class="bilty-draft-note">${icon("info")} Saved to the list until you save the shipment.</span><div class="buttons">${btn("Cancel", "cancel-bilty")}<button class="btn" type="submit" name="bilty_action" value="another">Save & add another ${icon("plus")}</button><button class="btn primary" type="submit" name="bilty_action" value="save">${icon("check")}Save bilty</button></div></div></div></form>`,
   );
   $("#modal").classList.add("bilty-dialog");
   updateGoodsOptions();
@@ -1697,7 +1720,7 @@ function customerSuggestions() {
   pickerMatches = all.slice(0, 7);
   pickerIndex = -1;
   const list = $("#bilty-customer-results");
-  list.innerHTML = `<div class="picker-caption">${q ? "Matching customers" : "Choose a customer"}<span>${all.length > 7 ? "First 7 · type to narrow" : all.length + " found"}</span></div>${pickerMatches.map((a, n) => `<button type="button" role="option" aria-selected="false" id="customer-result-${n}" data-action="select-bilty-customer" data-id="${esc(a.id)}"><span class="avatar">${esc(a.name.slice(0, 2).toUpperCase())}</span><span><b>${esc(a.name)}</b><small>${esc(a.id)}${a.mobile || a.phone ? " · " + esc(a.mobile || a.phone) : ""}</small></span>${icon("chevron")}</button>`).join("") || '<div class="picker-no-results">No customers found. Try a name or account code.</div>'}`;
+  list.innerHTML = `<div class="picker-caption">${q ? "Matching customers" : "Choose a customer"}<span>${all.length > 7 ? "First 7 · type to narrow" : all.length + " found"}</span></div>${pickerMatches.map((a, n) => `<button type="button" role="option" aria-selected="false" id="customer-result-${n}" data-action="select-bilty-customer" data-id="${esc(a.id)}"><span class="avatar">${esc(a.name.slice(0, 2).toUpperCase())}</span><span><b>${esc(a.name)}</b><small>${esc(a.id)}${Number(a.temporary) ? " · Temporary customer" : ""}${a.mobile || a.phone ? " · " + esc(a.mobile || a.phone) : ""}</small></span>${icon("chevron")}</button>`).join("") || (q && currentForm?.kind === 'incoming' && can('incoming.create') ? `<div class="picker-no-results">No customer found for “${esc(input.value.trim())}”.</div><div class="quick-customer-actions"><button type="button" data-quick-customer="temporary">Add as temporary customer</button><button type="button" data-quick-customer="full">Add as a new customer</button></div>` : '<div class="picker-no-results">No customers found. Try a name or account code.</div>')}`;
   list.hidden = false;
   input.setAttribute("aria-expanded", "true");
   input.removeAttribute("aria-activedescendant");
@@ -1719,7 +1742,7 @@ function selectBiltyCustomer(id) {
   if (!a) return;
   $("#bilty-customer-search").value = a.name;
   $('#bilty-form [name="account_id"]').value = a.id;
-  $("#bilty-customer-hint").textContent = a.id + " · Customer selected";
+  $("#bilty-customer-hint").textContent = a.id + (Number(a.temporary) ? " · Temporary customer selected" : " · Customer selected");
   hideCustomerSuggestions();
   $("#bilty-customer-search").focus();
   hideCustomerSuggestions();
@@ -3106,6 +3129,11 @@ async function action(name, el) {
     case "select-goods-type":
       selectGoodsType(el.dataset.id);
       break;
+    case "temporary-goods":
+    case "temporary-goods-page":
+      await temporaryGoods(el.dataset.id,Number(el.dataset.page||0)); break;
+    case "temporary-convert":
+      temporaryConvert(el.dataset.id); break;
     case "select-bilty-customer":
       selectBiltyCustomer(el.dataset.id);
       break;
@@ -3353,6 +3381,7 @@ document.addEventListener("input", (e) => {
     }, 350);
   }
   if (e.target.id === "bilty-customer-search") {
+    const quick=$("#quick-customer-form"); if(quick){quick.hidden=true;quick.innerHTML="";}
     $('#bilty-form [name="account_id"]').value = "";
     $("#bilty-customer-hint").textContent =
       "Choose a customer from the results below.";
@@ -3500,6 +3529,8 @@ async function submitForm(form, submitter) {
       await navigate("ledger");
       break;
     }
+    case "temporary-convert-form":
+      await api('promote_temporary_customer',data); await refreshLookups(); closeModal(); toast('Customer added to the main list.'); await render(); break;
     case "customer-form":
       await api("save_customer", data);
       await refreshLookups();
@@ -4241,3 +4272,28 @@ async function reviewPendingCash(id){const review=await api('cash_collection_sub
 
 function updateDeliveryModeButton(form){const type=form.elements.namedItem('delivery_mode');if(type)$('button[type="submit"]',form).innerHTML=icon('check')+(type.value==='walkin'?('Save delivery & receive cash'):'Save delivery');}
 document.addEventListener('change',event=>{if(event.target.name==='delivery_mode'&&event.target.closest('#delivery-form'))recordDelivery(deliveryValues(),deliveryEdit);});
+
+// Create a customer without closing or losing the current bilty draft.
+document.addEventListener('click', async event => {
+ const choice=event.target.closest('[data-quick-customer]');
+ const save=event.target.closest('[data-quick-customer-save]');
+ if(!choice&&!save)return;
+ event.preventDefault();
+ const panel=$('#quick-customer-form'), input=$('#bilty-customer-search');
+ if(!panel||!input)return;
+ if(choice){
+  const mode=choice.dataset.quickCustomer;hideCustomerSuggestions();
+  panel.hidden=false;
+  panel.innerHTML=mode==='full' ? `<div class="quick-customer-title"><strong>New customer · ${esc(input.value.trim())}</strong><small>Add their area and phone number.</small></div><div class="form-grid"><div class="field"><label for="quick-customer-area">Area *</label><input id="quick-customer-area" list="quick-customer-areas" maxlength="100" placeholder="Search or enter an area" autocomplete="off"><datalist id="quick-customer-areas">${(lookups.areas||[]).map(a=>`<option value="${esc(a.area)}"></option>`).join('')}</datalist></div><div class="field"><label for="quick-customer-phone">Phone number *</label><input id="quick-customer-phone" type="tel" maxlength="40" autocomplete="off"></div></div><div class="error" id="quick-customer-error" role="alert" hidden></div><div class="buttons"><button type="button" class="btn primary" data-quick-customer-save="full">Add customer</button><button type="button" class="btn" data-quick-customer-cancel>Cancel</button></div>` : `<div class="quick-customer-title"><strong>Temporary customer · ${esc(input.value.trim())}</strong><small>A super admin can add their area and phone later.</small></div><div class="error" id="quick-customer-error" role="alert" hidden></div><div class="buttons"><button type="button" class="btn primary" data-quick-customer-save="temporary">Add temporary customer</button><button type="button" class="btn" data-quick-customer-cancel>Cancel</button></div>`;
+  (mode==='full'?$('#quick-customer-area'):panel.querySelector('[data-quick-customer-save]')).focus();return;
+ }
+ const error=$('#quick-customer-error'), mode=save.dataset.quickCustomerSave;
+ const area=$('#quick-customer-area')?.value.trim()||'',mobile=$('#quick-customer-phone')?.value.trim()||'';
+ if(mode==='full'&&(!area||!mobile)){error.textContent='Enter an area and phone number.';error.hidden=false;return;}
+ save.disabled=true;error.hidden=true;
+ try{
+  const result=await api('incoming_customer_create',{name:input.value.trim(),mode,area,mobile});
+  await refreshLookups();panel.hidden=true;panel.innerHTML='';selectBiltyCustomer(result.id);toast(mode==='full'?'Customer added.':'Temporary customer added.');
+ }catch(err){error.textContent=err.message;error.hidden=false;save.disabled=false;}
+});
+document.addEventListener('click',event=>{if(event.target.closest('[data-quick-customer-cancel]')){const panel=$('#quick-customer-form');if(panel){panel.hidden=true;panel.innerHTML='';}$('#bilty-customer-search')?.focus();}});

@@ -7,6 +7,7 @@ require __DIR__.'/../delivery_cash.php';
 require __DIR__.'/../delivery_create.php';
 require __DIR__.'/../delivery_unified.php';
 require __DIR__.'/../wasooli.php';
+require __DIR__.'/../temporary_customers.php';
 header('X-Content-Type-Options: nosniff');
 ini_set('session.use_strict_mode','1');session_name('APGSESSION');session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off','path'=>'/']);session_start();
 $_SESSION['csrf']??=bin2hex(random_bytes(24));
@@ -20,7 +21,7 @@ try {
   if((int)($_SERVER['CONTENT_LENGTH']??0)>200000)fail('Request too large.',413);
   $p=json_decode(file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);if(!is_array($p))fail('Invalid request.');
  }elseif($method!=='GET')fail('Method not allowed.',405);
- migrate_access();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_service_advances();migrate_service_refunds();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_delivery_last_receipts();migrate_operator_cash();migrate_labour_advances();migrate_delivery_expenses();migrate_wasooli();
+ migrate_access();migrate_temporary_customers();migrate_incoming_approvals();migrate_incoming_bonuses();migrate_delivery_edits();migrate_delivery_approvals();migrate_delivery_cash();migrate_goods_catalog();migrate_goods_names();migrate_service_advances();migrate_service_refunds();migrate_delivery_unified();migrate_delivery_customer_collections();migrate_delivery_last_receipts();migrate_operator_cash();migrate_labour_advances();migrate_delivery_expenses();migrate_wasooli();
  $current=current_user();
  $hasUser=(bool)one('SELECT id FROM users LIMIT 1');
  if($action==='session'&&$method==='GET')response(['setup'=>!$hasUser,'user'=>$current['username']??null,'profile'=>$current?public_user($current):null,'permissions'=>$current?effective_permissions($current):[],'csrf'=>$_SESSION['csrf'],'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??'2026-10-31','history_start'=>one("SELECT value FROM meta WHERE key='history_start'")['value']??'2017-10-28']);
@@ -44,6 +45,7 @@ try {
  access_routes($action,$method,$p??[],$current);
  authorize_action($action,$method,$p??[],$current);
  if($action==='delivery_customer_dues'){if($method!=='POST')fail('Method not allowed.',405);response(delivery_customer_dues($p));}
+ temporary_customer_routes($action,$method,$p??[],$current);
  operator_cash_routes($action,$method,$p??[],$current);
  wasooli_routes($action,$method,$p??[],$current);
  delivery_unified_routes($action,$method,$p??[],$current);
@@ -61,13 +63,13 @@ try {
   $finance=can_access($current,'ledger.view')||can_access($current,'vouchers.view');
   $customers=can_access($current,'customers.view');
   $goods=can_access($current,'incoming.edit')||can_access($current,'booking.edit')||can_access($current,'incoming.create')||can_access($current,'booking.create')||can_access($current,'deliveries.create');
-  $select=$customers||can_access($current,'ledger.view')?'id,name,customer,group_code,status,mobile,phone,address,area':"id,name,customer,group_code,status,'' mobile,'' phone,'' address,'' area";
+  $select=$customers||can_access($current,'ledger.view')?'id,name,customer,group_code,status,temporary,mobile,phone,address,area':"id,name,customer,group_code,status,temporary,'' mobile,'' phone,'' address,'' area";
   $stationAccess=can_access($current,'overview.view')||can_access($current,'incoming.view')||can_access($current,'booking.view')||can_access($current,'deliveries.view')||can_access($current,'settings.view');
-  response(['cash_accounts'=>($current['role']==='super_admin'||can_submit_delivery_cash($current))?query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id"):[],'refund_operators'=>$current['role']==='super_admin'?query("SELECT id,username,full_name FROM users WHERE role='operations' AND active=1 ORDER BY full_name,username"):[],'goods_catalog'=>$goods||$customers||$stationAccess||$current['role']==='super_admin'?goods_catalog():['categories'=>[],'subcategories'=>[]],'stations'=>$stationAccess?query('SELECT * FROM stations ORDER BY name'):[],'accounts'=>($finance||$customers||$goods)?query('SELECT '.$select.' FROM accounts'.($finance?'':' WHERE customer=1').' ORDER BY name COLLATE NOCASE'):[],'areas'=>$customers?query("SELECT MIN(area) area FROM (SELECT TRIM(area) area FROM accounts WHERE area IS NOT NULL AND TRIM(area)<>'' UNION ALL SELECT TRIM(AREANAME) area FROM legacy_AREAS WHERE COALESCE(STATUS,'A')='A' AND TRIM(COALESCE(AREANAME,''))<>'') GROUP BY area COLLATE NOCASE ORDER BY area COLLATE NOCASE"):[]]);
+  response(['cash_accounts'=>($current['role']==='super_admin'||can_submit_delivery_cash($current))?query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id"):[],'refund_operators'=>$current['role']==='super_admin'?query("SELECT id,username,full_name FROM users WHERE role='operations' AND active=1 ORDER BY full_name,username"):[],'goods_catalog'=>$goods||$customers||$stationAccess||$current['role']==='super_admin'?goods_catalog():['categories'=>[],'subcategories'=>[]],'stations'=>$stationAccess?query('SELECT * FROM stations ORDER BY name'):[],'accounts'=>($finance||$customers||$goods)?query('SELECT '.$select.' FROM accounts'.($finance?'':' WHERE customer=1').' ORDER BY name COLLATE NOCASE'):[],'areas'=>($customers||can_access($current,'incoming.create'))?query("SELECT MIN(area) area FROM (SELECT TRIM(area) area FROM accounts WHERE area IS NOT NULL AND TRIM(area)<>'' UNION ALL SELECT TRIM(AREANAME) area FROM legacy_AREAS WHERE COALESCE(STATUS,'A')='A' AND TRIM(COALESCE(AREANAME,''))<>'') GROUP BY area COLLATE NOCASE ORDER BY area COLLATE NOCASE"):[]]);
  }
 
  if($action==='customers'&&$method==='GET'){
-  $where=' WHERE a.customer=1';$args=[];if(!empty($_GET['search'])){$where.=" AND (a.name LIKE ? ESCAPE '\' OR a.id LIKE ? ESCAPE '\' OR a.mobile LIKE ? ESCAPE '\' OR a.phone LIKE ? ESCAPE '\' OR a.address LIKE ? ESCAPE '\')";$args=array_fill(0,5,pattern());}
+  $where=' WHERE a.customer=1 AND a.temporary=0';$args=[];if(!empty($_GET['search'])){$where.=" AND (a.name LIKE ? ESCAPE '\' OR a.id LIKE ? ESCAPE '\' OR a.mobile LIKE ? ESCAPE '\' OR a.phone LIKE ? ESCAPE '\' OR a.address LIKE ? ESCAPE '\')";$args=array_fill(0,5,pattern());}
   if(!empty($_GET['group'])){$where.=' AND a.group_code=?';$args[]=text($_GET,'group',3);}
   response(paged('accounts a',$where,$args,'a.*','a.name COLLATE NOCASE,a.id'));
  }
@@ -77,7 +79,7 @@ try {
   $status=text($p,'status',1)?:'A';if(!in_array($status,['A','I'],true))fail('Invalid status.');$email=text($p,'email',100);if($email&&!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Enter a valid email address.');
   $fields=['name','status','address','area','contact','phone','phone2','mobile','mobile2','email','cnic','urdu_name','urdu_address'];$values=[];foreach($fields as $f)$values[]=match($f){'name'=>$name,'status'=>$status,'email'=>$email,default=>text($p,$f,$f==='urdu_address'?500:200)};
   $result=transaction(function()use($id,$group,$p,$fields,$values){
-   if($id){$old=one('SELECT * FROM accounts WHERE id=? AND customer=1',[$id]);if(!$old)throw new InvalidArgumentException('Customer not found.');if((int)($p['version']??0)!==(int)$old['version'])throw new RuntimeException('This customer was edited elsewhere. Reopen the record before saving.',409);if($old['group_code']!==$group)throw new InvalidArgumentException('An existing customer’s account group cannot be changed.');run('UPDATE accounts SET '.implode(',',array_map(fn($f)=>$f.'=?',$fields)).',version=version+1 WHERE id=?',[...$values,$id]);audit('updated','customer',$id);return $id;}
+   if($id){$old=one('SELECT * FROM accounts WHERE id=? AND customer=1 AND temporary=0',[$id]);if(!$old)throw new InvalidArgumentException('Customer not found.');if((int)($p['version']??0)!==(int)$old['version'])throw new RuntimeException('This customer was edited elsewhere. Reopen the record before saving.',409);if($old['group_code']!==$group)throw new InvalidArgumentException('An existing customer’s account group cannot be changed.');run('UPDATE accounts SET '.implode(',',array_map(fn($f)=>$f.'=?',$fields)).',version=version+1 WHERE id=?',[...$values,$id]);audit('updated','customer',$id);return $id;}
    $next=(int)one('SELECT max(CAST(substr(id,instr(substr(id,3),\'-\')+3) AS INTEGER)) n FROM accounts WHERE group_code=?',[$group])['n']+1;
    do{$id='1-'.$group.'-'.str_pad((string)$next++,3,'0',STR_PAD_LEFT);}while(one('SELECT id FROM accounts WHERE id=?',[$id]));
    run('INSERT INTO accounts(id,group_code,group_name,customer,'.implode(',',$fields).') VALUES('.implode(',',array_fill(0,4+count($fields),'?')).')',[$id,$group,'CUSTOMERS-'.$group,1,...$values]);audit('created','customer',$id);return $id;

@@ -22,13 +22,18 @@ def check(base, database, password):
     item=db.execute("INSERT INTO items(shipment_id,account_id,bilty,qty) VALUES(?,?,?,?)",(shipment,account,'TEMP',4)).lastrowid;db.commit()
     row=api('temporary_customers',search=name)['rows'][0];assert (row['bilties'],row['quantity'])==(1,4)
     assert api('temporary_customer_goods',id=account)['rows'][0]['id']==item
+    for invalid in ['abc1234567','123','+92-300-1234567890123']:
+        for action,payload in [('promote_temporary_customer',{'id':account,'version':row['version'],'area':'Test area','mobile':invalid}),('incoming_customer_create',{'name':name+' invalid','mode':'full','area':'Test area','mobile':invalid})]:
+            try:api(action,payload);assert False
+            except urllib.error.HTTPError as e:assert e.code==422
+    assert db.execute('SELECT temporary FROM accounts WHERE id=?',(account,)).fetchone()[0]==1
     api('promote_temporary_customer',{'id':account,'version':row['version'],'area':'Test area','mobile':'03001234567'})
     assert api('customers',search=name)['rows'][0]['id']==account
     assert not api('temporary_customers',search=name)['rows']
     assert db.execute('SELECT account_id FROM items WHERE id=?',(item,)).fetchone()[0]==account
     try:api('promote_temporary_customer',{'id':account,'version':row['version'],'area':'Test area','mobile':'03001234567'});assert False
     except urllib.error.HTTPError as e:assert e.code==409
-    full=api('incoming_customer_create',{'name':name+' full','mode':'full','area':'Test area','mobile':'03001234567'})['id']
+    full=api('incoming_customer_create',{'name':name+' full','mode':'full','area':'Test area','mobile':'+92 300-1234567'})['id']
     assert api('customers',search=name+' full')['rows'][0]['id']==full
     db.execute("INSERT INTO users(username,password,role,permissions,active) SELECT 'temp-test-munshi',password,'operations',?,1 FROM users WHERE username='integration-review'",(json.dumps(['incoming.view','incoming.create','customers.manage']),));db.commit()
     operator=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))

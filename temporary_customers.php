@@ -11,11 +11,16 @@ function migrate_temporary_customers(): void {
  });
 }
 
+function validate_customer_phone(string $phone): void {
+ if(!preg_match('/^\+?[0-9 ()-]+$/D',$phone) || strlen(preg_replace('/\D/','',$phone))<7 || strlen(preg_replace('/\D/','',$phone))>15)fail('Enter a valid phone number with 7 to 15 digits.');
+}
+
 function temporary_customer_routes(string $action,string $method,array $p,array $user): void {
  if($action==='incoming_customer_create'&&$method==='POST'){
   $name=text($p,'name',100,true);$mode=text($p,'mode',20,true);
   if(!in_array($mode,['temporary','full'],true))fail('Choose a customer type.');
   $area=$mode==='full'?text($p,'area',100,true):'';$phone=$mode==='full'?text($p,'mobile',40,true):'';
+  if($mode==='full')validate_customer_phone($phone);
   $id=transaction(function()use($name,$mode,$area,$phone){
    if(one('SELECT id FROM accounts WHERE customer=1 AND TRIM(name)=? COLLATE NOCASE',[$name]))throw new RuntimeException('A customer with this name already exists. Search for and select that customer.',409);
    $next=(int)one("SELECT max(CAST(substr(id,instr(substr(id,3),'-')+3) AS INTEGER)) n FROM accounts WHERE group_code='116'")['n']+1;
@@ -36,6 +41,7 @@ function temporary_customer_routes(string $action,string $method,array $p,array 
  }
  if($action==='promote_temporary_customer'&&$method==='POST'){
   $id=text($p,'id',40,true);$area=text($p,'area',100,true);$mobile=text($p,'mobile',40,true);$version=(int)($p['version']??0);
+  validate_customer_phone($mobile);
   transaction(function()use($id,$area,$mobile,$version){$old=one('SELECT id,version FROM accounts WHERE id=? AND customer=1 AND temporary=1',[$id]);if(!$old)throw new RuntimeException('This customer has already been converted or no longer exists.',409);if((int)$old['version']!==$version)throw new RuntimeException('This customer changed. Refresh and try again.',409);run('UPDATE accounts SET area=?,mobile=?,temporary=0,version=version+1 WHERE id=?',[$area,$mobile,$id]);audit('converted','temporary_customer',$id);});response(['ok'=>true,'id'=>$id]);
  }
 }

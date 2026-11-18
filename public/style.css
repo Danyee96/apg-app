@@ -5266,3 +5266,14 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .quick-customer-title { display:grid; gap:.25rem; margin-bottom:1rem; }
 .quick-customer-title small { color:#68837b; }
 .quick-customer-form .buttons { margin-top:1rem; }
+
+/* Pair each bilty with its service charges on narrow screens. */
+@media(max-width:650px) {
+ .u-two-grids { display:flex; flex-direction:column; }
+ .u-two-grids > section, .u-two-grids .u-pane, .u-two-grids table, .u-two-grids tbody { display:contents; }
+ .u-two-grids > section > h2 { display:none; }
+ .u-two-grids tbody tr[data-u-bilty-row] { order:var(--u-mobile-order); border-bottom:0; background:#f7fbf8; }
+ .u-two-grids tbody tr[data-u-service-row] { order:var(--u-mobile-order); background:#f2f7fb; border-bottom:3px solid #b8d6c5; }
+ .u-two-grids tbody tr[data-u-service-row]::before { content:'Loading / Suzuki collections'; grid-column:1 / -1; padding:8px; font-weight:700; color:#36576c; }
+ .u-two-grids tfoot { order:2147483646; }
+}

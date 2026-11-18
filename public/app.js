@@ -171,7 +171,6 @@ function canView(view) {
   };
   if (["daily-expense", "daily-wasooli", "daily-labour-expense"].includes(view)) return isSuper() || isOperations();
   if (view === "temporary-customers") return can("incoming.view") || can("customers.view");
-  if (view === "truck-rent") return can("incoming.view");
   if (view === "delivery-cash" || view === "pending-cash") return isSuper() || (isOperations() && can('deliveries.create'));
   if (view === "goods-categories") return isSuper();
   if (view === "goods-analytics") return can("incoming.view");
@@ -221,6 +220,8 @@ function actionAllowed(action, el) {
     "customer-ledger": "ledger.view",
     "report-ledger": "ledger.view",
     "new-account": "accounts.create",
+    "new-area": "areas.manage",
+    "edit-area": "areas.manage",
     "new-station": "stations.manage",
     station: "stations.manage",
     backup: "backups.create",
@@ -288,7 +289,6 @@ function navigationHub() {
     "goods-categories": "Add main goods categories and their subcategories.",
     "goods-analytics": "Compare goods quantities by category and subcategory.",
     "pending-incoming": "Incoming goods awaiting super admin review and approval.",
-    "truck-rent": "Review truck amounts by date, station, truck or driver.",
     "pending-deliveries": "Delivery goods awaiting super admin review and approval.",
     booking: "Manage outgoing shipments and their bilties.",
     deliveries: "Review handovers, receivers and cash collected.",
@@ -317,7 +317,6 @@ function navigationHub() {
       [
         "overview",
         "incoming",
-        "truck-rent",
         "pending-incoming",
         "goods-analytics",
         "booking",
@@ -427,7 +426,6 @@ const navs = [
   ["navigation", "grid", "Navigation"],
   ["overview", "grid", "Overview"],
   ["incoming", "incoming", "Incoming goods"],
-  ["truck-rent", "truck", "Truck rent"],
   ["goods-analytics", "report", "Goods analytics"],
   ["goods-categories", "box", "Goods categories"],
   ["pending-incoming", "clock", "Pending incoming goods"],
@@ -475,7 +473,7 @@ function sidebarNavigation() {
     return `<details class="nav-group" id="${id}"><summary class="nav-link nav-group-toggle">${icon(ic)}<span>${label}</span><span class="nav-group-arrow">${icon('chevron')}</span></summary><div class="nav-submenu">${links}</div></details>`;
   };
   return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
-    group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming','truck-rent'])+
+    group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
     link('deliveries')+
     link('booking')+group('nav-customers','Customers','users',['customers','temporary-customers'])+
     '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+group('nav-accounts-reports','Accounts & Reports','wallet',['accounts','reports','financial-reports'])+group('nav-settings','Settings','settings',['settings','backups','users','profile','archive'],group('nav-goods-settings','Goods Settings','box',['goods-analytics','goods-categories']));
@@ -539,7 +537,6 @@ async function navigate(view, reset = true) {
     return false;
   currentForm = null;
   closeModal();
-  if(view==='truck-rent'&&state.view!=='truck-rent')truckRentInitialized=false;
   state.view = view;
   if (view !== "bilties") {
     state.inquiry = null;
@@ -639,9 +636,6 @@ async function render() {
       case "incoming":
       case "booking":
         html = await shipments();
-        break;
-      case "truck-rent":
-        html = await truckRentPage();
         break;
       case "pending-cash":
         unifiedEditor=null;unifiedTab="all";html=await unifiedPage();
@@ -782,7 +776,7 @@ async function overview() {
 }
 function shipmentTable(rows, withKind = true, showTruckRent = false) {
   return rows.length
-    ? `<div class="table-scroll"><table><thead><tr><th>Reference</th><th>Date</th><th>Station / truck</th><th class="number">Bilties</th>${withKind ? '<th class="number">Bilty total</th>' : "<th>Type</th>"}${showTruckRent ? '<th class="number">Truck rent balance</th>' : ''}<th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><button class="link" data-action="shipment" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.station || "Not recorded")}</strong><small>${esc(r.truck || "No truck recorded")}</small></td><td class="number">${num(r.item_count)}</td><td class="${withKind ? "number" : ""}">${withKind ? cash(r.total) : tag(r.kind === "incoming" ? "Incoming" : "Booking", r.kind === "incoming" ? "green" : "")}</td>${showTruckRent ? `<td class="number"><strong>${cash(Number(r.bilty_amount_total||0)-Number(r.truck_amount||0))}</strong></td>` : ""}<td><button class="icon-btn" data-action="shipment" data-id="${r.id}" aria-label="Open shipment ${esc(r.reference)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
+    ? `<div class="table-scroll"><table><thead><tr><th>Reference</th><th>Date</th><th>Station / truck</th><th class="number">Bilties</th>${withKind ? '<th class="number">Bilty total</th>' : "<th>Type</th>"}${showTruckRent ? '<th class="number">Truck rent balance</th>' : ''}<th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><button class="link" data-action="shipment" data-id="${r.id}">${esc(r.reference)}</button>${r.legacy_id ? "<small>Original record</small>" : ""}</td><td>${fmtdate(r.dated)}</td><td><strong>${esc(r.station || "Not recorded")}</strong><small>${esc(r.truck || "No truck recorded")}</small></td><td class="number">${num(r.item_count)}</td><td class="${withKind ? "number" : ""}">${withKind ? cash(r.total) : tag(r.kind === "incoming" ? "Incoming" : "Booking", r.kind === "incoming" ? "green" : "")}</td>${showTruckRent ? `<td class="number"><strong>${cash(Number(r.truck_rent||0))}</strong></td>` : ""}<td><button class="icon-btn" data-action="shipment" data-id="${r.id}" aria-label="Open shipment ${esc(r.reference)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
     : empty();
 }
 async function shipments() {
@@ -805,13 +799,6 @@ async function shipments() {
     ) +
     `<section class="panel">${searchBar("Search reference, truck, driver or bilty…", "", true)}${shipmentTable(d.rows,true,kind === "incoming")}${pagination(d)}</section>`
   );
-}
-let truckRentInitialized=false;
-async function truckRentPage(){
- if(!truckRentInitialized){state.from=state.to=today();truckRentInitialized=true;}
- const data=await api('shipments',null,params({kind:'incoming',truck_report:1}));listData=data;state.page=data.page;
- const rows=data.rows.map(row=>`<tr><td><button class="link" data-action="shipment" data-id="${row.id}">${esc(row.reference)}</button><small>${fmtdate(row.dated)}</small></td><td>${esc(row.station||'—')}</td><td><strong>${esc(row.truck||'—')}</strong></td><td>${esc(row.driver||'—')}</td><td class="number">${cash(row.bilty_amount_total)}</td><td class="number">${cash(row.truck_amount)}</td><td class="number"><strong>${cash(Number(row.bilty_amount_total)-Number(row.truck_amount))}</strong></td><td><button class="icon-btn" data-action="shipment" data-id="${row.id}" aria-label="Open shipment ${esc(row.reference)}">${icon('chevron')}</button></td></tr>`).join('');
- return head('Truck rent','Review the truck rent balance for each incoming goods entry.',`<button class="btn" data-action="truck-rent-today">Today</button><button class="btn" data-action="truck-rent-all">All dates</button>`)+`<div class="metrics"><div class="metric"><span>Matching incoming entries</span><strong>${num(data.total)}</strong></div><div class="metric"><span>Total truck rent balance</span><strong>${cash(data.truck_total)}</strong></div></div><p class="note">Truck rent balance = bilty charges minus truck delivery amount. Godown charges are excluded.</p><section class="panel">${searchBar('Search station, truck number, driver or reference…','',true)}<div class="table-scroll"><table><thead><tr><th>Incoming / date</th><th>Station</th><th>Truck</th><th>Driver</th><th class="number">Bilty charges</th><th class="number">Truck amount</th><th class="number">Truck rent balance</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${rows?'':empty('No incoming entries found for these filters.')}${pagination(data)}</section>`;
 }
 async function customers() {
   let d = await api("customers", null, params({ group: state.group }));
@@ -1238,10 +1225,10 @@ function cashBookView(d) {
     `<section class="panel cash-book"><div class="toolbar"><div><strong>Cash Book</strong><small>${esc(d.account.name)} · ${esc(d.account.id)} · ${d.source==='original'?'Original backup · ' + fmtdate(d.backup_date):'New app entries only'}</small></div><div class="buttons"><select class="filter" id="cash-book-source" aria-label="Cash Book data source"><option value="new" ${d.source==='new'?'selected':''}>New app entries</option><option value="original" ${d.source==='original'?'selected':''}>Original backup</option></select><button type="button" class="btn ${state.cashBookDateMode!=='range'?'primary':''}" data-action="cash-book-day">Single day</button><button type="button" class="btn ${state.cashBookDateMode==='range'?'primary':''}" data-action="cash-book-range">Date range</button><button type="button" class="btn" data-action="cash-book-today">Today</button>${btn('Full history','ledger-all-history')}${dateControls}</div></div><div class="cash-book-opening"><span>Opening balance</span><strong>${balance(d.opening)}</strong></div><div class="table-scroll"><table><thead><tr><th>Date</th><th>Voucher no.</th><th>Particular</th><th class="number">Receipts / debit</th><th class="number">Payments / credit</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${fmtdate(r.dated)}</td><td>${esc(r.reference||r.kind||'—')}</td><td>${esc(r.memo||'—')}</td><td class="number">${r.debit?cash(r.debit):'—'}</td><td class="number">${r.credit?cash(r.credit):'—'}</td><td class="number">${balance(r.balance)}</td></tr>`).join('')}</tbody></table></div>${!d.rows.length?empty('No recorded transactions in this date range.'):''}<div class="cash-book-totals"><span>Total receipts / debit <strong>${cash(d.debit)}</strong></span><span>Total payments / credit <strong>${cash(d.credit)}</strong></span><span>Net movement <strong>${cash(d.debit-d.credit)}</strong></span><span>Closing balance <strong>${balance(d.closing)}</strong></span></div>${pagination(d)}</section><p class="note cash-book-note">${d.source==='original'?'Original backup entries only. New app vouchers are shown separately. Historical balances require reconciliation.':'New app vouchers only. Opening balance excludes the original backup for imported accounts.'}</p>`;
 }
 async function settings() {
-  let d = await api("settings");
+  let [d, areas] = await Promise.all([api("settings"), api("workspace_areas")]);
   return (
-    head("Workspace settings", "Your stations, backups and recent changes.") +
-    `<div class="form-layout"><section class="panel"><div class="panel-head"><h2>Stations</h2>${btn("Add station", "new-station", false, "plus")}</div><div class="table-scroll"><table><thead><tr><th>Station</th><th>Address</th><th></th></tr></thead><tbody>${lookups.stations.map((s) => `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.address || "—")}</td><td><button class="icon-btn" data-action="station" data-id="${s.id}" aria-label="Edit station">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Recent activity</h2></div><div class="panel-body">${d.audit.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)} ${esc(a.entity_id)}<small>${fmttime(a.created_at)}</small></div>`).join("") || '<p class="note">No changes recorded yet.</p>'}</div></section><div><section class="panel"><div class="panel-head"><h2>Backup your workspace</h2></div><div class="panel-body"><p class="note">Save a separate copy of your current customer details, new entries and vouchers to the private storage folder.</p>${btn("Create backup", "backup", true, "download")} <button class="btn" data-view="backups">Backup / Restore</button><div style="margin-top:14px">${btn("Browse imported backup", "imported-data", false, "report")}</div><p class="note" style="margin-top:18px">Original data snapshot<br><strong>${fmtdate(session.backup_date)}</strong></p></div></section><div class="note-box warning" style="margin-top:20px">Financial balances still require reconciliation before live accounting use. Access to each workspace is managed by your super admin.</div></div></div>`
+    head("Workspace settings", "Your stations, areas, backups and recent changes.") +
+    `<div class="form-layout"><section class="panel"><div class="panel-head"><div><h2>Customer areas</h2><p class="note">Areas are used for customer details and Daily Wasooli.</p></div>${can("areas.manage")?btn("Add area", "new-area", false, "plus"):""}</div><div class="panel-body"><div class="field"><label for="area-settings-search">Find an area</label><input id="area-settings-search" type="search" placeholder="Search areas…" autocomplete="off"></div></div><div class="table-scroll"><table><thead><tr><th>Area</th><th></th></tr></thead><tbody>${areas.map((a)=>`<tr data-area-name="${esc(a.area.toLocaleLowerCase())}"><td><strong>${esc(a.area)}</strong></td><td>${can("areas.manage")?`<button class="icon-btn" data-action="edit-area" data-name="${esc(a.area)}" aria-label="Edit ${esc(a.area)}">${icon("edit")}</button>`:""}</td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Stations</h2>${btn("Add station", "new-station", false, "plus")}</div><div class="table-scroll"><table><thead><tr><th>Station</th><th>Address</th><th></th></tr></thead><tbody>${lookups.stations.map((s) => `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.address || "—")}</td><td><button class="icon-btn" data-action="station" data-id="${s.id}" aria-label="Edit station">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div><div class="panel-head"><h2>Recent activity</h2></div><div class="panel-body">${d.audit.map((a) => `<div class="activity-row">${esc(a.actor)} ${esc(a.action)} ${esc(a.entity)} ${esc(a.entity_id)}<small>${fmttime(a.created_at)}</small></div>`).join("") || '<p class="note">No changes recorded yet.</p>'}</div></section><div><section class="panel"><div class="panel-head"><h2>Backup your workspace</h2></div><div class="panel-body"><p class="note">Save a separate copy of your current customer details, new entries and vouchers to the private storage folder.</p>${btn("Create backup", "backup", true, "download")} <button class="btn" data-view="backups">Backup / Restore</button><div style="margin-top:14px">${btn("Browse imported backup", "imported-data", false, "report")}</div><p class="note" style="margin-top:18px">Original data snapshot<br><strong>${fmtdate(session.backup_date)}</strong></p></div></section><div class="note-box warning" style="margin-top:20px">Financial balances still require reconciliation before live accounting use. Access to each workspace is managed by your super admin.</div></div></div>`
   );
 }
 async function importedData() {
@@ -1430,10 +1417,10 @@ function shipmentBreakdown(items, kind, header, draft = false) {
     ["Charges less advance", cash(total + services - sum("advance") - (booking ? 0 : sum("service_advance")))],
     [booking ? "Truck rent / amount" : "Truck delivery / amount", cash(cents(header.truck_amount))],
     ...(!booking ? [["Labour Bonus", cash(cents(header.labour_bonus))], ["Munshi Bonus", cash(cents(header.munshi_bonus))]] : []),
-    ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Bilty amounts less truck delivery", cash(sum("bilty_amount") - cents(header.truck_amount))]]),
+    ...(booking ? [["Commission", cash(cents(header.commission))]] : [["Truck rent", cash(total - cents(header.truck_amount) - cents(header.labour_bonus) - cents(header.munshi_bonus) - sum("advance"))]]),
   ];
   if (isOperations() && !booking) metrics = metrics.filter(([label])=>label!=="Godown charges total");
-  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Godown charges + Bilty charges combines those two charges. All charges also includes loading and Suzuki. Truck balance uses bilty amounts only, less truck delivery; godown is excluded."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
+  return `<section class="shipment-breakdown"><h2>Shipment totals & goods</h2>${detailCells(metrics)}<p class="note">${booking ? "Bilties total includes rent, loading, bilty and local charges." : "Godown charges + Bilty charges combines those two charges. All charges also includes loading and Suzuki. Truck rent = bilty and godown charges minus truck delivery, labour bonus, munshi bonus and bilty advance."} ${booking ? "Truck amount and commission are" : "Truck delivery amount and bonuses are"} shown separately. These figures are charges, not cash collected.</p></section>`;
 }
 function shipmentDetailTable(items, kind, draft = false) {
   const cents = (value) => draft ? Math.round(Number(value || 0) * 100) : Number(value || 0);
@@ -1599,7 +1586,7 @@ function shipmentAmountWarnings() {
 }
 function shipmentTruckBalance(form) {
   if (!form.items.length) return '—';
-  return cash(form.items.reduce((sum,item)=>sum+Math.round(Number(item.bilty_amount||0)*100),0)-Math.round(Number(form.header.truck_amount||0)*100));
+  return cash(form.items.reduce((sum,item)=>sum+itemTotal(item,"incoming")-Math.round(Number(item.advance||0)*100),0)-["truck_amount","labour_bonus","munshi_bonus"].reduce((sum,key)=>sum+Math.round(Number(form.header[key]||0)*100),0));
 }
 function shipmentSidebarTotal(form) {
   return form.kind === "booking"
@@ -2153,11 +2140,11 @@ function buildThermalRecord(context) {
                 d.items.reduce((s, i) => s + Number(i.bilty_amount || 0), 0),
               ) +
               slipMoney(
-                "Truck balance",
-                d.items.reduce((s, i) => s + Number(i.bilty_amount || 0), 0) -
-                  Number(d.truck_amount || 0),
+                "Truck rent",
+                d.items.reduce((s, i) => s + originalBiltyTotal(i, "incoming") - Number(i.advance || 0), 0) -
+                  Number(d.truck_amount || 0) - Number(d.labour_bonus || 0) - Number(d.munshi_bonus || 0),
               ) +
-              slipNote("Truck balance = bilty amounts less truck amount.")
+              slipNote("Truck rent = bilty + godown less truck delivery, bonuses and bilty advance.")
             : ""),
       ) +
       slipText("Remarks", d.remarks) +
@@ -3068,15 +3055,15 @@ async function action(name, el) {
       state.page = 0;
       await render();
       break;
-    case "truck-rent-today":
-      state.from=state.to=today();state.page=0;await render();
-      break;
-    case "truck-rent-all":
-      state.from=state.to='';state.page=0;await render();
-      break;
     case "refresh":
       render();
       break;
+    case "new-area":
+    case "edit-area": {
+      const original=el.dataset.name||'';
+      modal(original?'Edit area':'Add area',original?'Customers assigned to this area will use the new name.':'Add an area for customer records and Daily Wasooli.',`<form id="workspace-area-form"><input type="hidden" name="original" value="${esc(original)}">${field('name','Area name *',original,'text','required maxlength="100"')}<div class="error" id="form-error" role="alert" hidden></div><div class="form-actions"><button class="btn primary" type="submit">Save area</button></div></form>`);
+      break;
+    }
     case "new-customer":
       await customerForm();
       break;
@@ -3367,6 +3354,10 @@ document.addEventListener("click", (e) => {
 });
 let searchTimer;
 document.addEventListener("input", (e) => {
+  if (e.target.id === "area-settings-search") {
+    const q=e.target.value.trim().toLocaleLowerCase();
+    document.querySelectorAll('[data-area-name]').forEach(row=>{row.hidden=!row.dataset.areaName.includes(q);});
+  }
   if (e.target.id === "list-search") {
     clearTimeout(searchTimer);
     state.search = e.target.value;
@@ -3493,6 +3484,8 @@ async function submitForm(form, submitter) {
       break;
     }
 
+    case "workspace-area-form":
+      await api('save_workspace_area',data);await refreshLookups();closeModal();await render();toast('Area saved.');break;
     case "goods-rename-form":
       await api("update_goods_category",data);closeModal();await refreshLookups();await render();toast("Name updated.");break;
     case "goods-category-form":

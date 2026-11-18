@@ -41,6 +41,10 @@ try {
  await page.locator('[name="u_loading_'+tabKey+'"]').focus();await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement.name),'u_discount_'+tabKey);
 
  assert.equal(await page.locator('[data-u-service-row]').count(),2);
+ await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);
+ const mobileOrder=await page.evaluate(()=>{const rows=[...document.querySelectorAll('[data-u-bilty-row]')];return rows.map(row=>{const service=document.querySelector('[data-u-service-row="'+row.dataset.uBiltyRow+'"]');return {bilty:row.getBoundingClientRect().top,service:service.getBoundingClientRect().top};});});
+ assert.ok(mobileOrder[0].bilty<mobileOrder[0].service&&mobileOrder[0].service<mobileOrder[1].bilty&&mobileOrder[1].bilty<mobileOrder[1].service,JSON.stringify(mobileOrder));
+ const mobileKey=await page.locator('[data-u-bilty-row]').first().getAttribute('data-u-bilty-row');await page.locator('[name="u_service_cash_'+mobileKey+'"]').press('Enter');assert.equal(await page.evaluate(()=>document.activeElement.id),'u-bilty-lookup');assert.equal(keyboardSaves,0);
  for(const width of [1680,1366]){await page.setViewportSize({width,height:1050});await page.waitForTimeout(100);assert.ok(await page.locator('.u-ledger-scroll,.u-pane').evaluateAll(elements=>elements.every(el=>el.scrollWidth<=el.clientWidth+1)));assert.ok(await page.evaluate(()=>[...document.querySelectorAll('.u-two-grids section')].every(section=>section.querySelector('thead').getBoundingClientRect().bottom<=section.querySelector('tbody tr').getBoundingClientRect().top+1)));}
  await page.setViewportSize({width:1680,height:1050});
 

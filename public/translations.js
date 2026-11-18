@@ -1,5 +1,7 @@
 /* Curated interface terminology. Stored records are never translated. */
 window.APG_TRANSLATIONS = {
+  "Truck rent = bilty and godown charges minus truck delivery, labour bonus, munshi bonus and bilty advance.": ["ٹرک کرایہ = بلٹی اور گودام کی رقم منہا ٹرک ڈیلیوری، لیبر بونس، منشی بونس اور بلٹی ایڈوانس۔", "Truck kiraya = bilty aur godown charges mein se truck delivery, labour bonus, munshi bonus aur bilty advance minus."],
+  "Truck rent = bilty + godown less truck delivery, bonuses and bilty advance.": ["ٹرک کرایہ = بلٹی اور گودام کی رقم منہا ٹرک ڈیلیوری، بونس اور بلٹی ایڈوانس۔", "Truck kiraya = bilty aur godown se truck delivery, bonus aur bilty advance minus."],
   "English": [
     "انگریزی",
     "English"

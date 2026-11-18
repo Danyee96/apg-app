@@ -23,6 +23,11 @@ const formattedDate = (formatter,date) => Number.isNaN(date.getTime()) ? "Invali
 const fmtdate = v => v ? formattedDate(dateFormatter,new Date(v.slice(0,10)+"T12:00:00")) : "—";
 const fmttime = v => formattedDate(timeFormatter,new Date(v.replace(" ","T")+"Z"));
 const today = () => todayFormatter.format(new Date());
+function recentHistoryStart() {
+  const [year,month,day]=today().split('-').map(Number);
+  const lastDay=new Date(Date.UTC(year-1,month,0)).getUTCDate();
+  return `${year-1}-${String(month).padStart(2,'0')}-${String(Math.min(day,lastDay)).padStart(2,'0')}`;
+}
 const paths = {
   grid: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   incoming: "M12 3v12 m-4-4 4 4 4-4 M4 16v5h16v-5",
@@ -457,6 +462,11 @@ function initialView() {
     for(const key of ["from","to"]) state[key] = /^\d{4}-\d{2}-\d{2}$/.test(query.get(key)||"") ? query.get(key) : "";
     if(unifiedReportDateMode === "single") state.from = state.to = state.from || today();
   }
+  if (["incoming","booking","deliveries"].includes(requested) && !(requested === "deliveries" && unifiedTab === "reports")) {
+    const hasRange=query.has("from")||query.has("to");
+    state.from=hasRange ? (/^\d{4}-\d{2}-\d{2}$/.test(query.get("from")||"") ? query.get("from") : "") : recentHistoryStart();
+    state.to=hasRange ? (/^\d{4}-\d{2}-\d{2}$/.test(query.get("to")||"") ? query.get("to") : "") : today();
+  }
   if(["delivery-cash","pending-cash"].includes(requested)){unifiedTab="all";requested="deliveries";}
   return navs.some(([view]) => view === requested) && canView(requested)
     ? requested
@@ -545,8 +555,8 @@ async function navigate(view, reset = true) {
   if (reset) {
     state.page = 0;
     state.search = "";
-    state.from = "";
-    state.to = "";
+    state.from = ["incoming","booking","deliveries"].includes(view) ? recentHistoryStart() : "";
+    state.to = ["incoming","booking","deliveries"].includes(view) ? today() : "";
     selected.clear();
   }
   $$(".nav-link").forEach((n) =>
@@ -578,6 +588,9 @@ function rememberCurrentPage() {
   if(state.view === "deliveries") url.searchParams.set("tab", unifiedTab);
   else url.searchParams.delete("tab");
   for(const key of ["payment","dates","sort","from","to"]) url.searchParams.delete(key);
+  if (["incoming","booking","deliveries"].includes(state.view) && !(state.view === "deliveries" && unifiedTab === "reports")) {
+    url.searchParams.set("from",state.from||"");url.searchParams.set("to",state.to||"");
+  }
   if(state.view === "deliveries" && unifiedTab === "reports") {
     url.searchParams.set("payment", unifiedReportStatus);
     url.searchParams.set("dates", unifiedReportDateMode);
@@ -1099,7 +1112,7 @@ function openFinancialReport(key) {
   if (!report) return;
   if (["trial", "balances", "daybook", "journal", "vouchers"].includes(key)) {
     state.financialReport = key;
-    state.from = key === "daybook" ? today() : session.history_start;
+    state.from = key === "daybook" ? today() : recentHistoryStart();
     state.to = today();
     state.search = "";
     state.page = 0;
@@ -1186,7 +1199,7 @@ async function ledger() {
     __render: requestID,
     account_id: state.account_id,
     source: state.ledgerMode === "cashbook" ? (state.cashBookSource || "new") : "all",
-    from: state.from || session.history_start || "2017-10-28",
+    from: state.from || recentHistoryStart(),
     to: state.to || today(),
     page: state.page,
   });
@@ -1215,7 +1228,7 @@ async function ledger() {
       )
       .join(
         "",
-      )}</div><section class="panel ${state.ledgerMode === "summary" ? "ledger-summary" : ""}"><div class="toolbar"><span class="note">Recorded account transactions · ${num(d.all_time_count)} total</span><div class="buttons">${btn("Full history", "ledger-all-history")}<input class="filter" type="date" id="filter-from" aria-label="Start date" value="${state.from || session.history_start || "2017-10-28"}"><span>–</span><input class="filter" type="date" id="filter-to" aria-label="End date" value="${state.to || today()}"></div></div><div class="table-scroll"><table><thead><tr><th>Date / source</th><th>Reference</th><th>Description</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map((r) => `<tr><td>${fmtdate(r.dated)}<small>${esc(r.source)}</small></td><td>${tag(r.kind)} ${esc(r.reference)}</td><td>${esc(r.memo || "—")}</td><td class="number">${r.debit ? cash(r.debit) : "—"}</td><td class="number">${r.credit ? cash(r.credit) : "—"}</td><td class="number">${cash(Math.abs(r.balance))} ${r.balance >= 0 ? "Dr" : "Cr"}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty(d.all_time_count ? "No entries in this date range. This account has " + num(d.all_time_count) + " entries from " + fmtdate(d.first_date) + " to " + fmtdate(d.last_date) + ". Use Full history to see them." : "No recorded transactions for this account.") : ""}${pagination(d)}</section>`
+      )}</div><section class="panel ${state.ledgerMode === "summary" ? "ledger-summary" : ""}"><div class="toolbar"><span class="note">Recorded account transactions · ${num(d.all_time_count)} total</span><div class="buttons">${btn("Full history", "ledger-all-history")}<input class="filter" type="date" id="filter-from" aria-label="Start date" value="${state.from || recentHistoryStart()}"><span>–</span><input class="filter" type="date" id="filter-to" aria-label="End date" value="${state.to || today()}"></div></div><div class="table-scroll"><table><thead><tr><th>Date / source</th><th>Reference</th><th>Description</th><th class="number">Debit</th><th class="number">Credit</th><th class="number">Balance</th></tr></thead><tbody>${d.rows.map((r) => `<tr><td>${fmtdate(r.dated)}<small>${esc(r.source)}</small></td><td>${tag(r.kind)} ${esc(r.reference)}</td><td>${esc(r.memo || "—")}</td><td class="number">${r.debit ? cash(r.debit) : "—"}</td><td class="number">${r.credit ? cash(r.credit) : "—"}</td><td class="number">${cash(Math.abs(r.balance))} ${r.balance >= 0 ? "Dr" : "Cr"}</td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty(d.all_time_count ? "No entries in this date range. This account has " + num(d.all_time_count) + " entries from " + fmtdate(d.first_date) + " to " + fmtdate(d.last_date) + ". Use Full history to see them." : "No recorded transactions for this account.") : ""}${pagination(d)}</section>`
   );
 }
 function cashBookView(d) {
@@ -2663,7 +2676,7 @@ function chooseLedger(mode = "") {
         ? "Ledger a/c"
         : "View an account ledger",
     "Find a customer or account and choose your dates.",
-    `<form id="ledger-form"><div class="form-grid">${field("account", "Account *", accountLabel(state.account_id), "text", 'required list="account-options" placeholder="Type to find an account…"', true)}${field("from", "From date", state.from || session.history_start || "2017-10-28", "date", "required")}${field("to", "To date", state.to || today(), "date", "required")}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button class="btn primary" type="submit">Open ledger ${icon("arrow")}</button></div></form>`,
+    `<form id="ledger-form"><div class="form-grid">${field("account", "Account *", accountLabel(state.account_id), "text", 'required list="account-options" placeholder="Type to find an account…"', true)}${field("from", "From date", state.from || recentHistoryStart(), "date", "required")}${field("to", "To date", state.to || today(), "date", "required")}</div><div class="error" id="form-error" hidden></div><div class="form-actions">${btn("Cancel", "close-modal")}<button class="btn primary" type="submit">Open ledger ${icon("arrow")}</button></div></form>`,
   );
 }
 function stationForm(id) {
@@ -3268,7 +3281,7 @@ async function action(name, el) {
       state.account_id = el.dataset.id;
       state.ledgerMode = el.dataset.ledgerMode || "";
       if(state.ledgerMode === "cashbook"){state.cashBookSource = "new";state.cashBookDateMode='day';}
-      state.from = state.ledgerMode === "cashbook" ? today() : (session.history_start || "2017-10-28");
+      state.from = state.ledgerMode === "cashbook" ? today() : recentHistoryStart();
       state.to = today();
       state.page = 0;
       navigate("ledger", false);

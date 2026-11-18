@@ -21,6 +21,7 @@ __pycache__/
 node_modules/
 
 storage/backups/
+storage/import-staging/
 storage/workspace.lock
 storage/backup-schedule*
 storage/restore-*

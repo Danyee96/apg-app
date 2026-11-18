@@ -16,6 +16,7 @@ def check(base,database,password):
  munshi=admin.call('save_user',{'username':'wasooli-ops','full_name':'Wasooli Munshi','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Wasooli-operator-2026'},status=201)['id'];ops=Client();ops.call('login',{'username':'wasooli-ops','password':'Wasooli-operator-2026'})
  admin.call('save_user',{'username':'wasooli-viewer','full_name':'Wasooli Viewer','role':'viewer','active':1,'permissions':[],'password':'Wasooli-viewer-2026'},status=201);viewer=Client();viewer.call('login',{'username':'wasooli-viewer','password':'Wasooli-viewer-2026'});viewer.call('wasooli_customers',status=403)
  customer=admin.call('save_customer',{'name':'Wasooli route customer','group_code':'116','area':'Test Market','mobile':'03001234567'})['id']
+ empty=ops.call('wasooli_customers',params={'search':'Wasooli route customer'});assert empty['total']==0 and not empty['rows']
  def delivery(label,amount):
   s=admin.call('save_shipment',{'kind':'incoming','dated':today,'station_id':station,'truck':'WASOOLI','items':[{'account_id':customer,'bilty':label,'qty':1,'bilty_amount':str(amount),'godown':'0'}]},status=201);item=admin.call('shipment',params={'id':s['id']})['items'][0]['id'];return admin.call('save_unified_delivery',{'request_key':str(uuid.uuid4()),'dated':today,'received_date':today,'receiver':'Wasooli test','items':[{'id':item,'discount':'0','loading':'0','suzuki':'0','bilty_received':'0','service_received':'0'}]},status=201)['id']
  old=delivery('WAS-OLD',500);new=delivery('WAS-NEW',300)
@@ -34,6 +35,7 @@ def check(base,database,password):
  stale={**pay,'request_key':str(uuid.uuid4())};ops.call('wasooli_collect',stale,status=409);assert ops.call('daily_expense')['totals']['received']==65000
  details=admin.call('wasooli_customer',params={'account_id':customer});owner=next(x for x in details['operators'] if x['id']==munshi);pay2={**pay,'request_key':str(uuid.uuid4()),'amount':'200','balance_version':details['balance_version'],'period_token':owner['period_token']};admin.call('wasooli_collect',pay2,status=422);pay2['confirm_credit']=True;result=admin.call('wasooli_collect',pay2,status=201);assert result['credit']==5000
  after=ops.call('wasooli_customer',params={'account_id':customer});assert after['summary']['outstanding']==0 and after['summary']['credit']==5000;assert ops.call('daily_expense')['totals']['received']==85000
+ settled=ops.call('wasooli_customers',params={'search':'Wasooli route customer'});assert settled['total']==0 and not settled['rows']
  period=ops.call('daily_expense');clear={'request_key':str(uuid.uuid4()),'period_id':period['period']['id'],'version':period['version']};admin.call('clear_operator_receivable',clear,status=201)
  stale_period={**pay2,'request_key':str(uuid.uuid4()),'amount':'10','balance_version':after['balance_version']};admin.call('wasooli_collect',stale_period,status=409);assert ops.call('daily_expense')['totals']['received']==0
  closed=admin.call('daily_expense',params={'operator_id':munshi,'period_id':period['period']['id']});assert closed['totals']['received']==85000 and closed['period']['settlement_amount']==85000

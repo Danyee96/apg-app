@@ -97,6 +97,10 @@ def main(checker=check):
         password=secrets.token_urlsafe(24)
         hashed=subprocess.run(['php','-r','echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);'],input=password,text=True,capture_output=True,check=True).stdout
         # Reset user-owned custody fixtures before replacing test identities.
+        # These records reference both custody entries and user identities.
+        for table in ('wasooli_receipts', 'wasooli_collections', 'delivery_expenses'):
+            if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                target.execute('DELETE FROM ' + table)
         if target.execute("SELECT 1 FROM sqlite_master WHERE name='labour_advances'").fetchone():
             target.execute('DROP TRIGGER IF EXISTS labour_advances_immutable_delete')
             target.execute('DELETE FROM labour_advances')

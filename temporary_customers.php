@@ -22,7 +22,7 @@ function temporary_customer_routes(string $action,string $method,array $p,array 
   $area=$mode==='full'?text($p,'area',100,true):'';$phone=$mode==='full'?text($p,'mobile',40,true):'';
   if($mode==='full')validate_customer_phone($phone);
   $id=transaction(function()use($name,$mode,$area,$phone){
-   if(one('SELECT id FROM accounts WHERE customer=1 AND TRIM(name)=? COLLATE NOCASE',[$name]))throw new RuntimeException('A customer with this name already exists. Search for and select that customer.',409);
+   if($mode==='full'&&one('SELECT id FROM accounts WHERE customer=1 AND TRIM(name)=? COLLATE NOCASE',[$name]))throw new RuntimeException('A customer with this name already exists. Search for and select that customer.',409);
    $next=(int)one("SELECT max(CAST(substr(id,instr(substr(id,3),'-')+3) AS INTEGER)) n FROM accounts WHERE group_code='116'")['n']+1;
    do{$id='1-116-'.str_pad((string)$next++,3,'0',STR_PAD_LEFT);}while(one('SELECT id FROM accounts WHERE id=?',[$id]));
    run("INSERT INTO accounts(id,name,group_code,group_name,customer,status,area,mobile,temporary) VALUES(?,?,'116','CUSTOMERS-116',1,'A',?,?,?)",[$id,$name,$area,$phone,$mode==='temporary'?1:0]);

@@ -166,6 +166,7 @@ function canView(view) {
     booking: "booking.view",
     deliveries: "deliveries.view",
     customers: "customers.view",
+    "customer-goods-ledger": "customers.view",
     accounts: "vouchers.view",
     ledger: "ledger.view",
     "financial-reports": "ledger.view",
@@ -438,6 +439,7 @@ const navs = [
   ["booking", "booking", "Bookings"],
   ["deliveries", "truck", "Delivery goods"],
   ["customers", "users", "Customers"],
+  ["customer-goods-ledger", "report", "Customer ledger"],
   ["temporary-customers", "users", "Temporary customers"],
   ["daily-expense", "wallet", "Daily expense"],
   ["daily-wasooli", "wallet", "Daily Wasooli"],
@@ -485,7 +487,7 @@ function sidebarNavigation() {
   return '<div class="nav-label">OPERATIONS</div>'+['navigation','overview'].map(link).join('')+
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
     link('deliveries')+
-    link('booking')+group('nav-customers','Customers','users',['customers','temporary-customers'])+
+    link('booking')+group('nav-customers','Customers','users',['customers','customer-goods-ledger','temporary-customers'])+
     '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+group('nav-accounts-reports','Accounts & Reports','wallet',['accounts','reports','financial-reports'])+group('nav-settings','Settings','settings',['settings','backups','users','profile','archive'],group('nav-goods-settings','Goods Settings','box',['goods-analytics','goods-categories']));
 }
 function shell() {
@@ -627,6 +629,9 @@ async function render() {
         break;
       case "temporary-customers":
         html = await temporaryCustomersPage();
+        break;
+      case "customer-goods-ledger":
+        html = await customerGoodsLedger();
         break;
       case "customers":
         html = await customers();
@@ -827,6 +832,17 @@ async function customers() {
     `<section class="panel">${searchBar("Search name, code, mobile or address…", `<select class="filter" id="customer-group" aria-label="Customer group"><option value="">All customer groups</option>${["115", "116", "117", "118"].map((g) => `<option value="${g}" ${state.group === g ? "selected" : ""}>Group ${g}</option>`).join("")}</select>`)}<div class="table-scroll"><table><thead><tr><th>Customer</th><th>Contact</th><th>Area</th><th>Group</th><th>Status</th><th></th></tr></thead><tbody>${d.rows.map((r) => `<tr><td><div class="person"><span class="avatar">${esc(r.name.slice(0, 2).toUpperCase())}</span><div><button class="link" data-action="customer" data-id="${esc(r.id)}">${esc(r.name)}</button><small>${esc(r.id)}</small></div></div></td><td>${esc(r.mobile || r.phone || "—")}<small>${esc(r.email || r.contact || "")}</small></td><td>${esc(r.area || "—")}</td><td>${tag(r.group_code)}</td><td>${tag(r.status === "A" ? "Active" : "Inactive", r.status === "A" ? "green" : "gray")}</td><td><button class="icon-btn" data-action="customer" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.name)}">${icon("edit")}</button></td></tr>`).join("")}</tbody></table></div>${!d.rows.length ? empty() : ""}${pagination(d)}</section>`
   );
 }
+
+async function customerGoodsLedger() {
+ const d=await api('customer_goods_ledger',null,params());listData=d;state.page=d.page;
+ return head('Customer ledger','See delivered balances and approved incoming goods for each customer.')+`<section class="panel">${searchBar('Search customer, account, area or mobile…')}<p class="note" style="margin:16px 24px">Customer balance is the unpaid delivered amount shown in Daily Wasooli. Upcoming balance adds undelivered incoming bilties after their advances. Customer balance includes unpaid loading and Suzuki; undelivered incoming shows bilty and godown after advances. Customer credits are shown separately.</p><div class="table-scroll"><table><thead><tr><th>Customer</th><th>Area</th><th class="number">Customer balance</th><th class="number">Undelivered incoming</th><th class="number">Upcoming balance</th><th class="number">Customer credit</th><th></th></tr></thead><tbody>${d.rows.map(r=>`<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.id)}</small></td><td>${esc(r.area||'—')}</td><td class="number">${cash(r.customer_balance)}</td><td class="number">${cash(r.incoming_balance)}</td><td class="number"><strong>${cash(r.upcoming_balance)}</strong></td><td class="number">${cash(r.credit)}</td><td><button class="btn small" data-goods-ledger="${esc(r.id)}">Details</button></td></tr>`).join('')}</tbody></table></div>${d.rows.length?'':empty('No customers match this search.')}${pagination(d)}</section>`;
+}
+async function customerGoodsLedgerDetails(id){
+ const d=await api('customer_goods_ledger',null,{id});const r=d.rows[0];
+ const table=rows=>`<div class="table-scroll"><table><thead><tr><th>Reference / date</th><th>Bilty / party to</th><th class="number">Amount</th><th class="number">Paid / advance</th><th class="number">Remaining</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.reference)}<small>${fmtdate(x.dated)}</small></td><td>${esc(x.bilty)}<small>${esc(x.party_to||'—')}</small></td><td class="number">${cash(x.due)}</td><td class="number">${cash(x.received)}</td><td class="number">${cash(x.balance)}</td></tr>`).join('')}</tbody></table></div>${rows.length?'':empty('No entries.')}`;
+ modal('Customer ledger · '+esc(r.name),esc(r.id),`<div class="wasooli-detail-summary"><div><span>Customer balance · delivered</span><strong>${cash(r.customer_balance)}</strong></div><div><span>Undelivered incoming</span><strong>${cash(r.incoming_balance)}</strong></div><div><span>Upcoming balance</span><strong>${cash(r.upcoming_balance)}</strong></div><div><span>Customer credit</span><strong>${cash(r.credit)}</strong></div></div><h3>Delivered · unpaid</h3>${table(d.delivered)}<h3>Undelivered incoming</h3>${table(d.incoming)}`,btn('Close','close-modal'));
+}
+document.addEventListener('click',event=>{const target=event.target.closest('[data-goods-ledger]');if(!target)return;event.preventDefault();customerGoodsLedgerDetails(target.dataset.goodsLedger).catch(error=>toast(error.message));});
 
 async function temporaryCustomersPage() {
  const d=await api('temporary_customers',null,params()); listData=d; state.page=d.page;
@@ -1616,7 +1632,7 @@ function shipmentForm() {
       "A few clear steps. One place for all the details.",
       btn("Cancel", "cancel-shipment"),
     ) +
-    `${f.pendingId ? `<div class="note-box warning" style="margin-bottom:20px">Submitted by ${esc(f.submittedName)}. Review and correct all details before approving. This entry is not yet in the main system.</div>` : ""}${isOperations() && !booking ? `<div class="note-box" style="margin-bottom:20px">Review and submit for super admin approval. The arrival will enter the main system after approval.</div>` : ""}${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Existing bilties stay linked to their deliveries; recorded collections and original imported receipts are unchanged.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", isOperations() && !booking ? "Review & submit" : "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout${f.id && !booking ? " shipment-edit-layout" : ""}"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${f.step > 0 ? shipmentAmountWarnings() : ""}${
+    `${f.pendingId ? `<div class="note-box warning" style="margin-bottom:20px">Submitted by ${esc(f.submittedName)}. Review and correct all details before approving. This entry is not yet in the main system.</div>` : ""}${isOperations() && !booking ? `<div class="note-box" style="margin-bottom:20px">Review and submit for super admin approval. The arrival will enter the main system after approval.</div>` : ""}${f.id ? `<div class="note-box warning" style="margin-bottom:20px">Editing ${esc(h.reference)}. Changes are recorded in the revision history. Bilties stay linked to their deliveries. Customer corrections move their linked balances and preserve recorded payments.</div>` : ""}<div class="steps">${["Shipment details", "Add bilties", isOperations() && !booking ? "Review & submit" : "Review & save"].map((s, i) => `${i ? '<span class="step-line"></span>' : ""}<div class="step ${f.step >= i ? "active" : ""}"><span>${f.step > i ? "✓" : i + 1}</span>${s}</div>`).join("")}</div><form id="shipment-form"><div class="form-layout${f.id && !booking ? " shipment-edit-layout" : ""}"><section class="panel"><div class="panel-head"><div><h2>${["Where are the goods coming from?", "Add the goods in this shipment", "Everything look right?"][f.step]}</h2><p>${["Enter the date, station and transport details.", "All bilties in one list. Add a bilty, or select a row to edit it.", "Review the details below before saving."][f.step]}</p></div></div><div class="panel-body">${f.step > 0 ? shipmentAmountWarnings() : ""}${
       f.step === 0
         ? `<div class="form-grid">${field("dated", 'Date <span class="required">*</span>', h.dated, "date", "required")}${selectField("station_id", booking ? "Destination station *" : "Origin station *", stationOptions(), h.station_id, true)}${field("truck", 'Truck number <span class="required">*</span>', h.truck, "text", 'required placeholder="e.g. ABC-123" maxlength="30"')}${field("challan", "Challan number", h.challan)}${field("driver", "Driver name", h.driver)}${field("driver_mobile", "Driver mobile", h.driver_mobile, "tel")}${field("driver_cnic", "Driver CNIC", h.driver_cnic)}${field("truck_amount", booking ? "Truck rent / amount (Rs)" : "Truck delivery / amount (Rs)", h.truck_amount, "number", 'min="0" step="0.01"')}${!booking ? field("labour_bonus", "Labour Bonus (Rs)", h.labour_bonus || "0", "number", 'min="0" step="0.01"') + field("munshi_bonus", "Munshi Bonus (Rs)", h.munshi_bonus || "0", "number", 'min="0" step="0.01"') : ""}${booking ? field("commission", "Commission amount (Rs)", h.commission, "number", 'min="0" step="0.01"') : ""}${field("remarks", "Remarks", h.remarks, "text", 'maxlength="500"', true)}</div>`
         : f.step === 1
@@ -1724,7 +1740,7 @@ function customerSuggestions() {
   const canCreate = q && currentForm?.kind === 'incoming' && can('incoming.create');
   const matches = pickerMatches.map((a, n) => `<button type="button" role="option" aria-selected="false" id="customer-result-${n}" data-action="select-bilty-customer" data-id="${esc(a.id)}"><span class="avatar">${esc(a.name.slice(0, 2).toUpperCase())}</span><span><b>${esc(a.name)}</b><small>${esc(a.id)}${Number(a.temporary) ? " · Temporary customer" : ""}${a.mobile || a.phone ? " · " + esc(a.mobile || a.phone) : ""}</small></span>${icon("chevron")}</button>`).join("");
   const emptyMessage = canCreate ? `<div class="picker-no-results">No customer found for “${esc(input.value.trim())}”.</div>` : '<div class="picker-no-results">No customers found. Try a name or account code.</div>';
-  const createActions = canCreate ? '<div class="quick-customer-actions"><button type="button" data-quick-customer="temporary">Add as temporary customer</button><button type="button" data-quick-customer="full">Add as a new customer</button></div>' : '';
+  const createActions = canCreate ? '<div class="quick-customer-actions"><span class="note">An unselected name will be saved as a temporary customer.</span><button type="button" data-quick-customer="full">Add as a new customer</button></div>' : '';
   list.innerHTML = `<div class="picker-caption">${q ? "Matching customers" : "Choose a customer"}<span>${all.length > 7 ? "First 7 · type to narrow" : all.length + " found"}</span></div>${matches || emptyMessage}${createActions}`;
   list.hidden = false;
   input.setAttribute("aria-expanded", "true");
@@ -1767,7 +1783,7 @@ function closeBilty() {
   biltyDraft = null;
   closeModal();
 }
-function saveBilty(mode) {
+async function saveBilty(mode) {
   let i = readBiltyDraft();
   if (!i || !biltyDraft || !currentForm)
     throw Error("Reopen this bilty and try again.");
@@ -1778,12 +1794,12 @@ function saveBilty(mode) {
     if(matches.length===1){selectGoodsType(matches[0].id);i=readBiltyDraft();}
     else throw Error("Choose a goods type from the results, or select Other to enter a custom type.");
   }
-  if (
-    !lookups.accounts.some(
-      (a) => a.id === i.account_id && a.customer && a.status === "A",
-    )
-  )
-    throw Error("Choose a customer from the search results.");
+  const customerName = $("#bilty-customer-search")?.value.trim() || "";
+  const selectedCustomer = lookups.accounts.some(
+    (a) => a.id === i.account_id && a.customer && a.status === "A",
+  );
+  if (!selectedCustomer && (currentForm.kind !== 'incoming' || !customerName))
+    throw Error(currentForm.kind === 'incoming' ? "Enter a customer name." : "Choose a customer from the search results.");
   if (!i.bilty)
     throw Error("Bilty number is required.");
   if (!/^\d+$/.test(i.qty) || Number(i.qty) < 1 || Number(i.qty) > 999999)
@@ -1805,6 +1821,11 @@ function saveBilty(mode) {
     )
   )
     throw Error("This bilty number is already in the shipment.");
+  if (!selectedCustomer) {
+    const customer = await api('incoming_customer_create', {name:customerName,mode:'temporary'});
+    await refreshLookups();
+    i.account_id = customer.id;
+  }
   if (biltyDraft.index === null) currentForm.items.push(i);
   else currentForm.items[biltyDraft.index] = i;
   biltyDraft = null;
@@ -3556,7 +3577,7 @@ async function submitForm(form, submitter) {
       await render();
       break;
     case "bilty-form":
-      saveBilty(submitter?.value || "save");
+      await saveBilty(submitter?.value || "save");
       break;
     case "shipment-form":
       captureShipment();
@@ -3751,8 +3772,12 @@ document.addEventListener("keydown", (e) => {
   }
   if (e.key === "Enter" && list && !list.hidden) {
     e.preventDefault();
-    if (pickerMatches.length)
-      selectBiltyCustomer(pickerMatches[Math.max(0, pickerIndex)].id);
+    if (pickerIndex >= 0 && pickerMatches[pickerIndex])
+      selectBiltyCustomer(pickerMatches[pickerIndex].id);
+    else {
+      hideCustomerSuggestions();
+      $("#f-bilty")?.focus();
+    }
   }
 });
 $("#modal").addEventListener("cancel", (e) => {

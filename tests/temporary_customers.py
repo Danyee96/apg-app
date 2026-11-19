@@ -15,8 +15,8 @@ def check(base, database, password):
     account=api('incoming_customer_create',{'name':name,'mode':'temporary'})['id']
     assert any(r['id']==account for r in api('temporary_customers',search=name)['rows'])
     assert not any(r['id']==account for r in api('customers',search=name)['rows'])
-    try:api('incoming_customer_create',{'name':name.lower(),'mode':'temporary'});assert False
-    except urllib.error.HTTPError as e:assert e.code==409
+    duplicate=api('incoming_customer_create',{'name':name.lower(),'mode':'temporary'})['id']
+    assert duplicate!=account
     db=sqlite3.connect(database)
     shipment=db.execute("INSERT INTO shipments(kind,reference,dated) VALUES('incoming','TEST TEMP','2026-11-17')").lastrowid
     item=db.execute("INSERT INTO items(shipment_id,account_id,bilty,qty) VALUES(?,?,?,?)",(shipment,account,'TEMP',4)).lastrowid;db.commit()
@@ -29,7 +29,7 @@ def check(base, database, password):
     assert db.execute('SELECT temporary FROM accounts WHERE id=?',(account,)).fetchone()[0]==1
     api('promote_temporary_customer',{'id':account,'version':row['version'],'area':'Test area','mobile':'03001234567'})
     assert api('customers',search=name)['rows'][0]['id']==account
-    assert not api('temporary_customers',search=name)['rows']
+    assert [r['id'] for r in api('temporary_customers',search=name)['rows']]==[duplicate]
     assert db.execute('SELECT account_id FROM items WHERE id=?',(item,)).fetchone()[0]==account
     try:api('promote_temporary_customer',{'id':account,'version':row['version'],'area':'Test area','mobile':'03001234567'});assert False
     except urllib.error.HTTPError as e:assert e.code==409

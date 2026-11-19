@@ -141,6 +141,37 @@ function unified_adopt(int $id): void {
  }
  run('UPDATE deliveries SET cash_workflow=1 WHERE id=?',[$id]);audit('adopted legacy history','delivery',$id);
 }
+// Called inside the shipment edit transaction before the item account changes.
+function shipment_correct_delivery_customer(int $itemId,string $oldAccount,string $newAccount,array $user): void {
+ $delivery=one('SELECT di.id line_id,di.delivery_id,d.cash_workflow,d.legacy_id,d.reference FROM delivery_items di JOIN deliveries d ON d.id=di.delivery_id WHERE di.item_id=?',[$itemId]);
+ if(!$delivery)return;
+ $stored=one('SELECT account_id FROM delivery_cash_lines WHERE delivery_item_id=?',[$delivery['line_id']]);
+ if($stored&&$stored['account_id']===$newAccount)return;
+ if(!$stored&&$oldAccount===$newAccount)return;
+ if(!can_access($user,'deliveries.edit'))throw new RuntimeException('Delivery edit permission is required to change the customer on delivered goods.',403);
+ if(str_starts_with($delivery['reference'],'OPENING-'))throw new InvalidArgumentException('Opening balances cannot be reassigned through incoming goods.');
+ if(!(int)$delivery['cash_workflow']||$delivery['legacy_id']!==null)throw new InvalidArgumentException('This imported delivery needs its original accounting reconciled before changing its customer.');
+ if(one("SELECT id FROM cash_collection_submissions WHERE delivery_id=? AND status='pending'",[$delivery['delivery_id']]))throw new RuntimeException('Resolve the pending cash collection before changing the customer.',409);
+ $line=one('SELECT b.*,c.posted_voucher_id,c.accounting_model FROM delivery_cash_lines b JOIN delivery_cash_invoices c ON c.delivery_id=b.delivery_id WHERE b.delivery_item_id=?',[$delivery['line_id']]);
+ if(!$line)throw new RuntimeException('The delivery customer changed. Reopen the shipment before editing.',409);
+ $oldAccount=$line['account_id'];
+ if((int)$line['accounting_model']!==2)throw new RuntimeException('This delivery needs accounting reconciliation before changing its customer.',409);
+ $customer=one('SELECT name,temporary FROM accounts WHERE id=? AND customer=1 AND status=\'A\'',[$newAccount]);if(!$customer)throw new InvalidArgumentException('Choose an active customer.');
+ $received=(int)(one('SELECT COALESCE(SUM(l.bilty_received),0) amount FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id WHERE l.delivery_item_id=? AND r.voucher_id IS NOT NULL',[$delivery['line_id']])['amount']??0);
+ $postedDue=$line['posted_voucher_id']!==null?(int)$line['bilty_due']:0;
+ $balance=$postedDue-$received;
+ $amounts=one('SELECT bilty_due,bilty_received,service_due,service_received FROM delivery_unified_lines WHERE delivery_item_id=?',[$delivery['line_id']]);
+ if(!empty($customer['temporary'])&&(max(0,(int)$amounts['bilty_due']-(int)$amounts['bilty_received'])+max(0,(int)$amounts['service_due']-(int)$amounts['service_received']))>0)throw new InvalidArgumentException('Complete the temporary customer details before transferring an unpaid delivery.');
+ $voucher=unified_journal(date('Y-m-d'),'Customer correction · '.$delivery['reference'].' · bilty '.$line['bilty'],[unified_entry($oldAccount,-$balance),unified_entry($newAccount,$balance)]);
+ run('UPDATE delivery_cash_lines SET account_id=? WHERE delivery_item_id=?',[$newAccount,$delivery['line_id']]);
+ // A Wasooli collection can cover several bilties. Only reassign its customer
+ // when every non-zero allocation now belongs to the same customer.
+ foreach(query('SELECT DISTINCT w.collection_id FROM wasooli_receipts w JOIN delivery_cash_receipt_lines r ON r.receipt_id=w.receipt_id WHERE r.delivery_item_id=? AND (r.bilty_received<>0 OR r.service_received<>0)',[$delivery['line_id']]) as $collection){
+  $accounts=query('SELECT DISTINCT b.account_id FROM wasooli_receipts w JOIN delivery_cash_receipt_lines r ON r.receipt_id=w.receipt_id JOIN delivery_cash_lines b ON b.delivery_item_id=r.delivery_item_id WHERE w.collection_id=? AND (r.bilty_received<>0 OR r.service_received<>0)',[$collection['collection_id']]);
+  if(count($accounts)===1)run('UPDATE wasooli_collections SET account_id=? WHERE id=?',[$accounts[0]['account_id'],$collection['collection_id']]);
+ }
+ audit('corrected customer','delivery',$delivery['delivery_id']);
+}
 function unified_document(int $id): array {
  transaction(fn()=>unified_adopt($id));$invoice=delivery_cash_invoice($id);
  $invoice['delivery_expenses']=query('SELECT e.id,e.amount,e.notes,e.dated,e.actor_name,u.full_name operator_name,u.username FROM delivery_expenses x JOIN operator_cash_entries e ON e.id=x.operator_entry_id JOIN users u ON u.id=e.operator_id WHERE x.delivery_id=? ORDER BY e.id DESC',[$id]);
@@ -175,7 +206,7 @@ function unified_edit(int $id,array $p,array $user): void {
  $header=$invoice['header'];$dated=day($p);$receiver=text($p,'receiver',100,true);$changed=$dated!==$header['dated']||$receiver!==$header['receiver']||text($p,'mobile',30)!==(string)($header['mobile']??'')||text($p,'cnic',30)!==(string)($header['cnic']??'')||text($p,'remarks',500)!==(string)($header['remarks']??'');
  if($dated!==$header['dated']&&($invoice['receipts']||!empty($header['assessment_complete'])))throw new RuntimeException('Cash processing has started. The handover date is locked.',409);
  $input=$p['items']??[];if(count($input)!==count($invoice['lines']))throw new InvalidArgumentException('Keep the original bilties in this delivery.');$allowed=array_column($invoice['lines'],null,'delivery_item_id');$seen=[];$entries=[];
- foreach($input as $row){$lineId=(int)($row['id']??0);if(!isset($allowed[$lineId])||isset($seen[$lineId]))throw new InvalidArgumentException('Keep the original bilties in this delivery.');$seen[$lineId]=true;$old=$allowed[$lineId];$discount=money($row,'discount');$loading=money($row,'loading');$suzuki=money($row,'suzuki');
+ foreach($input as $row){$lineId=(int)($row['id']??0);if(!isset($allowed[$lineId])||isset($seen[$lineId]))throw new InvalidArgumentException('Keep the original bilties in this delivery.');$seen[$lineId]=true;$old=$allowed[$lineId];$discount=money($row,'discount');if((int)$old['advance']>0&&$discount!==(int)$old['discount'])throw new InvalidArgumentException('Discount cannot be changed for a bilty with a bilty advance.');$loading=money($row,'loading');$suzuki=money($row,'suzuki');
   if($discount!==$old['discount']||$loading!==$old['loading']||$suzuki!==$old['suzuki']){$changed=true;if(!can_access($user,'deliveries.edit'))throw new RuntimeException('You do not have permission to edit deliveries.',403);$delta=(int)$old['discount']-$discount;if($header['posted_voucher_id']!==null||!empty($header['assessment_complete'])){$entries[]=unified_entry($old['account_id'],$delta);$entries[]=unified_entry('SYS-BILTY-CLEARING',-$delta);foreach(['LOADING'=>$loading-(int)$old['loading'],'SUZUKI'=>$suzuki-(int)$old['suzuki']] as $category=>$difference){$control=$header['legacy_services']?'LEGACY-SERVICE':$category;$entries[]=unified_entry('SYS-'.$control.'-RECEIVABLE',$difference);$entries[]=unified_entry('SYS-'.$category.'-CLEARING',-$difference);}}
    run('UPDATE delivery_items SET discount=?,loading_charge=?,suzuki_charge=? WHERE id=?',[$discount,$loading,$suzuki,$lineId]);run('UPDATE delivery_cash_lines SET bilty_due=bilty_due+?,service_due=? WHERE delivery_item_id=?',[$delta,$loading+$suzuki,$lineId]);}
  }
@@ -258,9 +289,20 @@ foreach(['bilty_received','loading_received','suzuki_received','legacy_service_r
   $result=['id'=>$id,'reference'=>$invoice['header']['reference'],'pending_cash'=>false];
   if(!empty($p['include_previous_balances'])){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Cash receiving access is required.',403);$allocation=unified_collect_previous($p,$invoice,$cashItems,$user);$cashItems=$allocation['items'];$result['previous_collected']=$allocation['previous_collected'];$result['previous_receipts']=$allocation['previous_receipts'];$total=array_sum(array_map(fn($item)=>money($item,'bilty_received')+money($item,'loading_received')+money($item,'suzuki_received')+money($item,'legacy_service_received'),$cashItems));}
   if($total>0&&!$pending){if($user['role']!=='super_admin'&&!can_submit_delivery_cash($user))throw new RuntimeException('Walk-in delivery requires cash receiving access.',403);$cash=['delivery_id'=>$id,'version'=>$invoice['version'],'request_key'=>'unified-cash-'.hash('sha256',$key),'dated'=>!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'),'cash_account_id'=>text($p,'cash_account_id',40),'notes'=>text($p,'notes',500),'items'=>$cashItems,'initial'=>$initial];$recorded=unified_record_cash($cash,$user,true);$result['pending_cash']=!empty($recorded['pending']);$result['cash_id']=$recorded['id'];}
-  $result['service_refunds']=unified_refund_service_advance(delivery_cash_invoice($id),$user,$p,$key,$initial?null:$refundEligible);
+  // Outstanding delivery amounts must belong to a complete customer account.
+  // Keep promotion in this transaction so a failed delivery never changes the customer.
+  $remainingInvoice=delivery_cash_invoice($id);$promotions=$p['temporary_customers']??[];
+  if(!is_array($promotions))throw new InvalidArgumentException('Invalid customer details.');
+  $needs=[];foreach($remainingInvoice['lines'] as $line){$customer=one('SELECT id,name,temporary FROM accounts WHERE id=?',[$line['account_id']]);if($customer&&!empty($customer['temporary'])&&(max(0,(int)$line['bilty_due']-(int)$line['bilty_received'])+(int)$line['service_outstanding'])>0)$needs[$customer['id']]=$customer;}
+  foreach($needs as $accountId=>$customer){
+   if($user['role']!=='super_admin')throw new RuntimeException('A temporary customer has an unpaid balance. Ask the super admin to complete the customer details before saving.',403);
+   $details=$promotions[$accountId]??null;if(!is_array($details))throw new InvalidArgumentException('Add the area and phone number for '.$customer['name'].' before saving an unpaid delivery.');
+   $area=text($details,'area',100,true);$mobile=text($details,'mobile',40);if($mobile==='')$mobile=text($p,'mobile',40,true);$digits=preg_replace('/\D/','',$mobile);if(!preg_match('/^\+?[0-9 ()-]+$/D',$mobile)||strlen($digits)<7||strlen($digits)>15)throw new InvalidArgumentException('Enter a valid phone number with 7 to 15 digits.');
+   run('UPDATE accounts SET area=?,mobile=?,temporary=0,version=version+1 WHERE id=? AND temporary=1',[$area,$mobile,$accountId]);audit('converted','temporary_customer',$accountId);
+  }
+  $result['service_refunds']=unified_refund_service_advance($remainingInvoice,$user,$p,$key,$initial?null:$refundEligible);
   $expense=money($p,'delivery_expense');if($expense){
-   if($initial||!operator_cash_allowed($user))throw new RuntimeException('Only a munshi or super admin can add expenses to an existing delivery.',403);
+   if(!operator_cash_allowed($user))throw new RuntimeException('Only a munshi or super admin can add delivery expenses.',403);
    $operatorId=(int)($p['expense_operator_id']??0);if($user['role']==='super_admin'&&!$operatorId){$operators=query("SELECT id FROM users WHERE role='operations' AND active=1 LIMIT 2");if(count($operators)===1)$operatorId=(int)$operators[0]['id'];}
    $owner=operator_cash_owner($user,['operator_id'=>$operatorId]);if(!$owner||empty($owner['active']))throw new InvalidArgumentException('Choose an active munshi for this expense.');
    $cash=text($p,'cash_account_id',40,true);$dated=!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d');if($dated>date('Y-m-d'))throw new InvalidArgumentException('Expense date cannot be in the future.');

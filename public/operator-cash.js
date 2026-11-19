@@ -75,7 +75,7 @@ async function dailyEntryDetails(id){
  const delivery=d.receipt?`<section class="panel" style="padding:16px;margin:16px 0"><h3>${esc(d.receipt.delivery_reference)}</h3>${deliveryFacts([['Receiver',d.receipt.receiver],['Mobile',d.receipt.mobile||'—'],['CNIC',d.receipt.cnic||'—'],['Received date',fmtdate(d.receipt.dated)]])}${d.allocations?.length>1?`<h3>Payment allocation</h3>${deliveryFacts(d.allocations.map(row=>[row.delivery_reference,cash(row.amount)]))}`:''}${d.receipt.delivery_remarks?`<p class="note">${esc(d.receipt.delivery_remarks)}</p>`:''}</section>`:'';
  const items=d.items.length?dailyDeliveryGrid(d.items,d.receipt?.dated):'';
 
- modal(esc(e.title),'Read-only entry',facts+(e.notes?`<p class="note">${esc(e.notes)}</p>`:'')+(d.wasooli&&d.allocations.length?`<h3>Payment allocation</h3>${deliveryFacts(d.allocations.map(row=>[row.delivery_reference+' · Bilty '+row.bilty,cash(row.amount)]))}`:'')+delivery+items,backToHistory?btn('Back to ledger','daily-period-back'):'');
+ modal(esc(e.title),'Read-only entry',facts+(e.notes?`<p class="note">${esc(e.notes)}</p>`:'')+(d.wasooli&&d.allocations.length?`<h3>Payment allocation</h3>${deliveryFacts(d.allocations.map(row=>[row.delivery_reference+' · Bilty '+row.bilty+(row.customer?' · '+row.customer:''),cash(row.amount)]))}`:'')+delivery+items,backToHistory?btn('Back to ledger','daily-period-back'):'');
  if(d.items.length){$('#modal').classList.add('delivery-dialog');requestAnimationFrame(uAlignRows);}
 
 }

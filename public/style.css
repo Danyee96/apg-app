@@ -1482,6 +1482,12 @@ td small {
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 23px;
 }
+.shipment-edit-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.shipment-edit-layout .sticky {
+  position: static;
+}
 .form-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

@@ -557,6 +557,7 @@ async function navigate(view, reset = true) {
   if (reset) {
     state.page = 0;
     state.search = "";
+    if (view === "bilties") state.biltyArea = "";
     state.from = ["incoming","booking","deliveries"].includes(view) ? recentHistoryStart() : "";
     state.to = ["incoming","booking","deliveries"].includes(view) ? today() : "";
     selected.clear();
@@ -867,6 +868,7 @@ async function bilties() {
       status: state.status,
       kind: state.deliveryMode ? "incoming" : state.inquiry?.kind || "",
       station_id: state.station_id || "",
+      customer_area: state.biltyArea || "",
     }),
   );
   listData = d;
@@ -889,12 +891,12 @@ async function bilties() {
           )
         : btn("Export this page", "export", false, "download"),
     ) +
-    `${selected.size ? `<div class="selection-bar"><span>${selected.size} bilty selected across your search results</span><button class="link" data-action="clear-selection">Clear selection</button></div>` : ""}<section class="panel">${searchBar("Search bilty, customer, party or contact…", `<select class="filter" id="bilty-status" aria-label="Bilty status" ${state.deliveryMode ? "disabled" : ""}><option value="">All statuses</option><option value="pending" ${state.status === "pending" ? "selected" : ""}>Awaiting delivery</option><option value="delivered" ${state.status === "delivered" ? "selected" : ""}>Delivered</option></select><select class="filter" id="station-filter" aria-label="Station"><option value="">All stations</option>${lookups.stations.map((s) => `<option value="${s.id}" ${String(state.station_id) === String(s.id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>`, true)}${biltyTable(d.rows, state.deliveryMode)}${pagination(d)}</section>`
+    `${selected.size ? `<div class="selection-bar"><span>${selected.size} bilty selected across your search results</span><button class="link" data-action="clear-selection">Clear selection</button></div>` : ""}<section class="panel">${searchBar("Search bilty, customer, party or contact…", `<select class="filter" id="bilty-status" aria-label="Bilty status" ${state.deliveryMode ? "disabled" : ""}><option value="">All statuses</option><option value="pending" ${state.status === "pending" ? "selected" : ""}>Awaiting delivery</option><option value="delivered" ${state.status === "delivered" ? "selected" : ""}>Delivered</option></select><select class="filter" id="station-filter" aria-label="Station"><option value="">All stations</option>${lookups.stations.map((s) => `<option value="${s.id}" ${String(state.station_id) === String(s.id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select><select class="filter" id="bilty-area" aria-label="Customer area"><option value="">All areas</option>${(lookups.areas||[]).map((a) => `<option value="${esc(a.area)}" ${state.biltyArea === a.area ? "selected" : ""}>${esc(a.area)}</option>`).join("")}</select>`, true)}${biltyTable(d.rows, state.deliveryMode)}${pagination(d)}</section>`
   );
 }
 function biltyTable(rows, selectable = false) {
   return rows.length
-    ? `<div class="table-scroll"><table><thead><tr>${selectable ? "<th>Select</th>" : ""}<th>Bilty / date</th><th>Customer / party to</th><th>Station</th><th class="number">Qty</th><th class="number">Bilty total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr>${selectable ? `<td><input class="row-check" type="checkbox" aria-label="Select bilty ${esc(r.bilty)}" data-select="${r.id}" ${r.delivery_submission_id ? 'disabled title="Awaiting delivery approval"' : ""} ${selected.has(r.id) ? "checked" : ""}></td>` : ""}<td><button class="link" data-action="bilty" data-id="${r.id}">${esc(r.bilty || "No number")}</button><small>${fmtdate(r.dated)}</small></td><td><strong>${esc(r.customer || r.party_from || "Not recorded")}</strong><small>To ${esc(r.party_to || "—")}</small></td><td>${esc(r.station || "—")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.total)}</td><td>${tag(r.delivery_submission_id ? "Awaiting delivery approval" : r.status === "delivered" ? "Delivered" : "Pending", r.status === "delivered" ? "green" : "orange")}</td><td><button class="icon-btn" data-action="bilty" data-id="${r.id}" aria-label="Open bilty ${esc(r.bilty)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
+    ? `<div class="table-scroll"><table><thead><tr>${selectable ? "<th>Select</th>" : ""}<th>Bilty / date</th><th>Customer / party to</th><th>Station</th><th class="number">Qty</th><th class="number">Bilty total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr>${selectable ? `<td><input class="row-check" type="checkbox" aria-label="Select bilty ${esc(r.bilty)}" data-select="${r.id}" ${r.delivery_submission_id ? 'disabled title="Awaiting delivery approval"' : ""} ${selected.has(r.id) ? "checked" : ""}></td>` : ""}<td><button class="link" data-action="bilty" data-id="${r.id}">${esc(r.bilty || "No number")}</button><small>${fmtdate(r.dated)}</small></td><td><strong>${esc(r.customer || r.party_from || "Not recorded")}</strong><small>To ${esc(r.party_to || "—")}</small>${r.customer_area ? `<small>Area: ${esc(r.customer_area)}</small>` : ""}</td><td>${esc(r.station || "—")}</td><td class="number">${num(r.qty)}</td><td class="number">${cash(r.total)}</td><td>${tag(r.delivery_submission_id ? "Awaiting delivery approval" : r.status === "delivered" ? "Delivered" : "Pending", r.status === "delivered" ? "green" : "orange")}</td><td><button class="icon-btn" data-action="bilty" data-id="${r.id}" aria-label="Open bilty ${esc(r.bilty)}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div>`
     : empty();
 }
 async function deliveries() {
@@ -3468,6 +3470,7 @@ document.addEventListener("change", (e) => {
     "filter-to": "to",
     "bilty-status": "status",
     "station-filter": "station_id",
+    "bilty-area": "biltyArea",
     "working-date": "date",
   };
   if (changes[t.id]) {

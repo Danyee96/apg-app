@@ -5049,7 +5049,10 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 @media(max-width:850px) {
  .u-delivery-list table,.u-delivery-list tbody { display:block; }
  .u-delivery-list thead { display:none; }
- .u-delivery-list tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-bottom:1px solid #eaf0ec; padding:8px; }
+ .u-delivery-list tbody { padding:12px; background:#edf4ef; }
+ .u-delivery-list tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); padding:10px; margin-bottom:12px; border:1px solid #d9e8dd; border-radius:13px; background:#fff; box-shadow:0 2px 8px #173b2508; }
+ .u-delivery-list tbody tr:nth-child(even) { background:#f7fbf8; }
+ .u-delivery-list tbody tr:last-child { margin-bottom:0; }
  .u-delivery-list td { display:block; border:0; text-align:start; min-width:0; padding:10px; }
  .u-delivery-list .u-list-label { display:block; font-size:10px; color:#81938e; margin-bottom:5px; }
  .u-delivery-list td:last-child { align-self:end; }
@@ -5084,6 +5087,7 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
  .u-two-grids thead { display:none; }
  .u-two-grids tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); height:auto; padding:8px; border-bottom:1px solid #d6e3db; gap:4px; }
  .u-two-grids tbody td { display:block; height:auto; min-width:0; border:0; padding:8px; text-align:start; font-size:12px; }
+ .u-bilty-grid tbody tr > td:nth-child(7) { grid-column:1 / -1; }
  .u-two-grids tbody td::before { content:attr(data-label); display:block; font-size:10px; color:#648071; margin-bottom:6px; }
  .u-two-grids .u-amount { font-size:14px; padding:10px; }
  .u-two-grids tfoot { display:block; }
@@ -5256,10 +5260,70 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .wasooli-detail-summary strong { margin-top:7px; color:#087d6c; font-size:20px; }
 #modal:has(#wasooli-form) .modal-body h3 { margin:22px 0 12px; }
 @media(max-width:700px) { .wasooli-customer { grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:16px; } .wasooli-customer .buttons { grid-column:1/-1; } .wasooli-detail-summary { grid-template-columns:1fr 1fr; } }
+@media(max-width:700px) {
+ .wasooli-list { display:grid; gap:10px; padding:12px; background:#f5f9f6; }
+ .wasooli-customer { display:flex; flex-direction:column; align-items:stretch; min-width:0; gap:14px; padding:16px; border:1px solid #deebe3; border-radius:15px; background:#fff; }
+ .wasooli-identity { align-items:flex-start; gap:12px; }
+ .wasooli-identity .daily-avatar { flex:0 0 42px; width:42px; height:42px; }
+ .wasooli-identity > div { flex:1; min-width:0; }
+ .wasooli-identity strong { font-size:15px; line-height:1.35; overflow-wrap:break-word; }
+ .wasooli-identity small { overflow-wrap:break-word; line-height:1.45; }
+ .wasooli-due { min-width:0; padding:12px 14px; border-radius:11px; background:#eef8f2; }
+ .wasooli-due strong { font-size:21px; }
+ .wasooli-due small { line-height:1.5; overflow-wrap:break-word; }
+ .wasooli-customer .buttons { display:flex; flex-wrap:nowrap; gap:9px; width:100%; }
+ .wasooli-customer .buttons .btn { flex:1; min-width:0; min-height:44px; justify-content:center; }
+ .wasooli-intro { padding:0 16px 14px; line-height:1.5; }
+}
 .labour-date-panel{display:flex;align-items:center;gap:14px;padding:18px 22px;margin-bottom:18px}.labour-date-panel label{font-weight:700;color:#476c60}.labour-date-panel input{max-width:230px}.labour-total{background:#086e5e;color:#fff;border-radius:18px;padding:26px 30px;display:flex;justify-content:space-between;gap:20px;align-items:center}.labour-total span,.labour-total strong,.labour-total small{display:block}.labour-total strong{font-size:36px;margin:6px 0}.labour-total small{color:#d5ede3}.labour-total-icon{opacity:.7}.labour-components{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}.labour-components article{padding:20px}.labour-components span,.labour-components strong,.labour-components small{display:block}.labour-components span{color:#58796c;font-weight:700}.labour-components strong{font-size:25px;color:#087e6d;margin:10px 0}.labour-components small{color:#758d82}.labour-note{margin:16px 0}.labour-source-panel{margin-top:18px}.labour-source-panel td small{display:block;color:#728b80;margin-top:4px}@media(max-width:850px){.labour-components{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.labour-date-panel{flex-wrap:wrap}.labour-total{padding:22px}.labour-total strong{font-size:30px}.labour-components article{padding:15px}.labour-components strong{font-size:21px}}
 .labour-components:has(article:nth-child(5)){grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:1050px){.labour-components:has(article:nth-child(5)){grid-template-columns:repeat(2,minmax(0,1fr))}}#daily-labour-name[hidden],#daily-expense-form .field[hidden]{display:none}
 /* Daily labour date selector */
 .labour-date-panel{position:relative;z-index:5;overflow:visible;display:flex;justify-content:space-between;gap:20px;padding:20px 24px;background:#fff;border-color:#dcebe4;box-shadow:0 8px 24px rgba(26,71,55,.04)}
+.mobile-bottom-nav { display:none; }
+.shipment-mobile-list { display:none; }
+.shipment-detail-cards { display:none; }
+@media print { .mobile-bottom-nav { display:none !important; } }
+@media (max-width:740px) {
+  .shipment-detail-desktop { display:none; }
+  .shipment-detail-cards { display:grid; gap:12px; }
+  .shipment-detail-card { border:1px solid #dceae2; border-radius:14px; padding:15px; background:#fff; min-width:0; }
+  .shipment-detail-card-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .shipment-detail-card-head div { display:grid; gap:4px; min-width:0; }
+  .shipment-detail-card-head span,.shipment-detail-card-facts span { color:#728a7e; font-size:12px; }
+  .shipment-detail-card-head strong { font-size:18px; color:#087d6c; overflow-wrap:anywhere; }
+  .shipment-detail-customer { margin-top:10px; color:#294b40; font-weight:700; overflow-wrap:anywhere; }
+  .shipment-detail-customer small,.shipment-detail-card-facts small { display:block; margin-top:4px; color:#728a7e; font-weight:400; }
+  .shipment-detail-card-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; padding-top:14px; border-top:1px solid #e7efea; }
+  .shipment-detail-card-facts div { min-width:0; }
+  .shipment-detail-card-facts strong { display:block; margin-top:4px; font-size:14px; overflow-wrap:anywhere; }
+  .shipment-list-table { display:none; }
+  .shipment-mobile-list { display:grid; gap:10px; padding:14px; background:#f5f9f6; }
+  .shipment-mobile-card { width:100%; min-width:0; text-align:start; border:1px solid #dceae2; border-radius:15px; background:#fff; padding:15px; color:#203e34; font:inherit; cursor:pointer; box-shadow:0 3px 12px #173b2508; }
+  .shipment-mobile-card:focus-visible { outline:2px solid #0c8b79; outline-offset:2px; }
+  .shipment-mobile-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .shipment-mobile-header strong { color:#007f70; overflow-wrap:anywhere; font-size:14px; }
+  .shipment-mobile-header > span { color:#738a80; font-size:12px; white-space:nowrap; }
+  .shipment-mobile-location { display:flex; align-items:baseline; flex-wrap:wrap; gap:5px 10px; margin-top:11px; font-size:13px; }
+  .shipment-mobile-location > span { color:#758a80; }
+  .shipment-mobile-facts { display:flex; flex-wrap:wrap; gap:12px 20px; margin-top:13px; padding-top:12px; border-top:1px solid #edf2ee; }
+  .shipment-mobile-facts > span { display:grid; gap:3px; }
+  .shipment-mobile-facts small { color:#7c9187; font-size:11px; }
+  .shipment-mobile-facts b { font-size:13px; }
+  .shipment-mobile-open { display:flex; align-items:center; justify-content:flex-end; gap:4px; color:#008373; margin-top:10px; font-size:12px; font-weight:700; }
+  .shipment-mobile-open svg { width:15px; height:15px; }
+  .mobile-bottom-nav { position:fixed; inset-inline:0; bottom:0; z-index:25; display:flex; align-items:stretch; justify-content:space-around; gap:2px; padding:7px 8px calc(7px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #dce9e2; box-shadow:0 -8px 28px #173b2510; }
+  .mobile-nav-item { flex:1; min-width:0; min-height:52px; border:0; border-radius:12px; background:transparent; color:#688079; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font:inherit; font-size:10px; font-weight:700; cursor:pointer; }
+  .mobile-nav-item svg { width:21px; height:21px; }
+  .mobile-nav-item.active { color:#007f70; background:#e9f5ef; }
+  .mobile-nav-item:focus-visible { outline:2px solid #0c8b79; outline-offset:-2px; }
+  .shell { padding-bottom:calc(72px + env(safe-area-inset-bottom)); }
+  .u-save-bar { bottom:calc(65px + env(safe-area-inset-bottom)); }
+  .daily-ledger-actions { bottom:calc(75px + env(safe-area-inset-bottom)); }
+  #toast { bottom:calc(85px + env(safe-area-inset-bottom)); }
+  .hub-welcome { margin-top:0; }
+  .hub-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .hub-card { min-width:0; }
+}
 .labour-date-intro,.labour-date-controls{display:flex;align-items:center;gap:14px}.labour-date-intro>div{display:grid;gap:4px}.labour-date-intro strong{color:#193b32;font-size:16px}.labour-date-intro small{color:#778e83;font-size:13px}.labour-date-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:13px;background:#e7f5ed;color:#087c69}.labour-date-icon svg,.labour-calendar summary svg{width:20px;height:20px}
 .labour-calendar{position:relative}.labour-calendar summary{list-style:none;cursor:pointer;min-height:48px;min-width:210px;padding:0 15px;display:flex;justify-content:space-between;align-items:center;gap:22px;border:1px solid #b8d9ca;border-radius:11px;color:#20594c;background:#f7fbf8;font-weight:700;transition:border-color .15s,box-shadow .15s}.labour-calendar summary::-webkit-details-marker{display:none}.labour-calendar summary:hover,.labour-calendar[open] summary{border-color:#54ae8b}.labour-calendar summary:focus-visible,.labour-calendar button:focus-visible,.labour-calendar input:focus-visible{outline:3px solid #76cbb1;outline-offset:2px}.labour-calendar-popover{position:absolute;inset-inline-start:0;top:calc(100% + 9px);width:320px;max-width:min(320px,calc(100vw - 48px));padding:14px;border:1px solid #cfe5d8;border-radius:16px;background:#fff;box-shadow:0 18px 50px rgba(21,66,49,.2)}.labour-calendar-header{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#204c3e}.labour-month-arrow{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:10px;background:#f1f8f4;color:#426e5d;font-size:25px;cursor:pointer}.labour-month-arrow:hover{background:#dff1e7}.labour-calendar-weekdays,.labour-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}.labour-calendar-weekdays{margin:12px 0 5px;color:#799184;font-size:11px;font-weight:700}.labour-calendar-day{height:36px;border:0;border-radius:10px;background:transparent;color:#294f42;font:inherit;font-size:13px;cursor:pointer}.labour-calendar-day:hover{background:#eaf6ef}.labour-calendar-day.is-today:not(.is-selected){box-shadow:inset 0 0 0 1px #6eb99a;color:#087d6c;font-weight:700}.labour-calendar-day.is-selected{background:#087e6b;color:#fff;font-weight:700}.labour-calendar-jump{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #e5efe9}.labour-calendar-jump label{font-size:12px;color:#718b7c}.labour-calendar-jump input{width:150px;min-width:0;padding:7px;border:1px solid #d1e3d9;border-radius:8px;background:#fff;color:#355c4e;font:inherit;font-size:12px}.labour-today{min-height:48px}
 @media(max-width:650px){.labour-date-panel{align-items:stretch;flex-direction:column;padding:18px}.labour-date-controls{width:100%}.labour-calendar{flex:1;min-width:0}.labour-calendar summary{min-width:0;width:100%}.labour-calendar-popover{max-width:min(320px,calc(100vw - 60px))}.labour-date-intro small{font-size:12px}}

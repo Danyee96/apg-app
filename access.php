@@ -145,6 +145,7 @@ function access_routes(string $action,string $method,array $p,array $user): void
  }
 }
 function authorize_action(string $action,string $method,array $p,array $user): void {
+ if(in_array($action,['admin_expenses','save_admin_expense'],true)){if($user['role']!=='super_admin')fail('Only the super admin can manage admin expenses.',403);return;}
  if($action==='incoming_customer_create'){require_permission($user,'incoming.create');return;}
  if(in_array($action,['temporary_customers','temporary_customer_goods'],true)){if(can_access($user,'incoming.view')||can_access($user,'customers.view'))return;fail('You do not have permission to view temporary customers.',403);}
  if($action==='promote_temporary_customer'){if($user['role']==='super_admin')return;fail('Only the super admin can convert temporary customers.',403);}

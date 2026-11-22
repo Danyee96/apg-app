@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 function migrate_operator_cash(): void {
- if(one("SELECT value FROM meta WHERE key='operator_cash_version'"))return;
+ if(one("SELECT value FROM meta WHERE key='operator_cash_version'")){migrate_admin_expenses();return;}
  transaction(function(){
   if(one("SELECT value FROM meta WHERE key='operator_cash_version'"))return;
   run('CREATE TABLE operator_cash_periods(id INTEGER PRIMARY KEY AUTOINCREMENT,operator_id INTEGER NOT NULL REFERENCES users(id),opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,closed_at TEXT,closed_by INTEGER REFERENCES users(id),settlement_amount INTEGER,settlement_note TEXT NOT NULL DEFAULT \'\',close_request_key TEXT UNIQUE,close_request_hash TEXT)');
@@ -18,6 +18,24 @@ function migrate_operator_cash(): void {
   run("INSERT INTO meta(key,value) VALUES('operator_cash_version','1')");
   audit('enabled new collections only','operator_cash','1');
  });
+ migrate_admin_expenses();
+}
+function migrate_admin_expenses(): void {
+ if(one("SELECT value FROM meta WHERE key='admin_expenses_version'"))return;
+ transaction(function(){run('CREATE TABLE IF NOT EXISTS admin_expenses(id INTEGER PRIMARY KEY AUTOINCREMENT,request_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,actor_id INTEGER NOT NULL REFERENCES users(id),dated TEXT NOT NULL,title TEXT NOT NULL,notes TEXT NOT NULL DEFAULT \'\',amount INTEGER NOT NULL CHECK(amount>0),cash_account_id TEXT NOT NULL REFERENCES accounts(id),expense_account_id TEXT NOT NULL REFERENCES accounts(id),voucher_id INTEGER NOT NULL UNIQUE REFERENCES vouchers(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');run('CREATE INDEX IF NOT EXISTS idx_admin_expenses_date ON admin_expenses(dated,id)');run("INSERT OR IGNORE INTO meta(key,value) VALUES('admin_expenses_version','1')");});
+}
+function admin_expenses_list(array $p): array {
+ $args=[];$where=' WHERE 1=1';$search=text($p,'search',120);if($search!==''){$pattern='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%';$where.=" AND (e.title LIKE ? ESCAPE '\\' OR e.notes LIKE ? ESCAPE '\\' OR c.name LIKE ? ESCAPE '\\' OR x.name LIKE ? ESCAPE '\\')";array_push($args,$pattern,$pattern,$pattern,$pattern);}
+ $where.=rangeWhere('e.dated',$args);$from='admin_expenses e JOIN accounts c ON c.id=e.cash_account_id JOIN accounts x ON x.id=e.expense_account_id JOIN users u ON u.id=e.actor_id';
+ $result=paged($from,$where,$args,'e.*,c.name paid_from,x.name expense_account,u.username,u.full_name','e.dated DESC,e.id DESC');$result['amount']=(int)(one('SELECT COALESCE(SUM(e.amount),0) amount FROM '.$from.$where,$args)['amount']??0);
+ $result['cash_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id");$result['expense_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND id LIKE '5-%' ORDER BY name COLLATE NOCASE,id");return $result;
+}
+function admin_expense_save(array $p,array $user): array {
+ $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid expense request key.');$hash=shipment_version($p);
+ return transaction(function()use($p,$user,$key,$hash){$existing=one('SELECT * FROM admin_expenses WHERE request_key=?',[$key]);if($existing){if((int)$existing['actor_id']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This expense request was already used for different values.',409);return ['id'=>$existing['id'],'replayed'=>true];}
+  $amount=money($p,'amount');if(!$amount)throw new InvalidArgumentException('Expense amount must be greater than zero.');$dated=day($p);if($dated>date('Y-m-d'))throw new InvalidArgumentException('Expense date cannot be in the future.');$title=text($p,'title',150,true);$notes=text($p,'notes',1000);$cash=text($p,'cash_account_id',40,true);$expense=text($p,'expense_account_id',40,true);
+  if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND id LIKE '5-%'",[$expense]))throw new InvalidArgumentException('Choose an active expense account.');
+  $voucher=delivery_system_voucher('PV',$dated,'Admin expense · '.$title,[[$expense,$amount,0],[$cash,0,$amount]]);run('INSERT INTO admin_expenses(request_key,request_hash,actor_id,dated,title,notes,amount,cash_account_id,expense_account_id,voucher_id) VALUES(?,?,?,?,?,?,?,?,?,?)',[$key,$hash,$user['id'],$dated,$title,$notes,$amount,$cash,$expense,$voucher]);$id=(int)db()->lastInsertId();audit('recorded admin expense','admin_expense',$id);return ['id'=>$id];});
 }
 function migrate_labour_advances(): void {
  if(one("SELECT value FROM meta WHERE key='labour_advances_version'"))return;
@@ -178,6 +196,12 @@ function daily_labour_expense(array $p): array {
  return ['dated'=>$date,'loading'=>$loading,'suzuki'=>$suzuki,'half_suzuki'=>$half,'labour_bonus'=>$bonus,'quantity'=>$quantity,'shah_g'=>$shahG,'gross'=>$gross,'advances_total'=>$advancesTotal,'total'=>$gross-$advancesTotal,'deliveries'=>$deliveries,'incoming'=>$incoming,'advances'=>$advances];
 }
 function operator_cash_routes(string $action,string $method,array $p,array $user): void {
+ if(in_array($action,['admin_expenses','save_admin_expense'],true)){
+  if($user['role']!=='super_admin')fail('Only the super admin can manage admin expenses.',403);
+  if($action==='admin_expenses'&&$method==='GET')response(admin_expenses_list($_GET));
+  if($action==='save_admin_expense'&&$method==='POST')response(admin_expense_save($p,$user),201);
+  fail('Method not allowed.',405);
+ }
  if(!in_array($action,['daily_expense','daily_labour_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;
  if(!operator_cash_allowed($user))fail('Daily expense is available only to munshis and super admin.',403);
  if($action==='daily_expense'&&$method==='GET')response(operator_cash_ledger($_GET,$user));

@@ -1,6 +1,7 @@
 # Support hosts that publish the repository root instead of public/.
 Options -Indexes
 DirectoryIndex index.php
+AddType application/manifest+json .webmanifest
 RewriteEngine On
 
 # Serve only the application's explicit public entry points and assets.

@@ -5284,6 +5284,8 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 /* Daily labour date selector */
 .labour-date-panel{position:relative;z-index:5;overflow:visible;display:flex;justify-content:space-between;gap:20px;padding:20px 24px;background:#fff;border-color:#dcebe4;box-shadow:0 8px 24px rgba(26,71,55,.04)}
 .mobile-bottom-nav { display:none; }
+.workspace-refresh { flex-shrink:0; align-self:flex-end; width:36px; height:36px; min-width:36px; border:1px solid var(--line); border-radius:9px; color:#087f75; background:#fff; }
+@media(max-width:740px) { .workspace-refresh { width:34px; height:34px; min-width:34px; } }
 .shipment-mobile-list { display:none; }
 .shipment-detail-cards { display:none; }
 @media print { .mobile-bottom-nav { display:none !important; } }

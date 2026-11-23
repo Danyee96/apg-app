@@ -1,4 +1,4 @@
-"""Daily labour calculation from approved arrivals and delivery charges."""
+"""Daily labour uses delivery loading charges and Suzuki cash actually received."""
 import json,urllib.request,urllib.parse,urllib.error,http.cookiejar,uuid,datetime,sqlite3
 from zoneinfo import ZoneInfo
 from integration import main
@@ -20,14 +20,14 @@ def check(base,database,password):
   return admin.call('shipment',params={'id':shipment['id']})
  first=arrival('LABOUR-ONE',514,'100');second=arrival('LABOUR-TWO',100,'200')
  for index,record in enumerate((first,second)):
-  admin.call('save_unified_delivery',{'request_key':str(uuid.uuid4()),'dated':date,'received_date':date,'receiver':'Labour test','cash_account_id':cash,'items':[{'id':record['items'][0]['id'],'loading':['100','50'][index],'suzuki':['200','100'][index],'discount':'0','bilty_received':'0','service_received':'0'}]},status=201)
+  admin.call('save_unified_delivery',{'request_key':str(uuid.uuid4()),'dated':date,'received_date':date,'receiver':'Labour test','cash_account_id':cash,'items':[{'id':record['items'][0]['id'],'loading':['100','50'][index],'suzuki':['200','100'][index],'discount':'0','bilty_received':'0','service_received':['150','0'][index]}]},status=201)
  result=admin.call('daily_labour_expense',params={'dated':date})
  assert result['quantity']==614 and result['shah_g']==61400 and result['labour_bonus']==30000
- assert result['loading']==15000 and result['suzuki']==30000 and result['half_suzuki']==15000 and result['total']==121400
+ assert result['loading']==15000 and result['suzuki']==5000 and result['half_suzuki']==2500 and result['total']==108900
  assert len(result['incoming'])==2 and len(result['deliveries'])==2
  admin.call('save_user',{'username':'labour-ops','full_name':'Labour operator','role':'operations','active':1,'permissions':['incoming.create'],'password':'Labour-operator-2026'},status=201)
- ops=Client();ops.call('login',{'username':'labour-ops','password':'Labour-operator-2026'});assert ops.call('daily_labour_expense',params={'dated':date})['total']==121400
- pending=ops.call('save_shipment',{'kind':'incoming','dated':date,'station_id':station,'truck':'PENDING-LABOUR','labour_bonus':'1000','items':[{'account_id':customer,'bilty':'LABOUR-PENDING','qty':100,'bilty_amount':'1'}]},status=201);assert pending['pending'] and ops.call('daily_labour_expense',params={'dated':date})['total']==121400
+ ops=Client();ops.call('login',{'username':'labour-ops','password':'Labour-operator-2026'});assert ops.call('daily_labour_expense',params={'dated':date})['total']==108900
+ pending=ops.call('save_shipment',{'kind':'incoming','dated':date,'station_id':station,'truck':'PENDING-LABOUR','labour_bonus':'1000','items':[{'account_id':customer,'bilty':'LABOUR-PENDING','qty':100,'bilty_amount':'1'}]},status=201);assert pending['pending'] and ops.call('daily_labour_expense',params={'dated':date})['total']==108900
  today=datetime.datetime.now(ZoneInfo('Asia/Karachi')).date().isoformat();before=admin.call('daily_labour_expense',params={'dated':today});ledger=ops.call('daily_expense')
  payment={'request_key':str(uuid.uuid4()),'period_token':ledger['period_token'],'dated':today,'amount':'150','expense_type':'labour_advance','labour_name':'Ali Khan','cash_account_id':cash,'expense_account_id':'5-501-OPS','notes':'Morning advance'}
  ops.call('save_daily_expense',{**payment,'labour_name':''},status=422)

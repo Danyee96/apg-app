@@ -19,7 +19,7 @@ def check(base,database,password):
  ledger=admin.call('customer_goods_ledger',id=customer);assert ledger['rows'][0]['customer_balance']==30000 and ledger['delivered'][0]['balance']==30000
  operator=next(x for x in details['operators'] if x['id']==owner)
  def pay(amount,details):return admin.call('wasooli_collect',{'request_key':str(uuid.uuid4()),'account_id':customer,'operator_id':owner,'period_token':next(x for x in details['operators'] if x['id']==owner)['period_token'],'balance_version':details['balance_version'],'amount':amount,'dated':date,'cash_account_id':cash},status=201)
- first=pay('150',details);entry=admin.call('daily_expense_entry',id=first['operator_entry_id']);assert sum(r['amount'] for r in entry['allocations'])==15000
+ first=pay('150',details);assert first['operator_entry_id'] is None and first['amount']==15000
  details=admin.call('wasooli_customer',account_id=customer);assert (details['summary']['outstanding'],details['summary']['loading_balance'],details['summary']['suzuki_balance'])==(15000,0,15000);line=admin.call('unified_delivery',id=delivery)['lines'][0];assert (line['bilty_received'],line['loading_received'],line['suzuki_received'])==(50000,10000,5000)
  pay('150',details);assert admin.call('wasooli_customers',search='Service balance fixture')['total']==0;details=admin.call('wasooli_customer',account_id=customer);assert details['summary']['outstanding']==0 and sum(r['amount'] for r in details['history'])==80000
  # A legacy delivery only recorded a combined service receipt: do not invent a split.

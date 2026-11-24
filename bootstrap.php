@@ -32,6 +32,21 @@ function shipment_snapshot(int $id): array {
  return ['header'=>one('SELECT * FROM shipments WHERE id=?',[$id]),'items'=>query('SELECT * FROM items WHERE shipment_id=? ORDER BY id',[$id])];
 }
 function shipment_version(array $snapshot): string {return hash('sha256',json_encode($snapshot,JSON_THROW_ON_ERROR));}
+function offline_delivery_item_version(array $item): string {
+ $fields=['id','shipment_id','account_id','bilty','status','qty','party_from','party_to','city','contact','detail','goods_category_id','goods_subcategory_id','goods_custom','remarks','bilty_amount','godown','loading','suzuki','advance','service_advance'];
+ $snapshot=[];foreach($fields as $field)$snapshot[$field]=$item[$field]??null;
+ return hash('sha256',json_encode($snapshot,JSON_THROW_ON_ERROR));
+}
+
+function offline_shipment_replay(string $key,int $actor,string $hash): ?array {
+ $row=one('SELECT actor_id,request_hash,result_json FROM offline_shipment_requests WHERE request_key=?',[$key]);
+ if(!$row)return null;
+ if((int)$row['actor_id']!==$actor||!hash_equals($row['request_hash'],$hash))throw new RuntimeException('This offline request ID was already used for a different entry.',409);
+ return [...json_decode($row['result_json'],true,64,JSON_THROW_ON_ERROR),'replayed'=>true];
+}
+function offline_shipment_remember(string $key,int $actor,string $hash,array $result): void {
+ run('INSERT INTO offline_shipment_requests(request_key,actor_id,request_hash,result_json) VALUES(?,?,?,?)',[$key,$actor,$hash,json_encode($result,JSON_THROW_ON_ERROR)]);
+}
 
 function migrate_incoming_approvals(): void {
  if(one("SELECT value FROM meta WHERE key='incoming_approvals_version'"))return;

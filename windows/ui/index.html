@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>APG Desktop · Development</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="ui.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><div><span class="eyebrow">AZAD PAKISTAN GOODS</span><h1>Desktop sync</h1></div><span class="badge">Development preview</span></header>
+    <p class="notice">Development preview: incoming goods only. Offline access requires a recent online sign-in on this device. Not ready for business use.</p>
+    <section id="login"><h2>Sign in</h2><p>Sign in online first to enable offline access for up to 24 hours.</p>
+      <form id="login-form"><label>Username<input id="username" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" required></label><button type="submit" value="online">Sign in online</button><button type="submit" value="offline" class="secondary">Sign in offline</button></form>
+    </section>
+    <section id="workspace" hidden><div class="section-header"><div><h2>Sync queue</h2><p id="account"></p></div><div class="actions"><button id="sync">Sync now</button><button id="signout" class="secondary">Sign out</button></div></div>
+      <p>Pending entries stay on this computer until the server confirms them.</p>
+      <p id="sync-status" role="status"></p>
+      <form id="reconnect-form" hidden><p>Sign in online with the same account to sync your saved entries.</p><label>Username<input id="reconnect-username" autocomplete="username" required></label><label>Password<input id="reconnect-password" type="password" autocomplete="current-password" required></label><button type="submit">Reconnect and sync</button></form>
+      <div id="entries" aria-live="polite"></div>
+      <div id="delivery-search"><h2>Standard delivery · Preview</h2><p>Search the last downloaded snapshot. Availability will be checked during sync. Cash collection and service advances are not supported offline yet.</p><label>Search bilty, customer or party<input id="delivery-query" maxlength="100"></label><p id="delivery-snapshot-status"></p><div id="delivery-results"></div><form id="delivery-form"><label>Delivery date<input id="delivery-date" type="date" required></label><label>Receiver name<input id="delivery-receiver" maxlength="100" required></label><label>Receiver mobile<input id="delivery-mobile" maxlength="30"></label><label>Receiver CNIC<input id="delivery-cnic" maxlength="30"></label><label>Remarks<input id="delivery-remarks" maxlength="500"></label><p id="delivery-selected">No bilties selected.</p><button type="submit">Save delivery to this computer</button></form></div>
+      <div id="entry-detail" hidden><h3>Saved entry</h3><p id="entry-error"></p><pre id="entry-payload"></pre><div class="actions"><button id="edit-entry" type="button" hidden>Edit unsent entry</button><button id="retry-entry" type="button" hidden>Retry this entry</button><button id="close-entry" type="button" class="secondary">Close details</button></div></div>
+      <div id="incoming" hidden><h2>Queue incoming goods</h2><p>Add the bilties for this shipment, then save them together.</p>
+        <form id="incoming-form"><label>Date<input id="dated" type="date" required></label><label>Station<select id="station" required></select></label><label>Truck number<input id="truck" maxlength="30" required></label><label>Driver name<input name="driver" maxlength="100"></label><label>Driver mobile<input name="driver_mobile" maxlength="30"></label><label>Driver CNIC<input name="driver_cnic" maxlength="30"></label><label>Challan number<input name="challan" maxlength="40"></label><label>Truck delivery amount<input name="truck_amount" inputmode="decimal" value="0"></label><label>Labour bonus<input name="labour_bonus" inputmode="decimal" value="0"></label><label>Munshi bonus<input name="munshi_bonus" inputmode="decimal" value="0"></label><label>Shipment remarks<input name="remarks" maxlength="500"></label><div id="bilty-rows"></div><button id="add-bilty" type="button" class="secondary">Add another bilty</button><button id="save-incoming" type="submit">Save shipment to this computer</button><button id="cancel-edit" type="button" class="secondary" hidden>Cancel edit</button></form>
+      </div>
+    </section>
+    <p id="message" role="status"></p>
+  </main>
+  <template id="bilty-template"><fieldset class="bilty-row"><legend>Bilty</legend><label>Customer<select name="account_id" required></select></label><label class="new-customer" hidden>Temporary customer name<input name="new_customer_name" maxlength="100"></label><label>Bilty number<input name="bilty" maxlength="40" required></label><label>Quantity<input name="qty" type="number" min="1" max="999999" value="1" required></label><label>Goods type<input name="goods_type" maxlength="100"></label><label>Description<input name="detail" maxlength="250"></label><label>Party from<input name="party_from" maxlength="100"></label><label>Party to<input name="party_to" maxlength="100"></label><label>City<input name="city" maxlength="80"></label><label>Contact<input name="contact" maxlength="40"></label><label>Bilty remarks<input name="remarks" maxlength="250"></label><label>Bilty amount<input name="bilty_amount" inputmode="decimal" value="0"></label><label>Godown charges<input name="godown" inputmode="decimal" value="0"></label><label>Loading<input name="loading" inputmode="decimal" value="0"></label><label>Suzuki<input name="suzuki" inputmode="decimal" value="0"></label><label>Bilty advance<input name="advance" inputmode="decimal" value="0"></label><label>Loading / Suzuki advance<input name="service_advance" inputmode="decimal" value="0"></label><button type="button" class="secondary remove-bilty">Remove bilty</button></fieldset></template>
+</body>
+</html>

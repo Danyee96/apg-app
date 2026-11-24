@@ -488,7 +488,7 @@ function sidebarNavigation() {
     group('nav-incoming','Incoming goods','incoming',['incoming','pending-incoming'])+
     link('deliveries')+
     link('booking')+group('nav-customers','Customers','users',['customers','customer-goods-ledger','temporary-customers'])+
-    '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+group('nav-accounts-reports','Accounts & Reports','wallet',['accounts','reports','financial-reports'])+group('nav-settings','Settings','settings',['settings','backups','users','profile','archive'],group('nav-goods-settings','Goods Settings','box',['goods-analytics','goods-categories']));
+    '<div class="nav-label">FINANCE & WORKSPACE</div>'+group('nav-daily','Daily expense','wallet',['daily-expense','daily-wasooli','daily-labour-expense'])+group('nav-accounts-reports','Accounts & Reports','wallet',['accounts'],(can('ledger.view')?`<button class="nav-link" data-action="financial-report" data-report="cashbook">${icon('wallet')}<span>Cash Book</span></button>`:'')+(can('reports.view')?`<button class="nav-link" data-action="financial-report" data-report="profit">${icon('report')}<span>Profit and Loss</span></button>`:''))+group('nav-settings','Settings','settings',['settings','backups','users','profile','archive'],group('nav-goods-settings','Goods Settings','box',['goods-analytics','goods-categories']));
 }
 function mobileNavigation() {
   const links = [['overview','grid','Home'],['incoming','incoming','Incoming'],['deliveries','truck','Delivery'],['daily-wasooli','wallet','Wasooli']];
@@ -3078,6 +3078,7 @@ async function action(name, el) {
       await navigate("financial-reports");
       break;
     case "financial-report":
+      if (el.closest('.sidebar')) toggleMenu(false);
       openFinancialReport(el.dataset.report);
       break;
     case "ledger-all-history":

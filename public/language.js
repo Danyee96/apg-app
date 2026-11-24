@@ -23,6 +23,9 @@
   }
   function dynamic(value,index) {
     const patterns = [
+      [/^(\d+) selected$/, n => [`${n} منتخب`, `${n} select kiye gaye`]],
+      [/^(\d+) unpaid bilt(?:y|ies)(?: · Credit (.+))?$/, (n,credit) => [`${n} بقایا بلٹیاں${credit ? ' · اضافی جمع رقم '+credit : ''}`, `${n} baqaya biltiyan${credit ? ' · Jama raqam '+credit : ''}`]],
+      [/^(\d+[–-]\d+|0) of (\d+) records$/, (shown,total) => [`${total} میں سے ${shown} ریکارڈ`, `${total} mein se ${shown} records`]],
       [/^(\d+) bilt(?:y|ies) selected · Record the handover details\.$/, n => [`${n} بلٹیاں منتخب · حوالگی کی تفصیلات درج کریں۔`, `${n} biltyan muntakhib · hawalgi ki tafseelat darj karein.`]],
       [/^(\d+) (places & tasks|matches|tabs|controls|permissions|found)$/, (n,kind) => {
         const labels = {'places & tasks':['مینو اور کام','menu aur kaam'],matches:['نتائج','nataij'],tabs:['مینو','menu'],controls:['اختیارات','ikhtiyarat'],permissions:['اختیارات','ikhtiyarat'],found:['نتائج','nataij']};

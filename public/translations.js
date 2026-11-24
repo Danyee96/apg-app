@@ -1,5 +1,18 @@
 /* Curated interface terminology. Stored records are never translated. */
 window.APG_TRANSLATIONS = {
+  "Select this page": ["اس صفحے کے تمام گاہک منتخب کریں", "Is safhay ke tamam customers select karein"],
+  "Print selected": ["منتخب گاہک پرنٹ کریں", "Select kiye gaye customers print karein"],
+  "Clear selection": ["انتخاب ختم کریں", "Selection khatam karein"],
+  "Delivery balance includes unpaid bilty, godown, loading and Suzuki charges.": ["کل بقایا میں بلٹی، گودام، لوڈنگ اور سوزوکی کی غیر ادا شدہ رقم شامل ہے۔", "Kul baqaya mein bilty, godown, loading aur Suzuki ki ghair ada shuda raqam shamil hai."],
+  "Total remaining": ["کل بقایا رقم", "Kul baqaya raqam"],
+  "Bilty + godown balance": ["بلٹی اور گودام کا بقایا", "Bilty aur godown ka baqaya"],
+  "Loading balance": ["لوڈنگ کا بقایا", "Loading ka baqaya"],
+  "Suzuki balance": ["سوزوکی کا بقایا", "Suzuki ka baqaya"],
+  "Earlier service": ["پچھلی مشترکہ سروس کا بقایا", "Pichli mushtarka service ka baqaya"],
+  "Phone not recorded": ["فون نمبر درج نہیں", "Phone number darj nahin"],
+  "Area not recorded": ["علاقہ درج نہیں", "Ilaqa darj nahin"],
+  "Details": ["تفصیلات", "Tafseelat"],
+  "Print selected customers": ["منتخب گاہک پرنٹ کریں", "Select kiye gaye customers print karein"],
   "Truck rent = bilty and godown charges minus truck delivery, labour bonus, munshi bonus and bilty advance.": ["ٹرک کرایہ = بلٹی اور گودام کی رقم منہا ٹرک ڈیلیوری، لیبر بونس، منشی بونس اور بلٹی ایڈوانس۔", "Truck kiraya = bilty aur godown charges mein se truck delivery, labour bonus, munshi bonus aur bilty advance minus."],
   "Truck rent = bilty + godown less truck delivery, bonuses and bilty advance.": ["ٹرک کرایہ = بلٹی اور گودام کی رقم منہا ٹرک ڈیلیوری، بونس اور بلٹی ایڈوانس۔", "Truck kiraya = bilty aur godown se truck delivery, bonus aur bilty advance minus."],
   "English": [

@@ -34,6 +34,31 @@ def check(base,database,password):
  old_dates=(line['bilty_received_date'],line['loading_received_date'],line['suzuki_received_date'])
  def existing(doc,b='0',l='0',s='0'):
   line=doc['lines'][0];return {'id':doc['header']['id'],'version':doc['version'],'request_key':str(uuid.uuid4()),'dated':doc['header']['dated'],'received_date':'2026-11-08','receiver':doc['header']['receiver'],'mobile':doc['header']['mobile'],'cnic':doc['header']['cnic'],'remarks':doc['header']['remarks'],'cash_account_id':cash,'items':[{'id':line['delivery_item_id'],'discount':str(line['discount']/100),'loading':str(line['loading']/100),'suzuki':str(line['suzuki']/100),'bilty_received':b,'loading_received':l,'suzuki_received':s}]}
+ # An explicit zero corrects the prior bilty receipt without touching service cash.
+ original_customer=customer;customer=admin.call('save_customer',{'name':'Receipt correction customer','group_code':'116'})['id']
+ corrected_payload=payload(shipment('UNIFIED-CORRECT-ZERO'),'500','20','30');corrected_payload['items'][0].update({'loading':'20','suzuki':'30'})
+ corrected_id=admin.call('save_unified_delivery',corrected_payload,status=201)['id']
+ corrected_doc=admin.call('unified_delivery',params={'id':corrected_id});before=corrected_doc['lines'][0]
+ unsupported=existing(corrected_doc);unsupported['items'][0].update({'bilty_correction':True,'bilty_correction_previous':'500','bilty_correction_amount':'1500'})
+ admin.call('save_unified_delivery',unsupported,status=409)
+ assert admin.call('unified_delivery',params={'id':corrected_id})['lines'][0]['bilty_received']==50000
+ for old,new in [(500,300),(300,700),(700,500)]:
+  edit=existing(corrected_doc);edit['items'][0].update({'bilty_correction':True,'bilty_correction_previous':str(old),'bilty_correction_amount':str(new)})
+  admin.call('save_unified_delivery',edit,status=201);corrected_doc=admin.call('unified_delivery',params={'id':corrected_id})
+  assert corrected_doc['lines'][0]['bilty_received']==new*100 and corrected_doc['lines'][0]['last_bilty_received']==new*100
+  assert corrected_doc['lines'][0]['service_received']==5000
+ cash_before_correction=admin.call('ledger',params={'account_id':cash})['closing'];customer_before_correction=admin.call('ledger',params={'account_id':customer})['closing']
+ zero_correction=existing(corrected_doc);zero_correction['items'][0].update({'bilty_correction':True,'bilty_correction_previous':'500','bilty_correction_amount':'0'})
+ admin.call('save_unified_delivery',zero_correction,status=201)
+ assert admin.call('save_unified_delivery',zero_correction,status=201)['replayed']
+ corrected_doc=admin.call('unified_delivery',params={'id':corrected_id});corrected=corrected_doc['lines'][0]
+ assert corrected['bilty_received']==0 and corrected['bilty_balance']==120000
+ assert corrected['service_received']==before['service_received']==5000
+ assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_correction-50000
+ assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before_correction+50000
+ assert sum(item['bilty_received'] for receipt in corrected_doc['receipts'] for item in receipt['items'])==0
+ assert not corrected.get('last_bilty_received')
+ customer=original_customer
  # Reopening/saving zero increments leaves dates and cumulative payments untouched.
  admin.call('save_unified_delivery',existing(doc),status=201);again=admin.call('unified_delivery',params={'id':saved['id']});assert len(again['receipts'])==1 and again['lines'][0]['last_bilty_received']==50000
  assert tuple(again['lines'][0][key] for key in ['bilty_received_date','loading_received_date','suzuki_received_date'])==old_dates
@@ -60,6 +85,14 @@ def check(base,database,password):
  # Operator collections post immediately, retain category values and are visible to admin.
  operator_id=admin.call('save_user',{'username':'unified-ops','full_name':'Unified operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Unified-ops-2026'},status=201)['id']
  ops=Client();ops.call('login',{'username':'unified-ops','password':'Unified-ops-2026'})
+ # Corrections to a munshi receipt create a matching negative ledger adjustment.
+ original_customer=customer;customer=admin.call('save_customer',{'name':'Munshi correction customer','group_code':'116'})['id']
+ ops_payload=payload(shipment('OPS-CORRECT-ZERO'),'500','0','0');ops_delivery=ops.call('save_unified_delivery',ops_payload,status=201)
+ ops_doc=admin.call('unified_delivery',params={'id':ops_delivery['id']});ops_fix=existing(ops_doc);ops_fix['items'][0].update({'bilty_correction':True,'bilty_correction_previous':'500','bilty_correction_amount':'0'})
+ admin.call('save_unified_delivery',ops_fix,status=201)
+ dbcheck=sqlite3.connect(database);entries=dbcheck.execute('SELECT e.kind,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? ORDER BY e.id',(ops_delivery['id'],)).fetchall();dbcheck.close()
+ assert entries==[('collection',50000),('expense',50000)],entries
+ customer=original_customer
  # Service advance is frozen and collected once, even with no new cash entered.
  advance_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE','items':[{'account_id':customer,'bilty':'SERVICE-ADVANCE','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'120'}]},status=201)
  arrival=admin.call('shipment',params={'id':advance_shipment['id']});advance_item=arrival['items'][0];assert advance_item['service_advance']==12000

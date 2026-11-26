@@ -39,6 +39,18 @@ def check(base,database,password):
  period=ops.call('daily_expense');clear={'request_key':str(uuid.uuid4()),'period_id':period['period']['id'],'version':period['version']};admin.call('clear_operator_receivable',clear,status=201)
  stale_period={**pay2,'request_key':str(uuid.uuid4()),'amount':'10','balance_version':after['balance_version']};ops.call('wasooli_collect',stale_period,status=409);assert ops.call('daily_expense')['totals']['received']==0
  closed=admin.call('daily_expense',params={'operator_id':munshi,'period_id':period['period']['id']});assert closed['totals']['received']==65000 and closed['period']['settlement_amount']==65000
+ # A Wasooli payment split across deliveries can be corrected on one bilty.
+ customer=admin.call('save_customer',{'name':'Wasooli correction customer','group_code':'116','area':'Test Market','mobile':'03001234567'})['id']
+ correction_old=delivery('WAS-CORRECT-OLD',500);correction_new=delivery('WAS-CORRECT-NEW',300)
+ details=ops.call('wasooli_customer',params={'account_id':customer});payment={'request_key':str(uuid.uuid4()),'account_id':customer,'operator_id':munshi,'period_token':details['operators'][0]['period_token'],'balance_version':details['balance_version'],'amount':'650','dated':today,'cash_account_id':cash}
+ collected=ops.call('wasooli_collect',payment,status=201);doc=admin.call('unified_delivery',params={'id':correction_old});line=doc['lines'][0]
+ change={'id':correction_old,'version':doc['version'],'request_key':str(uuid.uuid4()),'dated':doc['header']['dated'],'received_date':today,'receiver':doc['header']['receiver'],'mobile':doc['header']['mobile'],'cnic':doc['header']['cnic'],'remarks':doc['header']['remarks'],'cash_account_id':cash,'items':[{'id':line['delivery_item_id'],'discount':'0','loading':'0','suzuki':'0','bilty_received':'0','bilty_correction':True,'bilty_correction_previous':'500','bilty_correction_amount':'300'}]}
+ admin.call('save_unified_delivery',change,status=201)
+ details=ops.call('wasooli_customer',params={'account_id':customer});assert details['summary']['outstanding']==35000
+ assert sum(x['amount'] for x in details['history'])==45000
+ ledger=ops.call('daily_expense');assert ledger['totals']['balance']==45000
+ entry=ops.call('daily_expense_entry',params={'id':collected['operator_entry_id']});assert sum(x['amount'] for x in entry['allocations'])==45000
+ assert admin.call('unified_delivery',params={'id':correction_new})['lines'][0]['bilty_received']==15000
  db=sqlite3.connect(database);assert not db.execute('SELECT voucher_id FROM voucher_lines GROUP BY voucher_id HAVING SUM(debit)<>SUM(credit)').fetchall();assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok' and not db.execute('PRAGMA foreign_key_check').fetchall();db.close()
  print('PASS: wasooli route filters, oldest-first payments, one custody entry, history, credit, permissions and idempotent rollback')
 if __name__=='__main__':main(check)

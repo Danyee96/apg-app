@@ -177,7 +177,7 @@ function unified_document(int $id): array {
  $invoice['delivery_expenses']=query('SELECT e.id,e.amount,e.notes,e.dated,e.actor_name,u.full_name operator_name,u.username FROM delivery_expenses x JOIN operator_cash_entries e ON e.id=x.operator_entry_id JOIN users u ON u.id=e.operator_id WHERE x.delivery_id=? ORDER BY e.id DESC',[$id]);
  $current=current_user();$invoice['expense_operators']=$current['role']==='super_admin'?query("SELECT id,username,full_name FROM users WHERE role='operations' AND active=1 ORDER BY full_name,username"):[];
  $invoice['expense_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND id LIKE '5-%' ORDER BY name,id");
- $last=array_column(query('SELECT x.* FROM delivery_last_bilty_receipts x JOIN delivery_items di ON di.id=x.delivery_item_id WHERE di.delivery_id=? AND NOT EXISTS(SELECT 1 FROM delivery_cash_receipt_lines newer WHERE newer.delivery_item_id=x.delivery_item_id AND newer.receipt_id>x.receipt_floor AND newer.bilty_received>0)',[$id]),null,'delivery_item_id');foreach($invoice['lines'] as &$line){$saved=$last[$line['delivery_item_id']]??null;if($saved){$line['last_bilty_received']=(int)$saved['amount'];$line['last_bilty_received_date']=$saved['dated'];}}unset($line);
+ $last=array_column(query('SELECT x.* FROM delivery_last_bilty_receipts x JOIN delivery_items di ON di.id=x.delivery_item_id WHERE di.delivery_id=? AND NOT EXISTS(SELECT 1 FROM delivery_cash_receipt_lines newer WHERE newer.delivery_item_id=x.delivery_item_id AND newer.receipt_id>x.receipt_floor AND newer.bilty_received<>0)',[$id]),null,'delivery_item_id');foreach($invoice['lines'] as &$line){$saved=$last[$line['delivery_item_id']]??null;if($saved){$line['last_bilty_received']=(int)$saved['amount'];$line['last_bilty_received_date']=$saved['dated'];}}unset($line);
  $invoice['cash_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id");
  foreach($invoice['receipts'] as &$receipt)$receipt['items']=query('SELECT * FROM delivery_cash_receipt_lines WHERE receipt_id=? ORDER BY delivery_item_id',[$receipt['id']]);unset($receipt);
  $invoice['previous_collections']=query('SELECT r.*,d.reference target_reference,c.amount amount,a.name cash_account FROM delivery_customer_collections c JOIN delivery_cash_receipts r ON r.id=c.receipt_id JOIN deliveries d ON d.id=r.delivery_id LEFT JOIN accounts a ON a.id=r.cash_account_id WHERE c.source_delivery_id=? ORDER BY r.dated,r.id',[$id]);foreach($invoice['previous_collections'] as &$receipt)$receipt['items']=query('SELECT r.*,b.bilty FROM delivery_cash_receipt_lines r JOIN delivery_cash_lines b ON b.delivery_item_id=r.delivery_item_id WHERE r.receipt_id=? ORDER BY r.delivery_item_id',[$receipt['id']]);unset($receipt);
@@ -261,6 +261,36 @@ function unified_refund_service_advance(array $invoice,array $user,array $p,stri
  }
  return $result;
 }
+// Receipt corrections are compensating transactions; the original remains in history.
+function unified_correct_bilty_receipt(array $invoice,array $row,array $user,string $requestKey,string $dated): void {
+ if(!can_access($user,'deliveries.edit')||($user['role']!=='super_admin'&&!can_submit_delivery_cash($user)))throw new RuntimeException('Delivery edit and cash receiving access are required.',403);
+ $id=(int)$row['id'];$line=array_column($invoice['lines'],null,'delivery_item_id')[$id]??null;
+ if(!$line||(int)$line['advance']>0)throw new InvalidArgumentException('This receipt cannot be corrected here.');
+ run('CREATE TABLE IF NOT EXISTS delivery_bilty_corrections(receipt_id INTEGER PRIMARY KEY REFERENCES delivery_cash_receipts(id),delivery_item_id INTEGER NOT NULL REFERENCES delivery_items(id),source_receipt_id INTEGER NOT NULL REFERENCES delivery_cash_receipts(id),corrected_amount INTEGER NOT NULL)');
+ $last=one('SELECT r.*,l.bilty_received FROM delivery_cash_receipts r JOIN delivery_cash_receipt_lines l ON l.receipt_id=r.id WHERE l.delivery_item_id=? AND l.bilty_received<>0 ORDER BY r.id DESC LIMIT 1',[$id]);
+ $snapshot=one('SELECT * FROM delivery_last_bilty_receipts WHERE delivery_item_id=?',[$id]);if($snapshot&&$last&&(int)$last['id']>(int)$snapshot['receipt_floor'])$snapshot=null;
+ $expected=money($row,'bilty_correction_previous');$replacement=money($row,'bilty_correction_amount');
+ $correction=$last?one('SELECT * FROM delivery_bilty_corrections WHERE receipt_id=? AND delivery_item_id=?',[$last['id'],$id]):null;
+ $source=$correction?one('SELECT * FROM delivery_cash_receipts WHERE id=?',[$correction['source_receipt_id']]):$last;
+ $current=$correction?(int)$correction['corrected_amount']:(int)($last['bilty_received']??0);
+ if(!$source||$current!==$expected||($snapshot&&(int)$snapshot['amount']!==$expected)||!$source['cash_account_id']||!$source['voucher_id'])throw new RuntimeException('This receipt cannot be automatically corrected because its allocation or original cash account needs review.',409);
+ $wasooli=one('SELECT w.* FROM wasooli_receipts r JOIN wasooli_collections w ON w.id=r.collection_id WHERE r.receipt_id=?',[$source['id']]);
+ if($replacement>max(0,(int)$line['bilty_due']-((int)$line['bilty_received']-$expected)))throw new RuntimeException('A correction that pays other bilties needs separate reconciliation.',409);
+ if($dated<$invoice['header']['dated']||$dated<$last['dated']||$dated>date('Y-m-d'))throw new InvalidArgumentException('Choose a correction date on or after the receipt date.');
+ $delta=$replacement-$expected;if(!$delta)return;
+ $cash=$source['cash_account_id'];$memo='Bilty receipt correction · '.$invoice['header']['reference'].' · '.$line['bilty'];
+ $voucher=delivery_system_voucher($delta<0?'PV':'RV',$dated,$memo,[unified_entry($cash,$delta),unified_entry($line['account_id'],-$delta)]);
+ $key='bilty-correction-'.hash('sha256',$requestKey.'-'.$id);
+ run('INSERT INTO delivery_cash_receipts(delivery_id,request_key,dated,cash_account_id,notes,created_by,voucher_id,request_hash) VALUES(?,?,?,?,?,?,?,?)',[$invoice['header']['id'],$key,$dated,$cash,$memo,$user['username'],$voucher,hash('sha256',$key)]);$receipt=(int)db()->lastInsertId();
+ run('INSERT INTO delivery_cash_receipt_lines(receipt_id,delivery_item_id,bilty_received,service_received,bilty_received_date) VALUES(?,?,?,0,?)',[$receipt,$id,$delta,$dated]);
+ run('UPDATE delivery_items SET bilty_received=bilty_received+? WHERE id=?',[$delta,$id]);
+ run('INSERT INTO delivery_bilty_corrections(receipt_id,delivery_item_id,source_receipt_id,corrected_amount) VALUES(?,?,?,?)',[$receipt,$id,$source['id'],$replacement]);
+ if($wasooli)run('INSERT INTO wasooli_receipts(collection_id,receipt_id) VALUES(?,?)',[$wasooli['id'],$receipt]);
+ if($replacement)run('INSERT INTO delivery_last_bilty_receipts(delivery_item_id,amount,dated,receipt_floor) VALUES(?,?,?,?) ON CONFLICT(delivery_item_id) DO UPDATE SET amount=excluded.amount,dated=excluded.dated,receipt_floor=excluded.receipt_floor,recorded_at=CURRENT_TIMESTAMP',[$id,$replacement,$dated,$receipt]);else run('DELETE FROM delivery_last_bilty_receipts WHERE delivery_item_id=?',[$id]);
+ $owner=$wasooli&&!empty($wasooli['operator_entry_id'])?one('SELECT * FROM operator_cash_entries WHERE id=?',[$wasooli['operator_entry_id']]):one("SELECT * FROM operator_cash_entries WHERE receipt_id=? AND kind='collection'",[$source['id']]);
+ if($owner){$period=operator_cash_open((int)$owner['operator_id'],true);$kind=$delta<0?'expense':'collection';run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,receipt_id,voucher_id,actor_id,actor_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",[$period['id'],$owner['operator_id'],$kind,$dated,abs($delta),$memo,'Correction of receipt '.$source['id'],$cash,$receipt,$voucher,$user['id'],$user['username']]);}
+ audit('corrected bilty receipt','delivery',$invoice['header']['id']);
+}
 function unified_save(array $p,array $user): array {
  $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid cash receipt request key.');$hash=shipment_version($p);
  return transaction(function()use($p,$user,$key,$hash){$existing=one('SELECT * FROM delivery_unified_requests WHERE request_key=?',[$key]);if($existing){if((int)$existing['actor_id']!==(int)$user['id']||!hash_equals($existing['request_hash'],$hash))throw new RuntimeException('This cash request key was already used for different values.',409);return [...json_decode($existing['result_json'],true,64,JSON_THROW_ON_ERROR),'replayed'=>true];}
@@ -272,6 +302,7 @@ function unified_save(array $p,array $user): array {
   if(!$id){require_permission($user,'deliveries.create');$handover=$p;unset($handover['walkin_cash']);$handover['delivery_mode']='standard';$handover['items']=array_map(function($row){$row['bilty_received']='0';$row['service_received']='0';return $row;},$input);$result=create_delivery_entry($handover,$user,true);$id=(int)$result['id'];run('UPDATE deliveries SET classification_auto=1 WHERE id=?',[$id]);run('UPDATE delivery_cash_invoices SET accounting_model=2 WHERE delivery_id=?',[$id]);}
   else{unified_adopt($id);$beforeLines=array_column(delivery_cash_invoice($id)['lines'],null,'delivery_item_id');$refundEligible=[];foreach($input as $row){$old=$beforeLines[(int)($row['id']??0)]??null;if($old&&(money($row,'loading')<(int)$old['loading']||money($row,'suzuki')<(int)$old['suzuki']))$refundEligible[(int)$row['id']]=true;}unified_edit($id,$p,$user);}
   if($initial)unified_assess($id);
+  if(!$initial){$current=delivery_cash_invoice($id);foreach($input as $row)if(!empty($row['bilty_correction'])){if(money($row,'bilty_received')!==0)throw new InvalidArgumentException('Invalid receipt correction.');unified_correct_bilty_receipt($current,$row,$user,$key,!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d'));$current=delivery_cash_invoice($id);}}
   $invoice=delivery_cash_invoice($id);$map=$initial?array_column(query('SELECT item_id,id FROM delivery_items WHERE delivery_id=?',[$id]),'id','item_id'):[];$cashItems=[];$total=0;$cashLines=array_column($invoice['lines'],null,'delivery_item_id');
   foreach($input as $row){$lineId=$initial?($map[(int)$row['id']]??0):(int)$row['id'];$item=['id'=>$lineId];
    if(array_key_exists('service_received',$row)){

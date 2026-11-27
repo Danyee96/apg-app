@@ -44,6 +44,18 @@ def check(base,database,password):
  empty=admin.call('daily_labour_expense',params={'dated':'2035-01-03'});assert empty['total']==0 and not empty['incoming'] and not empty['deliveries']
  admin.call('save_shipment',{'kind':'incoming','dated':today,'station_id':station,'truck':'CLEAR-LABOUR','labour_bonus':'500','items':[{'account_id':customer,'bilty':'CLEAR-LABOUR','qty':1,'bilty_amount':'1'}]},status=201)
  summary=admin.call('labour_clearance_summary');assert summary['outstanding']>0
+ assert summary['before_today']>0
+ reset_request={'request_key':str(uuid.uuid4()),'version':summary['version']}
+ ops.call('save_labour_payable_reset',reset_request,status=403)
+ reset=admin.call('save_labour_payable_reset',reset_request,status=201);assert reset['prior_outstanding']==summary['before_today'] and reset['effective_from']==today
+ assert admin.call('save_labour_payable_reset',reset_request,status=201)['replayed']
+ after_reset=admin.call('labour_clearance_summary')
+ db=sqlite3.connect(database);paid_today=db.execute('SELECT COALESCE(SUM(amount),0) FROM labour_clearances WHERE dated=?',(today,)).fetchone()[0];assert db.execute('SELECT COUNT(*) FROM labour_payable_resets WHERE id=?',(reset['id'],)).fetchone()[0]==1;db.close()
+ assert after_reset['outstanding']==admin.call('daily_labour_expense',params={'dated':today})['total']-paid_today
+ assert after_reset['reset']['prior_outstanding']==summary['before_today'] and len(after_reset['history'])==len(summary['history'])
+ admin.call('save_labour_payable_reset',{'request_key':str(uuid.uuid4()),'version':after_reset['version']},status=409)
+ admin.call('save_shipment',{'kind':'incoming','dated':today,'station_id':station,'truck':'CLEAR-LABOUR','labour_bonus':'500','items':[{'account_id':customer,'bilty':'CLEAR-LABOUR-EXTRA','qty':200,'bilty_amount':'1'}]},status=201)
+ summary=admin.call('labour_clearance_summary');assert summary['outstanding']>0
  request={'request_key':str(uuid.uuid4()),'version':summary['version'],'cash_account_id':cash}
  ops.call('save_labour_clearance',request,status=403)
  paid=admin.call('save_labour_clearance',request,status=201);assert paid['amount']==summary['outstanding']
@@ -51,5 +63,5 @@ def check(base,database,password):
  after_clear=admin.call('labour_clearance_summary');assert after_clear['outstanding']==0 and len(after_clear['history'])==1
  db=sqlite3.connect(database);assert db.execute('SELECT COUNT(*) FROM labour_clearances c JOIN vouchers v ON v.id=c.voucher_id WHERE c.id=?',(paid['id'],)).fetchone()[0]==1;db.close()
  admin.call('save_labour_clearance',{'request_key':str(uuid.uuid4()),'version':summary['version'],'cash_account_id':cash},status=409)
- print('PASS: daily loading, half Suzuki, labour bonus, SHAH G quantity, role access and pending exclusion.')
+ print('PASS: daily loading, half Suzuki, labour bonus, SHAH G quantity, audited opening reset, role access and pending exclusion.')
 if __name__=='__main__':main(check)

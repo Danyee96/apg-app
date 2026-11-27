@@ -49,20 +49,48 @@ function migrate_labour_advances(): void {
  migrate_labour_clearances();
 }
 function migrate_labour_clearances(): void {
- if(one("SELECT value FROM meta WHERE key='labour_clearances_version'"))return;
- transaction(function(){
+ if(!one("SELECT value FROM meta WHERE key='labour_clearances_version'"))transaction(function(){
   run('CREATE TABLE IF NOT EXISTS labour_clearances(id INTEGER PRIMARY KEY AUTOINCREMENT,request_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,actor_id INTEGER NOT NULL REFERENCES users(id),dated TEXT NOT NULL,amount INTEGER NOT NULL CHECK(amount>0),cash_account_id TEXT NOT NULL REFERENCES accounts(id),voucher_id INTEGER NOT NULL UNIQUE REFERENCES vouchers(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
   run("INSERT OR IGNORE INTO accounts(id,name,group_code,group_name,customer) VALUES('5-501-LAB','Labour expense','501','EXPENSE OFFICE',0)");
   run("INSERT OR IGNORE INTO meta(key,value) VALUES('labour_clearances_version','1')");
  });
+ migrate_labour_payable_resets();
+}
+function migrate_labour_payable_resets(): void {
+ if(one("SELECT value FROM meta WHERE key='labour_payable_resets_version'"))return;
+ transaction(function(){
+  run('CREATE TABLE IF NOT EXISTS labour_payable_resets(id INTEGER PRIMARY KEY AUTOINCREMENT,request_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,actor_id INTEGER NOT NULL REFERENCES users(id),effective_from TEXT NOT NULL,prior_outstanding INTEGER NOT NULL CHECK(prior_outstanding>0),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+  run("CREATE TRIGGER IF NOT EXISTS labour_payable_resets_immutable_update BEFORE UPDATE ON labour_payable_resets BEGIN SELECT RAISE(ABORT,'Labour payable resets cannot be edited.'); END");
+  run("CREATE TRIGGER IF NOT EXISTS labour_payable_resets_immutable_delete BEFORE DELETE ON labour_payable_resets BEGIN SELECT RAISE(ABORT,'Labour payable resets cannot be deleted.'); END");
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('labour_payable_resets_version','1')");
+ });
+}
+function labour_payable_earned(?string $from,string $through): int {
+ $range=$from===null?'dated<=?':'dated>=? AND dated<=?';$args=$from===null?[$through,$through,$through]:[$from,$through,$from,$through,$from,$through];
+ $dates=query("SELECT dated FROM shipments WHERE kind='incoming' AND $range UNION SELECT dated FROM deliveries WHERE $range UNION SELECT e.dated FROM labour_advances l JOIN operator_cash_entries e ON e.id=l.entry_id WHERE $range",$args);
+ $earned=0;foreach($dates as $row)$earned+=daily_labour_expense(['dated'=>$row['dated']])['total'];return $earned;
+}
+function labour_payable_paid(?string $from,string $through): int {
+ $range=$from===null?'dated<=?':'dated>=? AND dated<=?';$args=$from===null?[$through]:[$from,$through];
+ return (int)(one('SELECT COALESCE(SUM(amount),0) amount FROM labour_clearances WHERE '.$range,$args)['amount']??0);
 }
 function labour_clearance_summary(): array {
- $today=date('Y-m-d');
- $dates=query("SELECT dated FROM shipments WHERE kind='incoming' AND dated<=? UNION SELECT dated FROM deliveries WHERE dated<=? UNION SELECT e.dated FROM labour_advances l JOIN operator_cash_entries e ON e.id=l.entry_id WHERE e.dated<=?",[$today,$today,$today]);
- $earned=0;foreach($dates as $row)$earned+=daily_labour_expense(['dated'=>$row['dated']])['total'];
- $paid=(int)(one('SELECT COALESCE(SUM(amount),0) amount FROM labour_clearances')['amount']??0);
+ $today=date('Y-m-d');$reset=one('SELECT r.*,u.full_name,u.username FROM labour_payable_resets r JOIN users u ON u.id=r.actor_id ORDER BY r.id DESC LIMIT 1');$from=$reset['effective_from']??null;
+ $earned=labour_payable_earned($from,$today);$paid=labour_payable_paid($from,$today);
+ $yesterday=(new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');$beforeToday=$reset?null:labour_payable_earned(null,$yesterday)-labour_payable_paid(null,$yesterday);
+ $todayTotal=daily_labour_expense(['dated'=>$today])['total'];
  $history=query('SELECT c.*,a.name cash_account,u.full_name,u.username,v.reference voucher_reference FROM labour_clearances c JOIN accounts a ON a.id=c.cash_account_id JOIN users u ON u.id=c.actor_id JOIN vouchers v ON v.id=c.voucher_id ORDER BY c.id DESC');
- return ['outstanding'=>$earned-$paid,'version'=>hash('sha256',$earned.':'.$paid.':'.count($history)),'history'=>$history,'cash_accounts'=>query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id")];
+ return ['outstanding'=>$earned-$paid,'before_today'=>$beforeToday,'today_total'=>$todayTotal,'reset'=>$reset,'version'=>hash('sha256',json_encode([$earned,$paid,count($history),$reset['id']??null,$beforeToday,$todayTotal])),'history'=>$history,'cash_accounts'=>query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id")];
+}
+function labour_payable_reset_save(array $p,array $user): array {
+ $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid reset request key.');$hash=shipment_version($p);
+ return transaction(function()use($p,$user,$key,$hash){
+  $prior=one('SELECT * FROM labour_payable_resets WHERE request_key=?',[$key]);if($prior){if((int)$prior['actor_id']!==(int)$user['id']||!hash_equals($prior['request_hash'],$hash))throw new RuntimeException('This reset request was already used.',409);return ['id'=>$prior['id'],'effective_from'=>$prior['effective_from'],'prior_outstanding'=>(int)$prior['prior_outstanding'],'replayed'=>true];}
+  $summary=labour_clearance_summary();if(!hash_equals($summary['version'],(string)($p['version']??'')))throw new RuntimeException('Labour balance changed. Refresh and try again.',409);
+  if($summary['reset'])throw new RuntimeException('The labour payable starting balance has already been reset.',409);
+  $amount=(int)$summary['before_today'];if($amount<=0)throw new InvalidArgumentException('There is no previous labour payable to reset.');
+  $dated=date('Y-m-d');run('INSERT INTO labour_payable_resets(request_key,request_hash,actor_id,effective_from,prior_outstanding) VALUES(?,?,?,?,?)',[$key,$hash,$user['id'],$dated,$amount]);$id=(int)db()->lastInsertId();audit('reset labour payable starting balance','labour_payable_reset',$id);return ['id'=>$id,'effective_from'=>$dated,'prior_outstanding'=>$amount];
+ });
 }
 function labour_clearance_save(array $p,array $user): array {
  $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid clearance request key.');$hash=shipment_version($p);
@@ -224,12 +252,13 @@ function daily_labour_expense(array $p): array {
  return ['dated'=>$date,'loading'=>$loading,'suzuki'=>$suzuki,'half_suzuki'=>$half,'labour_bonus'=>$bonus,'quantity'=>$quantity,'shah_g'=>$shahG,'gross'=>$gross,'advances_total'=>$advancesTotal,'total'=>$gross-$advancesTotal,'deliveries'=>$deliveries,'incoming'=>$incoming,'advances'=>$advances];
 }
 function operator_cash_routes(string $action,string $method,array $p,array $user): void {
- if(in_array($action,['admin_expenses','save_admin_expense','labour_clearance_summary','save_labour_clearance'],true)){
+ if(in_array($action,['admin_expenses','save_admin_expense','labour_clearance_summary','save_labour_clearance','save_labour_payable_reset'],true)){
   if($user['role']!=='super_admin')fail('Only the super admin can manage admin expenses.',403);
   if($action==='admin_expenses'&&$method==='GET')response(admin_expenses_list($_GET));
   if($action==='save_admin_expense'&&$method==='POST')response(admin_expense_save($p,$user),201);
   if($action==='labour_clearance_summary'&&$method==='GET')response(labour_clearance_summary());
   if($action==='save_labour_clearance'&&$method==='POST')response(labour_clearance_save($p,$user),201);
+  if($action==='save_labour_payable_reset'&&$method==='POST')response(labour_payable_reset_save($p,$user),201);
   fail('Method not allowed.',405);
  }
  if(!in_array($action,['daily_expense','daily_labour_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;

@@ -4095,6 +4095,21 @@ document.addEventListener("input", (e) => {
   if (e.target.id === "command-search") renderCommands(e.target.value);
 });
 document.addEventListener("keydown", (e) => {
+  const shortcut=e.key.toLowerCase();
+  if(e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&session?.user&&["h","i","d","e","b","c"].includes(shortcut)){
+    e.preventDefault();
+    if(e.repeat||e.isComposing)return;
+    if(shortcut==="c"){
+      if(!can("ledger.view")){toast("Your account does not have access to this screen.");return;}
+      if(currentForm&&!confirm(APG.t("Leave this entry? Unsaved changes will be lost.")))return;
+      currentForm=null;
+      openFinancialReport("cashbook");
+      return;
+    }
+    const views={h:"navigation",i:"incoming",d:"deliveries",e:"daily-expense",b:"booking"};
+    void navigate(views[shortcut]);
+    return;
+  }
   if (
     (e.metaKey || e.ctrlKey) &&
     e.key.toLowerCase() === "k" &&

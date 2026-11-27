@@ -51,7 +51,7 @@ After deployment, open the domain and sign in with the existing login. A 403 at 
 
 ## Workspace upgrade — November 2026
 
-The redesigned interface includes a daily dashboard with actual seven-day goods movement, a station delivery queue, task and customer-ledger search (`Ctrl+K` or `Command+K`), responsive navigation, improved entry forms and login, and safeguards for unsaved dialog changes. Dashboard dates now default to today in Asia/Karachi. Large lists keep their own horizontal scrolling on mobile.
+The redesigned interface includes a daily dashboard with actual seven-day goods movement, a station delivery queue, task and customer-ledger search (`Ctrl+K` or `Command+K`), responsive navigation, improved entry forms and login, and safeguards for unsaved dialog changes. Global `Alt+H`, `Alt+I`, `Alt+D`, `Alt+E`, `Alt+B`, and `Alt+C` shortcuts open Home, Incoming goods, Delivery goods, Daily expense, Bookings, and the Cash Book account picker. Dashboard dates now default to today in Asia/Karachi. Large lists keep their own horizontal scrolling on mobile.
 
 Financial Reports now includes calculated Trial Balance and Customer Balances, Day Book accounting lines, original/new Journal lines, and new-app Voucher lines. These support dates, search, pagination, account-ledger drill-down, current-page printing and CSV export. Totals cover all matching results. Historical balances still require reconciliation; undated and unassigned legacy entries cannot form complete dated account balances. The remaining five dedicated reports are marked awaiting implementation.
 

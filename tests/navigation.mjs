@@ -4,6 +4,10 @@ const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{
 try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(process.env.APG_TEST_URL);await page.locator('#f-username').fill('integration-review');await page.locator('#f-password').fill(process.env.APG_TEST_PASSWORD);await page.locator('#auth-form [type="submit"]').click();await page.locator('.nav-link[data-view="navigation"]').waitFor();
+ await page.locator('#global-search input').focus();await page.keyboard.press('Alt+h');await page.waitForFunction(()=>state.view==='navigation');
+ for(const [key,view] of [['i','incoming'],['d','deliveries'],['e','daily-expense'],['b','booking']]){await page.keyboard.press(`Alt+${key}`);await page.waitForFunction(view=>state.view===view,view);}
+ await page.keyboard.press('Alt+c');await page.locator('#modal').waitFor({state:'visible'});assert.match(await page.locator('#modal').innerText(),/Cash Book/);await page.keyboard.press('Escape');await page.locator('#modal').waitFor({state:'hidden'});
+ await page.keyboard.press('Alt+h');await page.waitForFunction(()=>state.view==='navigation');
  assert.equal(await page.locator('[data-view="dashboard"]').count(),0);
  const views=await page.locator('#navigation [data-view]').evaluateAll(rows=>rows.map(row=>row.dataset.view));
  // Brand and the persistent home link intentionally both go home; each actual menu entry appears once.
@@ -26,5 +30,5 @@ try {
  const ops=await browser.newPage();await ops.goto(process.env.APG_TEST_URL);await ops.locator('#f-username').fill('nav-operator');await ops.locator('#f-password').fill('Nav-operator-test-2026');await ops.locator('#auth-form [type="submit"]').click();await ops.locator('.nav-link[data-view="navigation"]').waitFor();
  assert.equal(await ops.locator('#nav-delivery [data-view="delivery-cash"]').count(),1);assert.equal(await ops.locator('#nav-delivery [data-view="pending-deliveries"]').count(),0);
  await ops.evaluate(()=>{session.profile.role='custom';session.permissions=[];shell();});assert.equal(await ops.locator('.nav-group').count(),0);
- assert.deepEqual(errors,[]);console.log('PASS: no Dashboard or duplicate menu entries; incoming/delivery dropdowns; keyboard toggle; active group opens; mobile Urdu RTL navigation; operator cash entry available with delivery permission; empty groups omitted.');
+ assert.deepEqual(errors,[]);console.log('PASS: Alt+H/I/D/E/B/C navigation; no Dashboard or duplicate menu entries; incoming/delivery dropdowns; keyboard toggle; active group opens; mobile Urdu RTL navigation; operator cash entry available with delivery permission; empty groups omitted.');
 }finally{await browser.close();}

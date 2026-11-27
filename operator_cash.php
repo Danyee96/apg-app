@@ -121,7 +121,8 @@ function operator_cash_open(int $operator,bool $create=false): ?array {
 }
 function operator_cash_totals(?array $period): array {
  if(!$period)return ['received'=>0,'expenses'=>0,'balance'=>0,'count'=>0,'last_id'=>0];
- $totals=one("SELECT COALESCE(SUM(CASE WHEN kind='collection' THEN amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN kind='expense' THEN amount ELSE 0 END),0) expenses,COUNT(*) count,COALESCE(MAX(id),0) last_id FROM operator_cash_entries WHERE period_id=?",[$period['id']]);
+ $amount=operator_cash_effective_amount_sql('e');
+ $totals=one("SELECT COALESCE(SUM(CASE WHEN e.kind='collection' THEN $amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN e.kind='expense' THEN $amount ELSE 0 END),0) expenses,COUNT(*) count,COALESCE(MAX(e.id),0) last_id FROM operator_cash_entries e WHERE e.period_id=?",[$period['id']]);
  $totals['balance']=(int)$totals['received']-(int)$totals['expenses'];return $totals;
 }
 function operator_cash_token(int $operator): string {
@@ -129,6 +130,15 @@ function operator_cash_token(int $operator): string {
  return 'new:'.(one('SELECT MAX(id) n FROM operator_cash_periods WHERE operator_id=? AND closed_at IS NOT NULL',[$operator])['n']??0);
 }
 function operator_cash_version(array $period): string {return shipment_version([$period,operator_cash_totals($period)]);}
+function operator_cash_prepaid_service_sql(string $entryAlias='e'): string {
+ return "(SELECT COALESCE(SUM(MIN(rl.service_received,b.service_advance)),0) FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=$entryAlias.receipt_id AND rl.service_received>0 AND rl.receipt_id=(SELECT MIN(first_rl.receipt_id) FROM delivery_cash_receipt_lines first_rl WHERE first_rl.delivery_item_id=rl.delivery_item_id AND (first_rl.bilty_received<>0 OR first_rl.service_received<>0)))";
+}
+function operator_cash_effective_amount_sql(string $entryAlias='e'): string {
+ return "($entryAlias.amount-CASE WHEN $entryAlias.kind='collection' THEN ".operator_cash_prepaid_service_sql($entryAlias)." ELSE 0 END)";
+}
+function operator_cash_prepaid_service_amount(int $receipt): int {
+ return (int)(one("SELECT COALESCE(SUM(MIN(rl.service_received,b.service_advance)),0) amount FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=? AND rl.service_received>0 AND rl.receipt_id=(SELECT MIN(first_rl.receipt_id) FROM delivery_cash_receipt_lines first_rl WHERE first_rl.delivery_item_id=rl.delivery_item_id AND (first_rl.bilty_received<>0 OR first_rl.service_received<>0))",[$receipt])['amount']??0);
+}
 // Called inside the existing delivery receipt transaction; never repost its cash.
 function operator_cash_record_receipt(int $receipt,array $actor): void {
  $enabled=one("SELECT value FROM meta WHERE key='operator_cash_receipt_floor'");if(!$enabled||$receipt<=(int)$enabled['value'])return;
@@ -136,6 +146,7 @@ function operator_cash_record_receipt(int $receipt,array $actor): void {
  $operator=isset($actor['id'])?one('SELECT * FROM users WHERE id=?',[(int)$actor['id']]):one('SELECT * FROM users WHERE username=?',[$actor['username']??'']);
  if(!$operator||$operator['role']!=='operations')return;
  $r=one('SELECT r.*,d.reference,COALESCE(SUM(l.bilty_received+l.service_received),0) amount FROM delivery_cash_receipts r JOIN deliveries d ON d.id=r.delivery_id LEFT JOIN delivery_cash_receipt_lines l ON l.receipt_id=r.id WHERE r.id=? GROUP BY r.id',[$receipt]);
+ if($r)$r['amount']=(int)$r['amount']-operator_cash_prepaid_service_amount($receipt);
  if(!$r||(int)$r['amount']<=0)return;$period=operator_cash_open((int)$operator['id'],true);
  run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,receipt_id,actor_id,actor_name) VALUES(?,?,'collection',?,?,?,?,?,?,?,?)",[$period['id'],$operator['id'],$r['dated'],$r['amount'],'Delivery '.$r['reference'],$r['notes'],$r['cash_account_id'],$receipt,$operator['id'],$r['created_by']]);
  audit('automatic delivery collection','operator_cash',$receipt);
@@ -204,7 +215,7 @@ function operator_cash_entries_cte(): string {
   SELECT c.receipt_id,b.source_request_key,b.source_delivery_id FROM batches b JOIN delivery_customer_collections c ON c.source_request_key=b.source_request_key
   UNION SELECT current_receipt,source_request_key,source_delivery_id FROM batches WHERE current_receipt IS NOT NULL
  ), grouped AS (
-  SELECT MAX(e.id) anchor_id,SUM(e.amount) group_amount,MAX(m.source_delivery_id) source_delivery_id,MAX(m.source_request_key) source_request_key,COUNT(*) member_count
+  SELECT MAX(e.id) anchor_id,SUM(".operator_cash_effective_amount_sql('e').") group_amount,MAX(m.source_delivery_id) source_delivery_id,MAX(m.source_request_key) source_request_key,COUNT(*) member_count
   FROM operator_cash_entries e LEFT JOIN receipt_batches m ON m.receipt_id=e.receipt_id WHERE e.period_id=?
   GROUP BY CASE WHEN m.source_request_key IS NULL THEN 'entry:'||e.id ELSE 'batch:'||m.source_request_key END
  ), entries AS (
@@ -219,7 +230,8 @@ function operator_cash_entries_cte(): string {
  ) ";
 }
 function operator_cash_ledger(array $p,array $user): array {
- $operators=$user['role']==='super_admin'?query("SELECT u.id,u.username,u.full_name,u.active,u.role,COALESCE(t.balance,0) balance FROM users u LEFT JOIN (SELECT p.operator_id,SUM(CASE WHEN e.kind='collection' THEN e.amount ELSE -e.amount END) balance FROM operator_cash_periods p LEFT JOIN operator_cash_entries e ON e.period_id=p.id WHERE p.closed_at IS NULL GROUP BY p.operator_id) t ON t.operator_id=u.id WHERE u.role='operations' OR EXISTS(SELECT 1 FROM operator_cash_periods p WHERE p.operator_id=u.id) ORDER BY balance DESC,u.full_name,u.username"):[];
+ $amount=operator_cash_effective_amount_sql('e');
+ $operators=$user['role']==='super_admin'?query("SELECT u.id,u.username,u.full_name,u.active,u.role,COALESCE(t.balance,0) balance FROM users u LEFT JOIN (SELECT p.operator_id,SUM(CASE WHEN e.kind='collection' THEN $amount ELSE -$amount END) balance FROM operator_cash_periods p LEFT JOIN operator_cash_entries e ON e.period_id=p.id WHERE p.closed_at IS NULL GROUP BY p.operator_id) t ON t.operator_id=u.id WHERE u.role='operations' OR EXISTS(SELECT 1 FROM operator_cash_periods p WHERE p.operator_id=u.id) ORDER BY balance DESC,u.full_name,u.username"):[];
  $owner=operator_cash_owner($user,$p);if(!$owner&&$operators)$owner=one('SELECT * FROM users WHERE id=?',[$operators[0]['id']]);
  $result=['operators'=>$operators,'operator'=>$owner?['id'=>$owner['id'],'username'=>$owner['username'],'full_name'=>$owner['full_name'],'active'=>$owner['active']]:null,'enabled_at'=>one("SELECT value FROM meta WHERE key='operator_cash_enabled_at'")['value'],'all_receivable'=>array_sum(array_map(fn($row)=>max(0,(int)$row['balance']),$operators)),'period'=>null,'totals'=>operator_cash_totals(null),'rows'=>[],'total'=>0,'page'=>0,'page_size'=>30,'history'=>['rows'=>[],'total'=>0,'page'=>0,'page_size'=>15],'cash_accounts'=>[],'expense_accounts'=>[]];
  if(!$owner)return $result;

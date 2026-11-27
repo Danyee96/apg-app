@@ -96,17 +96,33 @@ def check(base,database,password):
  # Service advance is frozen and collected once, even with no new cash entered.
  advance_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE','items':[{'account_id':customer,'bilty':'SERVICE-ADVANCE','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'120'}]},status=201)
  arrival=admin.call('shipment',params={'id':advance_shipment['id']});advance_item=arrival['items'][0];assert advance_item['service_advance']==12000
- before_cash=admin.call('ledger',params={'account_id':cash})['closing']
+ before_cash=admin.call('ledger',params={'account_id':cash})['closing'];before_ops=ops.call('daily_expense')
  advance_payload=payload(advance_item['id'],'0','0','0');advance_delivery=ops.call('save_unified_delivery',advance_payload,status=201)
  advance_doc=admin.call('unified_delivery',params={'id':advance_delivery['id']});advance_line=advance_doc['lines'][0]
  assert advance_line['service_advance']==12000 and advance_line['service_received']==12000 and advance_line['service_outstanding']==3000
  assert admin.call('ledger',params={'account_id':cash})['closing']==before_cash+12000
- conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchall();assert ledger==[(12000,)]
+ conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchall();assert ledger==[]
+ after_advance=ops.call('daily_expense');assert after_advance['totals']['received']==before_ops['totals']['received']
  assert ops.call('save_unified_delivery',advance_payload,status=201)['replayed']
  ops.call('save_unified_delivery',existing(advance_doc),status=201);again_advance=admin.call('unified_delivery',params={'id':advance_delivery['id']});assert len(again_advance['receipts'])==1
- assert conn.execute('SELECT count(*) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==1
+ assert conn.execute('SELECT count(*) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==0
  ops.call('save_unified_delivery',existing(again_advance,'0','0','30'),status=201);settled_advance=admin.call('unified_delivery',params={'id':advance_delivery['id']});assert settled_advance['lines'][0]['service_received']==15000 and settled_advance['lines'][0]['service_outstanding']==0
- assert conn.execute('SELECT SUM(e.amount) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==15000;conn.close()
+ assert conn.execute('SELECT SUM(e.amount) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==3000
+ assert ops.call('daily_expense')['totals']['received']==before_ops['totals']['received']+3000;conn.close()
+ # A delivery receipt includes previously paid service advance in its recorded
+ # total, but only newly received cash belongs in the Munshi ledger.
+ exact=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE-EXACT','items':[{'account_id':customer,'bilty':'ADVANCE-EXACT','qty':1,'bilty_amount':'10000','loading':'240','suzuki':'0','service_advance':'240'}]},status=201)
+ exact_item=admin.call('shipment',params={'id':exact['id']})['items'][0]['id'];exact_payload=payload(exact_item,'7800','0','0');exact_payload['items'][0].update(loading='240',suzuki='0')
+ exact_delivery=ops.call('save_unified_delivery',exact_payload,status=201);exact_doc=admin.call('unified_delivery',params={'id':exact_delivery['id']})
+ assert exact_doc['receipts'][0]['amount']==804000
+ conn=sqlite3.connect(database);exact_entry=conn.execute('SELECT e.id,e.period_id,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(exact_delivery['id'],)).fetchone();assert exact_entry[2]==780000
+ # Simulate the old saved amount to verify the live ledger also corrects history.
+ conn.execute('DROP TRIGGER operator_cash_immutable_update')
+ conn.execute('UPDATE operator_cash_entries SET amount=804000 WHERE id=?',(exact_entry[0],))
+ conn.execute("CREATE TRIGGER operator_cash_immutable_update BEFORE UPDATE ON operator_cash_entries BEGIN SELECT RAISE(ABORT,'Munshi cash entries cannot be edited.'); END")
+ conn.commit();conn.close()
+ corrected_ops=ops.call('daily_expense');assert corrected_ops['totals']['received']==before_ops['totals']['received']+3000+780000
+ exact_row=next(row for row in corrected_ops['rows'] if row['receipt_id'] is not None and row['title']=='Delivery '+exact_doc['header']['reference']);assert exact_row['amount']==780000
  # Reducing prepaid Suzuki before saving refunds the excess once and keeps
  # the retained loading payment and the munshi's cash balance correct.
  refundable=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'REFUND','items':[{'account_id':customer,'bilty':'SERVICE-REFUND','qty':1,'bilty_amount':'1000','loading':'500','suzuki':'500','service_advance':'1000'}]},status=201)
@@ -114,7 +130,7 @@ def check(base,database,password):
  refund_request=payload(refund_item,'0','0','0');refund_request['items'][0].update(loading='500',suzuki='0',service_received='500');refund_request['items'][0].pop('loading_received');refund_request['items'][0].pop('suzuki_received')
  refund_delivery=ops.call('save_unified_delivery',refund_request,status=201);refund_doc=admin.call('unified_delivery',params={'id':refund_delivery['id']});refund_line=refund_doc['lines'][0]
  assert refund_line['service_advance']==100000 and refund_line['service_refunded']==50000 and refund_line['service_received']==50000 and refund_line['service_outstanding']==0 and refund_line['service_credit']==0
- conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.kind,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? ORDER BY e.id',(refund_delivery['id'],)).fetchall();assert ledger==[('collection',100000),('expense',50000)]
+ conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.kind,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? ORDER BY e.id',(refund_delivery['id'],)).fetchall();assert ledger==[('expense',50000)]
  assert ops.call('save_unified_delivery',refund_request,status=201)['replayed'];ops.call('save_unified_delivery',existing(refund_doc),status=201)
  assert conn.execute('SELECT COUNT(*) FROM delivery_service_refunds f JOIN delivery_items i ON i.id=f.delivery_item_id WHERE i.delivery_id=?',(refund_delivery['id'],)).fetchone()[0]==1;conn.close()
  # An existing delivery receives the same adjustment after its charges change.

@@ -36,6 +36,8 @@ Manual receipts use a balanced receipt voucher, debiting the selected cash accou
 
 The Daily labour expense page calculates the selected date's labour payable from delivery loading charges, half of delivery Suzuki charges, approved incoming Labour Bonus, and SHAH G at Rs 1 per incoming item. It uses delivery and arrival dates rather than collection dates, and excludes unapproved incoming submissions. Values follow changes to their source records; this is not a separate payment voucher.
 
+Automatic Munshi delivery collections exclude any Loading/Suzuki service advance already paid on the incoming shipment. Delivery receipts and accounting still include the advance for settlement; the Munshi ledger records only cash received at delivery. Existing collection balances and rows apply the same exclusion.
+
 To record a labour advance, choose Labour advance in the munshi expense form and enter the labourer's name. This creates the usual single munshi expense and payment voucher. The same entry is shown by name and deducted on its expense date in the labour calculation, including after the munshi period has been cleared. An advance can exceed that day's payable; the remainder is shown as a negative amount. Historical ordinary expenses are not automatically classified as labour advances.
 
 Super admin can start the labour payable from today once. The action excludes the outstanding carry-forward through yesterday without deleting historical source entries or payment records, and leaves today's calculated payable in the balance. It is an audited, non-cash adjustment and does not create a payment voucher. The reset record is immutable.

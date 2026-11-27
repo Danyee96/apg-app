@@ -42,5 +42,14 @@ def check(base,database,password):
  viewer=Client();viewer.call('login',{'username':'labour-viewer','password':'Labour-viewer-2026'});viewer.call('daily_labour_expense',params={'dated':date},status=403)
  admin.call('daily_labour_expense',params={'dated':'not-a-date'},status=422)
  empty=admin.call('daily_labour_expense',params={'dated':'2035-01-03'});assert empty['total']==0 and not empty['incoming'] and not empty['deliveries']
+ admin.call('save_shipment',{'kind':'incoming','dated':today,'station_id':station,'truck':'CLEAR-LABOUR','labour_bonus':'500','items':[{'account_id':customer,'bilty':'CLEAR-LABOUR','qty':1,'bilty_amount':'1'}]},status=201)
+ summary=admin.call('labour_clearance_summary');assert summary['outstanding']>0
+ request={'request_key':str(uuid.uuid4()),'version':summary['version'],'cash_account_id':cash}
+ ops.call('save_labour_clearance',request,status=403)
+ paid=admin.call('save_labour_clearance',request,status=201);assert paid['amount']==summary['outstanding']
+ assert admin.call('save_labour_clearance',request,status=201)['replayed']
+ after_clear=admin.call('labour_clearance_summary');assert after_clear['outstanding']==0 and len(after_clear['history'])==1
+ db=sqlite3.connect(database);assert db.execute('SELECT COUNT(*) FROM labour_clearances c JOIN vouchers v ON v.id=c.voucher_id WHERE c.id=?',(paid['id'],)).fetchone()[0]==1;db.close()
+ admin.call('save_labour_clearance',{'request_key':str(uuid.uuid4()),'version':summary['version'],'cash_account_id':cash},status=409)
  print('PASS: daily loading, half Suzuki, labour bonus, SHAH G quantity, role access and pending exclusion.')
 if __name__=='__main__':main(check)

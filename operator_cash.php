@@ -38,13 +38,41 @@ function admin_expense_save(array $p,array $user): array {
   $voucher=delivery_system_voucher('PV',$dated,'Admin expense · '.$title,[[$expense,$amount,0],[$cash,0,$amount]]);run('INSERT INTO admin_expenses(request_key,request_hash,actor_id,dated,title,notes,amount,cash_account_id,expense_account_id,voucher_id) VALUES(?,?,?,?,?,?,?,?,?,?)',[$key,$hash,$user['id'],$dated,$title,$notes,$amount,$cash,$expense,$voucher]);$id=(int)db()->lastInsertId();audit('recorded admin expense','admin_expense',$id);return ['id'=>$id];});
 }
 function migrate_labour_advances(): void {
- if(one("SELECT value FROM meta WHERE key='labour_advances_version'"))return;
+ if(one("SELECT value FROM meta WHERE key='labour_advances_version'")){migrate_labour_clearances();return;}
  transaction(function(){
   if(one("SELECT value FROM meta WHERE key='labour_advances_version'"))return;
   run('CREATE TABLE IF NOT EXISTS labour_advances(entry_id INTEGER PRIMARY KEY REFERENCES operator_cash_entries(id),labour_name TEXT NOT NULL)');
   run("CREATE TRIGGER IF NOT EXISTS labour_advances_immutable_update BEFORE UPDATE ON labour_advances BEGIN SELECT RAISE(ABORT,'Labour advances cannot be edited.'); END");
   run("CREATE TRIGGER IF NOT EXISTS labour_advances_immutable_delete BEFORE DELETE ON labour_advances BEGIN SELECT RAISE(ABORT,'Labour advances cannot be deleted.'); END");
   run("INSERT INTO meta(key,value) VALUES('labour_advances_version','1')");
+ });
+ migrate_labour_clearances();
+}
+function migrate_labour_clearances(): void {
+ if(one("SELECT value FROM meta WHERE key='labour_clearances_version'"))return;
+ transaction(function(){
+  run('CREATE TABLE IF NOT EXISTS labour_clearances(id INTEGER PRIMARY KEY AUTOINCREMENT,request_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,actor_id INTEGER NOT NULL REFERENCES users(id),dated TEXT NOT NULL,amount INTEGER NOT NULL CHECK(amount>0),cash_account_id TEXT NOT NULL REFERENCES accounts(id),voucher_id INTEGER NOT NULL UNIQUE REFERENCES vouchers(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+  run("INSERT OR IGNORE INTO accounts(id,name,group_code,group_name,customer) VALUES('5-501-LAB','Labour expense','501','EXPENSE OFFICE',0)");
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('labour_clearances_version','1')");
+ });
+}
+function labour_clearance_summary(): array {
+ $today=date('Y-m-d');
+ $dates=query("SELECT dated FROM shipments WHERE kind='incoming' AND dated<=? UNION SELECT dated FROM deliveries WHERE dated<=? UNION SELECT e.dated FROM labour_advances l JOIN operator_cash_entries e ON e.id=l.entry_id WHERE e.dated<=?",[$today,$today,$today]);
+ $earned=0;foreach($dates as $row)$earned+=daily_labour_expense(['dated'=>$row['dated']])['total'];
+ $paid=(int)(one('SELECT COALESCE(SUM(amount),0) amount FROM labour_clearances')['amount']??0);
+ $history=query('SELECT c.*,a.name cash_account,u.full_name,u.username,v.reference voucher_reference FROM labour_clearances c JOIN accounts a ON a.id=c.cash_account_id JOIN users u ON u.id=c.actor_id JOIN vouchers v ON v.id=c.voucher_id ORDER BY c.id DESC');
+ return ['outstanding'=>$earned-$paid,'version'=>hash('sha256',$earned.':'.$paid.':'.count($history)),'history'=>$history,'cash_accounts'=>query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id")];
+}
+function labour_clearance_save(array $p,array $user): array {
+ $key=text($p,'request_key',100,true);if(!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid clearance request key.');$hash=shipment_version($p);
+ return transaction(function()use($p,$user,$key,$hash){
+  $prior=one('SELECT * FROM labour_clearances WHERE request_key=?',[$key]);if($prior){if((int)$prior['actor_id']!==(int)$user['id']||!hash_equals($prior['request_hash'],$hash))throw new RuntimeException('This clearance request was already used.',409);return ['id'=>$prior['id'],'replayed'=>true];}
+  $summary=labour_clearance_summary();if(!hash_equals($summary['version'],(string)($p['version']??'')))throw new RuntimeException('Labour balance changed. Refresh and try again.',409);
+  $amount=$summary['outstanding'];if($amount<=0)throw new InvalidArgumentException('There is no labour expense to clear.');
+  $cash=text($p,'cash_account_id',40,true);if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');
+  $dated=date('Y-m-d');$voucher=delivery_system_voucher('PV',$dated,'Labour expense clearance',[['5-501-LAB',$amount,0],[$cash,0,$amount]]);
+  run('INSERT INTO labour_clearances(request_key,request_hash,actor_id,dated,amount,cash_account_id,voucher_id) VALUES(?,?,?,?,?,?,?)',[$key,$hash,$user['id'],$dated,$amount,$cash,$voucher]);$id=(int)db()->lastInsertId();audit('cleared labour expense','labour_clearance',$id);return ['id'=>$id,'amount'=>$amount];
  });
 }
 function operator_cash_allowed(array $user): bool {return in_array($user['role'],['super_admin','operations'],true);}
@@ -196,10 +224,12 @@ function daily_labour_expense(array $p): array {
  return ['dated'=>$date,'loading'=>$loading,'suzuki'=>$suzuki,'half_suzuki'=>$half,'labour_bonus'=>$bonus,'quantity'=>$quantity,'shah_g'=>$shahG,'gross'=>$gross,'advances_total'=>$advancesTotal,'total'=>$gross-$advancesTotal,'deliveries'=>$deliveries,'incoming'=>$incoming,'advances'=>$advances];
 }
 function operator_cash_routes(string $action,string $method,array $p,array $user): void {
- if(in_array($action,['admin_expenses','save_admin_expense'],true)){
+ if(in_array($action,['admin_expenses','save_admin_expense','labour_clearance_summary','save_labour_clearance'],true)){
   if($user['role']!=='super_admin')fail('Only the super admin can manage admin expenses.',403);
   if($action==='admin_expenses'&&$method==='GET')response(admin_expenses_list($_GET));
   if($action==='save_admin_expense'&&$method==='POST')response(admin_expense_save($p,$user),201);
+  if($action==='labour_clearance_summary'&&$method==='GET')response(labour_clearance_summary());
+  if($action==='save_labour_clearance'&&$method==='POST')response(labour_clearance_save($p,$user),201);
   fail('Method not allowed.',405);
  }
  if(!in_array($action,['daily_expense','daily_labour_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;

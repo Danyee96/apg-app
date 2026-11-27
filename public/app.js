@@ -4095,7 +4095,7 @@ document.addEventListener("input", (e) => {
   if (e.target.id === "command-search") renderCommands(e.target.value);
 });
 document.addEventListener("keydown", (e) => {
-  const shortcut=e.key.toLowerCase();
+  const shortcut=(e.code.startsWith("Key")?e.code.slice(3):e.key).toLowerCase();
   if(e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&session?.user&&["h","i","d","e","b","c"].includes(shortcut)){
     e.preventDefault();
     if(e.repeat||e.isComposing)return;

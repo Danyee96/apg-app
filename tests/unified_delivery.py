@@ -97,10 +97,18 @@ def check(base,database,password):
  advance_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE','items':[{'account_id':customer,'bilty':'SERVICE-ADVANCE','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'120'}]},status=201)
  arrival=admin.call('shipment',params={'id':advance_shipment['id']});advance_item=arrival['items'][0];assert advance_item['service_advance']==12000
  before_cash=admin.call('ledger',params={'account_id':cash})['closing'];before_ops=ops.call('daily_expense')
+ incoming_advance=admin.call('vouchers',params={'search':advance_shipment['reference']})['rows']
+ assert len(incoming_advance)==1 and incoming_advance[0]['amount']==12000
+ incoming_voucher=admin.call('voucher',params={'id':incoming_advance[0]['id']})
+ assert sum(line['debit'] for line in incoming_voucher['lines'] if line['account_id']==cash)==12000
+ assert sum(line['credit'] for line in incoming_voucher['lines'] if line['account_id']=='SYS-SERVICE-ADVANCE-CLEARING')==12000
  advance_payload=payload(advance_item['id'],'0','0','0');advance_delivery=ops.call('save_unified_delivery',advance_payload,status=201)
  advance_doc=admin.call('unified_delivery',params={'id':advance_delivery['id']});advance_line=advance_doc['lines'][0]
  assert advance_line['service_advance']==12000 and advance_line['service_received']==12000 and advance_line['service_outstanding']==3000
- assert admin.call('ledger',params={'account_id':cash})['closing']==before_cash+12000
+ assert admin.call('ledger',params={'account_id':cash})['closing']==before_cash
+ advance_receipt_voucher=admin.call('voucher',params={'id':advance_doc['receipts'][0]['voucher_id']})
+ assert sum(line['debit'] for line in advance_receipt_voucher['lines'] if line['account_id']==cash)==0
+ assert sum(line['debit'] for line in advance_receipt_voucher['lines'] if line['account_id']=='SYS-SERVICE-ADVANCE-CLEARING')==12000
  conn=sqlite3.connect(database);ledger=conn.execute('SELECT e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchall();assert ledger==[]
  after_advance=ops.call('daily_expense');assert after_advance['totals']['received']==before_ops['totals']['received']
  assert ops.call('save_unified_delivery',advance_payload,status=201)['replayed']
@@ -118,8 +126,8 @@ def check(base,database,password):
  assert exact_doc['receipts'][0]['amount']==804000
  exact_voucher=admin.call('voucher',params={'id':exact_doc['receipts'][0]['voucher_id']})
  assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']==cash)==780000
- assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']=='SYS-BILTY-CLEARING')==24000
- assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_exact+804000
+ assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']=='SYS-SERVICE-ADVANCE-CLEARING')==24000
+ assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_exact+828000
  conn=sqlite3.connect(database);exact_entry=conn.execute('SELECT e.id,e.period_id,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(exact_delivery['id'],)).fetchone();assert exact_entry[2]==780000
  # Simulate the old saved amount to verify the live ledger also corrects history.
  conn.execute('DROP TRIGGER operator_cash_immutable_update')

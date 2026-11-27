@@ -55,7 +55,7 @@ function delivery_system_voucher(string $kind,string $dated,string $memo,array $
  run('INSERT INTO vouchers(reference,kind,dated,memo,created_by) VALUES(?,?,?,?,?)',['pending-'.bin2hex(random_bytes(8)),$kind,$dated,$memo,$_SESSION['username']??'migration']);$id=(int)db()->lastInsertId();run('UPDATE vouchers SET reference=? WHERE id=?',[$kind.'-'.str_pad((string)$id,6,'0',STR_PAD_LEFT),$id]);
  foreach($entries as $row)run('INSERT INTO voucher_lines(voucher_id,account_id,debit,credit) VALUES(?,?,?,?)',[$id,...$row]);audit('posted','voucher',$id);return $id;
 }
-function incoming_advance_post(int $shipmentId,string $reference,string $dated,int $amount,?array $previous=null): void {
+function incoming_advance_post(int $shipmentId,string $reference,string $dated,int $amount,?array $previous=null,int $serviceAmount=0): void {
  run('CREATE TABLE IF NOT EXISTS incoming_advance_postings(shipment_id INTEGER PRIMARY KEY, dated TEXT NOT NULL, amount INTEGER NOT NULL)');
  $posted=one('SELECT dated,amount FROM incoming_advance_postings WHERE shipment_id=?',[$shipmentId]);
  // Existing shipments predate this posting mechanism. Their previous advance is
@@ -70,6 +70,17 @@ function incoming_advance_post(int $shipmentId,string $reference,string $dated,i
  };
  if($oldDate!==$dated){$post($oldDate,-$oldAmount);$post($dated,$amount);}else $post($dated,$amount-$oldAmount);
  run('INSERT INTO incoming_advance_postings(shipment_id,dated,amount) VALUES(?,?,?) ON CONFLICT(shipment_id) DO UPDATE SET dated=excluded.dated,amount=excluded.amount',[$shipmentId,$dated,$amount]);
+ run('CREATE TABLE IF NOT EXISTS incoming_service_advance_postings(shipment_id INTEGER PRIMARY KEY, dated TEXT NOT NULL, amount INTEGER NOT NULL)');
+ $servicePosted=one('SELECT dated,amount FROM incoming_service_advance_postings WHERE shipment_id=?',[$shipmentId]);
+ if(!$servicePosted&&$previous!==null)$servicePosted=['dated'=>$previous['dated'],'amount'=>(int)($previous['service_amount']??0)];
+ $oldServiceAmount=(int)($servicePosted['amount']??0);$oldServiceDate=$servicePosted['dated']??$dated;
+ $postService=function(string $date,int $delta)use($reference){
+  if(!$delta)return;
+  unified_accounts();$value=abs($delta);
+  delivery_system_voucher($delta>0?'RV':'PV',$date,'Incoming service advance · '.$reference,[['1-101-001',$delta>0?$value:0,$delta<0?$value:0],['SYS-SERVICE-ADVANCE-CLEARING',$delta<0?$value:0,$delta>0?$value:0]]);
+ };
+ if($oldServiceDate!==$dated){$postService($oldServiceDate,-$oldServiceAmount);$postService($dated,$serviceAmount);}else $postService($dated,$serviceAmount-$oldServiceAmount);
+ run('INSERT INTO incoming_service_advance_postings(shipment_id,dated,amount) VALUES(?,?,?) ON CONFLICT(shipment_id) DO UPDATE SET dated=excluded.dated,amount=excluded.amount',[$shipmentId,$dated,$serviceAmount]);
 }
 function validate_delivery_cash_amounts(array $p,array $invoice,string $dated): array {
   if($dated<$invoice['header']['dated']||(!empty($invoice['receipts'])&&$dated<max(array_column($invoice['receipts'],'dated'))))throw new InvalidArgumentException('Cash receiving date cannot be earlier than delivery or a previous collection.');

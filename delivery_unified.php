@@ -5,6 +5,15 @@ function unified_accounts(): void {
   run("INSERT OR IGNORE INTO accounts(id,name,group_code,group_name,customer) VALUES(?,?, 'SYS-DELIVERY','DELIVERY CONTROLS',0)",['SYS-'.$key.'-CLEARING',$name.' charges clearing']);
   if($key!=='BILTY')run("INSERT OR IGNORE INTO accounts(id,name,group_code,group_name,customer) VALUES(?,?, 'SYS-SERVICES','SERVICE RECEIVABLES',0)",['SYS-'.$key.'-RECEIVABLE',$name.' receivable']);
  }
+ run("INSERT OR IGNORE INTO accounts(id,name,group_code,group_name,customer) VALUES('SYS-SERVICE-ADVANCE-CLEARING','Service advance clearing','SYS-DELIVERY','DELIVERY CONTROLS',0)");
+}
+function migrate_service_advance_account(): void {
+ if(one("SELECT value FROM meta WHERE key='service_advance_account_version'"))return;
+ transaction(function(){
+  if(one("SELECT value FROM meta WHERE key='service_advance_account_version'"))return;
+  unified_accounts();
+  run("INSERT INTO meta(key,value) VALUES('service_advance_account_version','1')");
+ });
 }
 function unified_journal(string $dated,string $memo,array $entries): ?int {
  $entries=array_values(array_filter($entries,fn($line)=>$line[1]||$line[2]));if(!$entries)return null;
@@ -100,8 +109,8 @@ function unified_record_cash(array $p,array $user,bool $inside=false,int $approv
    run('UPDATE delivery_cash_invoices SET legacy_services=1 WHERE delivery_id=?',[$id]);$legacy=true;
   }
   unified_assess($id);$prepaid=0;$transfers=[];
-  foreach($invoice['lines'] as $line){$lineId=(int)$line['delivery_item_id'];[$bilty,$service]=$lines[$lineId];[$loading,$suzuki,$legacyCash]=$typed[$lineId];$alreadyApplied=min((int)$line['service_received'],min((int)$line['service_advance'],(int)$line['advance']));$prepaid+=min($service,max(0,min((int)$line['service_advance'],(int)$line['advance'])-$alreadyApplied));}
-  $cashTotal=$total-$prepaid;$entries=$cashTotal?[[$cashAccount,$cashTotal,0]]:[];if($prepaid)$entries[]=unified_entry('SYS-BILTY-CLEARING',$prepaid);
+  foreach($invoice['lines'] as $line){$lineId=(int)$line['delivery_item_id'];[$bilty,$service]=$lines[$lineId];[$loading,$suzuki,$legacyCash]=$typed[$lineId];$alreadyApplied=(int)$line['service_received']+(int)($line['service_refunded']??0);$prepaid+=min($service,max(0,(int)$line['service_advance']-$alreadyApplied));}
+  $cashTotal=$total-$prepaid;$entries=$cashTotal?[[$cashAccount,$cashTotal,0]]:[];if($prepaid)$entries[]=unified_entry('SYS-SERVICE-ADVANCE-CLEARING',$prepaid);
   foreach($invoice['lines'] as $line){$lineId=(int)$line['delivery_item_id'];[$bilty,$service]=$lines[$lineId];[$loading,$suzuki,$legacyCash]=$typed[$lineId];$entries[]=unified_entry($line['account_id'],-$bilty);if($legacy){$entries[]=unified_entry('SYS-LEGACY-SERVICE-RECEIVABLE',-$legacyCash);foreach(['LOADING'=>$loading,'SUZUKI'=>$suzuki] as $category=>$value){$transfers[]=unified_entry('SYS-'.$category.'-RECEIVABLE',$value);$transfers[]=unified_entry('SYS-LEGACY-SERVICE-RECEIVABLE',-$value);$entries[]=unified_entry('SYS-'.$category.'-RECEIVABLE',-$value);}}else{foreach(['LOADING'=>$loading,'SUZUKI'=>$suzuki] as $category=>$value)$entries[]=unified_entry('SYS-'.$category.'-RECEIVABLE',-$value);}}
   unified_journal($dated,'Assigned legacy service collection category · '.$invoice['header']['reference'],$transfers);
   $voucher=null;if($total)$voucher=delivery_system_voucher('RV',$dated,'Delivery collection · '.$invoice['header']['reference'],$entries);

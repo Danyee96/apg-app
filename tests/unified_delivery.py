@@ -111,10 +111,15 @@ def check(base,database,password):
  assert ops.call('daily_expense')['totals']['received']==before_ops['totals']['received']+3000;conn.close()
  # A delivery receipt includes previously paid service advance in its recorded
  # total, but only newly received cash belongs in the Munshi ledger.
- exact=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE-EXACT','items':[{'account_id':customer,'bilty':'ADVANCE-EXACT','qty':1,'bilty_amount':'10000','loading':'240','suzuki':'0','service_advance':'240'}]},status=201)
+ cash_before_exact=admin.call('ledger',params={'account_id':cash})['closing']
+ exact=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADVANCE-EXACT','items':[{'account_id':customer,'bilty':'ADVANCE-EXACT','qty':1,'bilty_amount':'10000','advance':'240','loading':'240','suzuki':'0','service_advance':'240'}]},status=201)
  exact_item=admin.call('shipment',params={'id':exact['id']})['items'][0]['id'];exact_payload=payload(exact_item,'7800','0','0');exact_payload['items'][0].update(loading='240',suzuki='0')
  exact_delivery=ops.call('save_unified_delivery',exact_payload,status=201);exact_doc=admin.call('unified_delivery',params={'id':exact_delivery['id']})
  assert exact_doc['receipts'][0]['amount']==804000
+ exact_voucher=admin.call('voucher',params={'id':exact_doc['receipts'][0]['voucher_id']})
+ assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']==cash)==780000
+ assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']=='SYS-BILTY-CLEARING')==24000
+ assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_exact+804000
  conn=sqlite3.connect(database);exact_entry=conn.execute('SELECT e.id,e.period_id,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(exact_delivery['id'],)).fetchone();assert exact_entry[2]==780000
  # Simulate the old saved amount to verify the live ledger also corrects history.
  conn.execute('DROP TRIGGER operator_cash_immutable_update')

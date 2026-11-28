@@ -457,6 +457,20 @@ const navs = [
 function initialView() {
   const query = new URLSearchParams(location.search);
   let requested = query.get("view");
+  if(requested === "ledger"){
+    const account=query.get("account"),mode=query.get("mode"),source=query.get("source");
+    const selected=lookups.accounts.find(row=>row.id===account&&row.status==='A');
+    if(canView('ledger')&&selected&&['cashbook','detail','summary'].includes(mode)){
+      state.account_id=selected.id;state.ledgerMode=mode;
+      state.cashBookSource=['new','original'].includes(source)?source:'new';
+      state.cashBookDateMode=query.get('dates')==='range'?'range':'day';
+      state.from=/^\d{4}-\d{2}-\d{2}$/.test(query.get('from')||'')?query.get('from'):mode==='cashbook'?today():recentHistoryStart();
+      state.to=/^\d{4}-\d{2}-\d{2}$/.test(query.get('to')||'')?query.get('to'):today();
+      if(state.from>state.to)state.from=state.to;
+      state.page=Math.max(0,Number.parseInt(query.get('page')||'0',10)||0);
+      return 'ledger';
+    }
+  }
   if(requested === "deliveries" && ["all", "reports", "balances"].includes(query.get("tab"))) unifiedTab = query.get("tab");
   if(requested === "deliveries" && unifiedTab === "reports") {
     unifiedReportStatus = ["pending_payment","partially_paid","fully_paid"].includes(query.get("payment")) ? query.get("payment") : "";
@@ -592,13 +606,26 @@ async function navigate(view, reset = true) {
   return true;
 }
 function rememberCurrentPage() {
-  if(!session?.user || !navs.some(([view]) => view === state.view) || !canView(state.view)) return;
+  const ledgerPage=state.view==='ledger'&&canView('ledger')&&lookups.accounts.some(row=>row.id===state.account_id&&row.status==='A');
+  if(!session?.user || (!navs.some(([view]) => view === state.view) && !ledgerPage) || !canView(state.view)) return;
   if(state.view === "deliveries" && unifiedTab === "reports" && unifiedReportDateMode === "single") state.from = state.to = state.from || today();
   const url = new URL(location.href);
   url.searchParams.set("view", state.view);
+  for(const key of ["account","mode","source","dates","page"])url.searchParams.delete(key);
   if(state.view === "deliveries") url.searchParams.set("tab", unifiedTab);
   else url.searchParams.delete("tab");
   for(const key of ["payment","dates","sort","from","to"]) url.searchParams.delete(key);
+  if(ledgerPage){
+    url.searchParams.set("account",state.account_id);
+    url.searchParams.set("mode",state.ledgerMode);
+    url.searchParams.set("from",state.from||recentHistoryStart());
+    url.searchParams.set("to",state.to||today());
+    if(state.ledgerMode==='cashbook'){
+      url.searchParams.set("source",state.cashBookSource||'new');
+      url.searchParams.set("dates",state.cashBookDateMode==='range'?'range':'day');
+    }
+    if(state.page)url.searchParams.set("page",String(state.page));
+  }
   if (["incoming","booking","deliveries"].includes(state.view) && !(state.view === "deliveries" && unifiedTab === "reports")) {
     url.searchParams.set("from",state.from||"");url.searchParams.set("to",state.to||"");
   }

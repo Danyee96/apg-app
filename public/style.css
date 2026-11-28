@@ -5249,6 +5249,8 @@ html[data-language="roman"] .nav-submenu .nav-link { font-size:10px; }
 .cash-book-opening strong,.cash-book-totals strong { margin-inline-start:10px; color:#173c30; }
 .cash-book-totals { border-top:1px solid #d3e5d9; }
 .cash-book-note { margin-top:14px; }
+.cash-book-particular { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:180px; }
+.cash-book-particular .icon-btn { flex:0 0 auto; }
 @media(max-width:650px){.u-charge-highlights{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.u-charge-card{padding:15px}.u-charge-card:first-child{grid-column:1/-1}.u-charge-card strong{font-size:25px}}
 .wasooli-intro { margin:0; padding:0 22px 15px; color:#6b847a; font-size:13px; }
 .wasooli-selection { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 22px; }

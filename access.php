@@ -167,12 +167,12 @@ function authorize_action(string $action,string $method,array $p,array $user): v
  if($action==='discard_incoming'){if($user['role']==='super_admin')return;fail('Only the super admin can discard pending incoming goods.',403);}
  if($action==='incoming_submission'){if($user['role']==='super_admin')return;fail('Only the super admin can review submitted entries.',403);}
  if($user['role']==='operations'){
-  if(in_array($action,['imported_tables','imported_rows','backup','financial_report','ledger'],true))fail('Financial totals are restricted for Munshi.',403);
+  if(in_array($action,['imported_tables','imported_rows','backup','financial_report','ledger','cash_book_entry'],true))fail('Financial totals are restricted for Munshi.',403);
   if($action==='save_shipment'&&!empty($p['id'])&&($p['kind']??'')==='incoming')fail('Munshi incoming goods must go through approval.',403);
   if($action==='save_shipment'&&!empty($p['pending_id']))fail('Only the super admin can approve incoming goods.',403);
  }
 
- $map=['customer_goods_ledger'=>'customers.view','dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','update_delivery'=>'deliveries.edit','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','backup_list'=>'backups.create','settings'=>'settings.view','workspace_areas'=>'settings.view','save_workspace_area'=>'areas.manage','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
+ $map=['customer_goods_ledger'=>'customers.view','dashboard'=>'overview.view','customers'=>'customers.view','customer'=>'customers.view','save_customer'=>'customers.manage','deliveries'=>'deliveries.view','delivery'=>'deliveries.view','save_delivery'=>'deliveries.create','update_delivery'=>'deliveries.edit','vouchers'=>'vouchers.view','voucher'=>'vouchers.view','save_voucher'=>'vouchers.create','ledger'=>'ledger.view','cash_book_entry'=>'ledger.view','financial_report'=>'reports.view','account_groups'=>'accounts.create','save_account'=>'accounts.create','save_station'=>'stations.manage','backup'=>'backups.create','backup_list'=>'backups.create','settings'=>'settings.view','workspace_areas'=>'settings.view','save_workspace_area'=>'areas.manage','imported_tables'=>'archive.view','imported_rows'=>'archive.view'];
  if(isset($map[$action])){require_permission($user,$map[$action]);return;}
  if($action==='lookups')return;
  if($action==='stations'){foreach(['overview.view','incoming.view','booking.view','deliveries.view','settings.view'] as $key){if(can_access($user,$key))return;}require_permission($user,'settings.view');return;}

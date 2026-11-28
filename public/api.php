@@ -273,8 +273,8 @@ try {
   $from=day(['dated'=>$_GET['from']??$historyStart]);$to=day(['dated'=>$_GET['to']??date('Y-m-d')]);if($from>$to)fail('Start date must be before end date.');
   $until=(new DateTimeImmutable($to))->modify('+1 day')->format('Y-m-d');
   $source=text($_GET,'source',20)?:'all';if(!in_array($source,['all','original','new'],true))fail('Choose a valid ledger source.');
-  $original="SELECT dated,kind,reference,memo,debit,credit,COALESCE(sequence,source_rowid) seq,source_rowid row_id,'Original' source,0 source_order FROM historical_ledger WHERE account_id=?";
-  $new="SELECT v.dated,v.kind,v.reference,v.memo,l.debit,l.credit,l.id seq,l.id row_id,'New app' source,1 source_order FROM voucher_lines l JOIN vouchers v ON v.id=l.voucher_id WHERE l.account_id=?";
+  $original="SELECT dated,kind,reference,memo,debit,credit,COALESCE(sequence,source_rowid) seq,source_rowid row_id,NULL voucher_id,'Original' source,0 source_order FROM historical_ledger WHERE account_id=?";
+  $new="SELECT v.dated,v.kind,v.reference,v.memo,l.debit,l.credit,l.id seq,l.id row_id,v.id voucher_id,'New app' source,1 source_order FROM voucher_lines l JOIN vouchers v ON v.id=l.voucher_id WHERE l.account_id=?";
   $entries=$source==='original'?$original:($source==='new'?$new:$original.' UNION ALL '.$new);
   $ids=$source==='all'?[$account['id'],$account['id']]:[$account['id']];
   $stats=one('WITH entries AS ('.$entries.') SELECT count(*) all_time_count,min(dated) first_date,max(dated) last_date,coalesce(sum(CASE WHEN dated<? THEN debit-credit ELSE 0 END),0) prior_net,coalesce(sum(CASE WHEN dated>=? AND dated<? THEN debit ELSE 0 END),0) debit,coalesce(sum(CASE WHEN dated>=? AND dated<? THEN credit ELSE 0 END),0) credit,sum(CASE WHEN dated>=? AND dated<? THEN 1 ELSE 0 END) period_count FROM entries',[...$ids,$from,$from,$until,$from,$until,$from,$until]);
@@ -289,6 +289,24 @@ try {
    if(!$row['goods_details'])$row['goods_details']=query('SELECT b.bilty,i.qty,b.godown FROM delivery_cash_invoices c JOIN delivery_cash_lines b ON b.delivery_id=c.delivery_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id WHERE c.posted_voucher_id=? AND b.account_id=? ORDER BY b.delivery_item_id',[$voucher['voucher_id'],$account['id']]);
   }unset($row);
   response(['account'=>$account,'source'=>$source,'backup_date'=>one("SELECT value FROM meta WHERE key='backup_date'")['value']??null,'from'=>$from,'to'=>$to,'history_start'=>$historyStart,'first_date'=>$stats['first_date'],'last_date'=>$stats['last_date'],'all_time_count'=>(int)$stats['all_time_count'],'opening'=>$opening,'closing'=>$opening+(int)$stats['debit']-(int)$stats['credit'],'debit'=>(int)$stats['debit'],'credit'=>(int)$stats['credit'],'rows'=>$rows,'total'=>$total,'page'=>$page,'page_size'=>30,'notice'=>'Original ledger entries are stored in this application database alongside new vouchers. Historical balances still need reconciliation. New delivery cash processing posts linked assessment and receipt vouchers; historical goods records are unchanged.']);
+ }
+ if($action==='cash_book_entry'&&$method==='GET'){
+  $source=text($_GET,'source',20,true);$accountId=text($_GET,'account_id',40,true);$rowId=filter_var($_GET['row_id']??null,FILTER_VALIDATE_INT);
+  if(!$rowId||!in_array($source,['Original','New app'],true))fail('Choose a valid cash-book entry.');
+  if($source==='Original'){$entry=one('SELECT dated,kind,reference,memo,debit,credit,sequence,source_rowid FROM historical_ledger WHERE source_rowid=? AND account_id=?',[$rowId,$accountId]);if(!$entry)fail('Cash-book entry not found.',404);response(['source'=>'Original','account_id'=>$accountId,'entry'=>$entry,'voucher'=>null,'delivery'=>null,'items'=>[]]);}
+  $line=one('SELECT l.voucher_id FROM voucher_lines l WHERE l.id=? AND l.account_id=?',[$rowId,$accountId]);if(!$line)fail('Cash-book entry not found.',404);
+  $voucher=one('SELECT * FROM vouchers WHERE id=?',[$line['voucher_id']]);if(!$voucher)fail('Voucher not found.',404);
+  $voucher['lines']=query('SELECT l.*,a.name account FROM voucher_lines l JOIN accounts a ON a.id=l.account_id WHERE l.voucher_id=? ORDER BY l.id',[$voucher['id']]);
+  $receipts=query('SELECT r.*,d.reference delivery_reference,d.dated delivery_dated,d.receiver,d.mobile,d.cnic,d.remarks delivery_remarks FROM delivery_cash_receipts r JOIN deliveries d ON d.id=r.delivery_id WHERE r.voucher_id=? ORDER BY r.id',[$voucher['id']]);
+  $delivery=null;$items=[];
+  if($receipts){
+   $delivery=$receipts[0];
+   foreach($receipts as $receipt){$items=[...$items,...query("SELECT l.*,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.service_due,a.name customer,di.discount,di.loading_charge,di.suzuki_charge,i.qty,i.detail,s.dated arrival_date,st.name station,d.reference delivery_reference FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id JOIN deliveries d ON d.id=r.delivery_id JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE l.receipt_id=? ORDER BY l.delivery_item_id",[$receipt['id']])];}
+  }elseif(preg_match('/\bDL-\d{6}\b/',$voucher['memo'],$match)){
+   $delivery=one('SELECT id,reference,dated,receiver,mobile,cnic,remarks delivery_remarks FROM deliveries WHERE reference=?',[$match[0]]);
+   if($delivery)$items=query("SELECT b.delivery_item_id,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.service_due,a.name customer,di.discount,di.loading_charge,s.dated arrival_date,st.name station,di.bilty_received,di.service_received,i.qty,i.detail,d.reference delivery_reference FROM delivery_cash_lines b JOIN deliveries d ON d.id=b.delivery_id JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE b.delivery_id=? ORDER BY b.delivery_item_id",[$delivery['id']]);
+  }
+  response(['source'=>'New app','account_id'=>$accountId,'voucher'=>$voucher,'delivery'=>$delivery,'items'=>$items,'receipts'=>$receipts]);
  }
  if($action==='financial_report'&&$method==='GET'){
   $report=text($_GET,'report',24,true);if(!in_array($report,['trial','balances','daybook','journal','vouchers'],true))fail('Choose an available report.');

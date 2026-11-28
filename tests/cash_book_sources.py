@@ -22,6 +22,8 @@ def check(base,database,password):
  assert combined['total']==original['total']+new['total']
  assert combined['debit']==original['debit']+new['debit'] and combined['credit']==original['credit']+new['credit']
  assert all(row['source']=='Original' for row in original['rows']) and all(row['source']=='New app' for row in new['rows'])
+ historic=api('cash_book_entry',{'source':'Original','account_id':'1-101-001','row_id':original['rows'][0]['row_id']})
+ assert historic['source']=='Original' and historic['entry']['reference']==original['rows'][0]['reference']
  print('PASS: original backup matches raw legacy transactions; new vouchers stay separate')
  db.close()
 

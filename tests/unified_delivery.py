@@ -124,6 +124,9 @@ def check(base,database,password):
  exact_item=admin.call('shipment',params={'id':exact['id']})['items'][0]['id'];exact_payload=payload(exact_item,'7800','0','0');exact_payload['items'][0].update(loading='240',suzuki='0')
  exact_delivery=ops.call('save_unified_delivery',exact_payload,status=201);exact_doc=admin.call('unified_delivery',params={'id':exact_delivery['id']})
  assert exact_doc['receipts'][0]['amount']==804000
+ conn=sqlite3.connect(database);exact_cash_line=conn.execute('SELECT id FROM voucher_lines WHERE voucher_id=? AND account_id=? ORDER BY id LIMIT 1',(exact_doc['receipts'][0]['voucher_id'],cash)).fetchone()[0];conn.close()
+ cash_details=admin.call('cash_book_entry',params={'source':'New app','account_id':cash,'row_id':exact_cash_line})
+ assert cash_details['delivery']['delivery_reference']==exact_doc['header']['reference'] and cash_details['items'][0]['bilty']=='ADVANCE-EXACT'
  exact_voucher=admin.call('voucher',params={'id':exact_doc['receipts'][0]['voucher_id']})
  assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']==cash)==780000
  assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']=='SYS-SERVICE-ADVANCE-CLEARING')==24000

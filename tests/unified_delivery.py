@@ -154,10 +154,27 @@ def check(base,database,password):
  edit_item=admin.call('shipment',params={'id':editable['id']})['items'][0]['id'];edit_delivery=ops.call('save_unified_delivery',payload(edit_item,'0','0','0'),status=201)
  edit_doc=admin.call('unified_delivery',params={'id':edit_delivery['id']});edit_request=existing(edit_doc);edit_request['items'][0]['suzuki']='0'
  admin.call('save_user',{'username':'refund-second-ops','full_name':'Second refund operator','role':'operations','active':1,'permissions':['deliveries.create'],'password':'Refund-ops-2026'},status=201)
- admin.call('save_unified_delivery',edit_request,status=422);unchanged=admin.call('unified_delivery',params={'id':edit_delivery['id']});assert unchanged['lines'][0]['suzuki']==5000 and unchanged['lines'][0]['service_refunded']==0
- edit_request['refund_operator_id']=operator_id;admin.call('save_unified_delivery',edit_request,status=201)
- edit_doc=admin.call('unified_delivery',params={'id':edit_delivery['id']});assert edit_doc['lines'][0]['service_refunded']==5000 and edit_doc['lines'][0]['service_received']==10000 and edit_doc['lines'][0]['service_credit']==0
- conn=sqlite3.connect(database);assert conn.execute('SELECT e.operator_id,e.kind,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? AND e.kind=\'expense\'',(edit_delivery['id'],)).fetchone()==(operator_id,'expense',5000);conn.close()
+ admin.call('save_unified_delivery',edit_request,status=201);edit_doc=admin.call('unified_delivery',params={'id':edit_delivery['id']});assert edit_doc['lines'][0]['suzuki']==0 and edit_doc['lines'][0]['service_refunded']==5000 and edit_doc['lines'][0]['service_received']==10000 and edit_doc['lines'][0]['service_credit']==0
+ conn=sqlite3.connect(database);refund_receipt=conn.execute('SELECT id,voucher_id FROM delivery_cash_receipts WHERE delivery_id=? ORDER BY id DESC LIMIT 1',(edit_delivery['id'],)).fetchone();assert refund_receipt
+ assert conn.execute('SELECT COUNT(*) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? AND e.kind=\'expense\'',(edit_delivery['id'],)).fetchone()[0]==0
+ # Existing administrator-paid refunds can be removed from a Munshi ledger
+ # without changing the original refund voucher or Cash Book balance.
+ period_id=conn.execute('SELECT id FROM operator_cash_periods WHERE operator_id=? AND closed_at IS NULL',(operator_id,)).fetchone()[0]
+ admin_id=conn.execute('SELECT id FROM users WHERE username=?',('integration-review',)).fetchone()[0]
+ conn.execute("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,receipt_id,voucher_id,actor_id,actor_name) VALUES(?,?,'expense',?,?,?,?,?,?,?,?,?)",(period_id,operator_id,day,5000,'Advance refund · '+edit_doc['header']['reference'],'Legacy misattribution',cash,refund_receipt[0],refund_receipt[1],admin_id,'integration-review'));conn.commit()
+ old_entry=conn.execute('SELECT id FROM operator_cash_entries WHERE receipt_id=?',(refund_receipt[0],)).fetchone()[0];admin_ledger=admin.call('daily_expense',params={'operator_id':operator_id});assert admin_ledger['totals']['expenses']>=5000
+ cash_before_exclusion=admin.call('ledger',params={'account_id':cash})['closing'];refund_detail=admin.call('daily_expense_entry',params={'id':old_entry})['entry'];assert refund_detail['admin_refund']
+ excluded=admin.call('edit_daily_expense',{'id':old_entry,'exclude':True,'reason':'Refund was paid by the administrator','request_key':str(uuid.uuid4())},status=201);assert excluded['excluded']
+ after_exclusion=admin.call('daily_expense',params={'operator_id':operator_id});assert after_exclusion['totals']['expenses']==admin_ledger['totals']['expenses']-5000
+ assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_exclusion
+ assert conn.execute('SELECT COUNT(*) FROM operator_cash_entry_edits WHERE entry_id=? AND excluded=1',(old_entry,)).fetchone()[0]==1
+ conn.close()
+ # An administrator can explicitly attribute a refund to the Munshi who paid it.
+ chosen=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'REFUND-CHOSEN','items':[{'account_id':customer,'bilty':'SERVICE-REFUND-CHOSEN','qty':1,'bilty_amount':'1000','loading':'100','suzuki':'50','service_advance':'150'}]},status=201)
+ chosen_item=admin.call('shipment',params={'id':chosen['id']})['items'][0]['id'];chosen_delivery=ops.call('save_unified_delivery',payload(chosen_item,'0','0','0'),status=201)
+ chosen_doc=admin.call('unified_delivery',params={'id':chosen_delivery['id']});chosen_request=existing(chosen_doc);chosen_request['items'][0]['suzuki']='0';chosen_request['refund_operator_id']=operator_id
+ admin.call('save_unified_delivery',chosen_request,status=201);conn=sqlite3.connect(database)
+ assert conn.execute("SELECT e.operator_id,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=? AND e.kind='expense'",(chosen_delivery['id'],)).fetchone()==(operator_id,5000);conn.close()
  customer_before=admin.call('ledger',params={'account_id':customer})['closing'];cash_before=admin.call('ledger',params={'account_id':cash})['closing']
  proposal=payload(shipment('UNIFIED-OPS'),'1200','100','50');pending=ops.call('save_unified_delivery',proposal,status=201);assert not pending['pending_cash']
  assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before

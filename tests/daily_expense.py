@@ -64,12 +64,19 @@ def check(base,database,password):
  detail=admin.call('daily_expense_entry',params={'id':added['id']})['entry'];assert detail['actor_name']=='integration-review' and detail['operator_id']==ids[1]
  other.call('save_daily_expense',admin_expense,status=409)
  admin.call('save_daily_expense',expense(updated,'5'),status=422)
+ cash_before_edit=admin.call('ledger',params={'account_id':cash})['closing'];correction={'id':added['id'],'request_key':str(uuid.uuid4()),'amount':'30','dated':today,'title':'Corrected fuel and office run','notes':'Corrected test amount','cash_account_id':cash,'expense_account_id':'5-501-OPS','reason':'Correcting the recorded amount'}
+ other.call('edit_daily_expense',correction,status=403);edited=admin.call('edit_daily_expense',correction,status=201);assert not edited['replayed'] and edited['balance']==27000
+ assert admin.call('edit_daily_expense',correction,status=201)['replayed'];updated=other.call('daily_expense');assert updated['totals']['balance']==27000
+ corrected_detail=admin.call('daily_expense_entry',params={'id':added['id']})['entry'];assert corrected_detail['amount']==3000 and corrected_detail['title']=='Corrected fuel and office run' and corrected_detail['correction_reason']=='Correcting the recorded amount'
+ assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_edit-500
+ assert db.execute('SELECT COUNT(*) FROM operator_cash_entry_edits WHERE entry_id=?',(added['id'],)).fetchone()[0]==1
+ assert not db.execute('SELECT voucher_id FROM voucher_lines GROUP BY voucher_id HAVING SUM(debit)<>SUM(credit)').fetchall()
  # Manual receipts add cash without pretending to be a delivery or changing customers.
  current=other.call('daily_expense');cash_before=admin.call('ledger',params={'account_id':cash})['closing'];customer_before=admin.call('ledger',params={'account_id':customer})['closing']
  manual={**expense(current,'425'),'operator_id':ids[1],'title':'Cash from office owner'}
  r=other.call('save_daily_cash_received',manual,status=201);assert other.call('save_daily_cash_received',manual,status=201)['replayed']
  manual_detail=other.call('daily_expense_entry',params={'id':r['id']})['entry'];assert manual_detail['kind']=='collection' and manual_detail['receipt_id'] is None and manual_detail['voucher_id']
- assert other.call('daily_expense')['totals']['balance']==70000
+ assert other.call('daily_expense')['totals']['balance']==69500
  assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before+42500
  assert admin.call('ledger',params={'account_id':customer})['closing']==customer_before
  ops.call('save_daily_cash_received',manual,status=403)

@@ -242,15 +242,15 @@ function unified_refund_service_advance(array $invoice,array $user,array $p,stri
  }
  if(!$refunds)return [];
  $operatorId=(int)($p['refund_operator_id']??0);
- if($user['role']==='super_admin'&&!$operatorId){$operators=query("SELECT id FROM users WHERE role='operations' AND active=1 LIMIT 2");if(count($operators)===1)$operatorId=(int)$operators[0]['id'];}
- $owner=operator_cash_owner($user,['operator_id'=>$operatorId]);
- if(!$owner||empty($owner['active']))throw new InvalidArgumentException('Choose an active munshi for the advance refund.');
+ $recordOnMunshi=$user['role']==='operations'||$operatorId>0;
+ $owner=$recordOnMunshi?operator_cash_owner($user,['operator_id'=>$operatorId]):null;
+ if($recordOnMunshi&&(!$owner||empty($owner['active'])))throw new InvalidArgumentException('Choose an active munshi for the advance refund.');
  $dated=!empty($p['received_date'])?day($p,'received_date'):date('Y-m-d');
  if($dated>date('Y-m-d'))throw new InvalidArgumentException('Refund date cannot be in the future.');
  if($dated<$invoice['header']['dated']||($invoice['receipts']&&$dated<max(array_column($invoice['receipts'],'dated'))))throw new InvalidArgumentException('Refund date cannot be earlier than the delivery or the previous collection.');
  $cash=text($p,'cash_account_id',40,true);
  if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');
- $period=operator_cash_open((int)$owner['id'],true);$result=[];
+ $period=$owner?operator_cash_open((int)$owner['id'],true):null;$result=[];
  foreach($refunds as [$line,$amount]){
   $legacy=(bool)$invoice['header']['legacy_services'];$loading=0;$suzuki=0;$combined=0;
   if($legacy)$combined=$amount;
@@ -267,8 +267,11 @@ function unified_refund_service_advance(array $invoice,array $user,array $p,stri
   run('INSERT INTO delivery_cash_receipt_lines(receipt_id,delivery_item_id,bilty_received,service_received,loading_received,suzuki_received,legacy_service_received) VALUES(?,?,0,?,?,?,?)',[$receipt,$line['delivery_item_id'],-$amount,-$loading,-$suzuki,-$combined]);
   run('UPDATE delivery_items SET service_received=service_received-? WHERE id=?',[$amount,$line['delivery_item_id']]);
   run('INSERT INTO delivery_service_refunds(delivery_item_id,receipt_id,amount) VALUES(?,?,?)',[$line['delivery_item_id'],$receipt,$amount]);
-  run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,receipt_id,voucher_id,actor_id,actor_name) VALUES(?,?,'expense',?,?,?,?,?,?,?,?,?)",[$period['id'],$owner['id'],$dated,$amount,'Advance refund · '.$invoice['header']['reference'],$memo,$cash,$receipt,$voucher,$user['id'],$user['username']]);
-  $entry=(int)db()->lastInsertId();run('INSERT INTO delivery_expenses(delivery_id,operator_entry_id) VALUES(?,?)',[$invoice['header']['id'],$entry]);audit('refunded service advance','delivery',$invoice['header']['id']);$result[]=$receipt;
+  if($owner){
+   run("INSERT INTO operator_cash_entries(period_id,operator_id,kind,dated,amount,title,notes,cash_account_id,receipt_id,voucher_id,actor_id,actor_name) VALUES(?,?,'expense',?,?,?,?,?,?,?,?,?)",[$period['id'],$owner['id'],$dated,$amount,'Advance refund · '.$invoice['header']['reference'],$memo,$cash,$receipt,$voucher,$user['id'],$user['username']]);
+   $entry=(int)db()->lastInsertId();run('INSERT INTO delivery_expenses(delivery_id,operator_entry_id) VALUES(?,?)',[$invoice['header']['id'],$entry]);
+  }
+  audit('refunded service advance','delivery',$invoice['header']['id']);$result[]=$receipt;
  }
  return $result;
 }

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 function migrate_operator_cash(): void {
- if(one("SELECT value FROM meta WHERE key='operator_cash_version'")){migrate_admin_expenses();return;}
+ if(one("SELECT value FROM meta WHERE key='operator_cash_version'")){migrate_admin_expenses();migrate_operator_cash_edits();return;}
  transaction(function(){
   if(one("SELECT value FROM meta WHERE key='operator_cash_version'"))return;
   run('CREATE TABLE operator_cash_periods(id INTEGER PRIMARY KEY AUTOINCREMENT,operator_id INTEGER NOT NULL REFERENCES users(id),opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,closed_at TEXT,closed_by INTEGER REFERENCES users(id),settlement_amount INTEGER,settlement_note TEXT NOT NULL DEFAULT \'\',close_request_key TEXT UNIQUE,close_request_hash TEXT)');
@@ -19,6 +19,17 @@ function migrate_operator_cash(): void {
   audit('enabled new collections only','operator_cash','1');
  });
  migrate_admin_expenses();
+ migrate_operator_cash_edits();
+}
+function migrate_operator_cash_edits(): void {
+ if(one("SELECT value FROM meta WHERE key='operator_cash_edits_version'"))return;
+ transaction(function(){
+  run('CREATE TABLE IF NOT EXISTS operator_cash_entry_edits(id INTEGER PRIMARY KEY AUTOINCREMENT,entry_id INTEGER NOT NULL REFERENCES operator_cash_entries(id),amount INTEGER NOT NULL CHECK(amount>0),dated TEXT NOT NULL,title TEXT NOT NULL,notes TEXT NOT NULL,cash_account_id TEXT NOT NULL REFERENCES accounts(id),expense_account_id TEXT REFERENCES accounts(id),actor_id INTEGER NOT NULL REFERENCES users(id),actor_name TEXT NOT NULL,reason TEXT NOT NULL,excluded INTEGER NOT NULL DEFAULT 0 CHECK(excluded IN (0,1)),reversal_voucher_id INTEGER REFERENCES vouchers(id),replacement_voucher_id INTEGER REFERENCES vouchers(id),request_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+  run('CREATE INDEX IF NOT EXISTS idx_operator_cash_entry_edits_entry ON operator_cash_entry_edits(entry_id,id)');
+  run("CREATE TRIGGER IF NOT EXISTS operator_cash_entry_edits_immutable_update BEFORE UPDATE ON operator_cash_entry_edits BEGIN SELECT RAISE(ABORT,'Munshi cash corrections cannot be edited.'); END");
+  run("CREATE TRIGGER IF NOT EXISTS operator_cash_entry_edits_immutable_delete BEFORE DELETE ON operator_cash_entry_edits BEGIN SELECT RAISE(ABORT,'Munshi cash corrections cannot be deleted.'); END");
+  run("INSERT OR IGNORE INTO meta(key,value) VALUES('operator_cash_edits_version','1')");
+ });
 }
 function migrate_admin_expenses(): void {
  if(one("SELECT value FROM meta WHERE key='admin_expenses_version'"))return;
@@ -122,7 +133,8 @@ function operator_cash_open(int $operator,bool $create=false): ?array {
 function operator_cash_totals(?array $period): array {
  if(!$period)return ['received'=>0,'expenses'=>0,'balance'=>0,'count'=>0,'last_id'=>0];
  $amount=operator_cash_effective_amount_sql('e');
- $totals=one("SELECT COALESCE(SUM(CASE WHEN e.kind='collection' THEN $amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN e.kind='expense' THEN $amount ELSE 0 END),0) expenses,COUNT(*) count,COALESCE(MAX(e.id),0) last_id FROM operator_cash_entries e WHERE e.period_id=?",[$period['id']]);
+ $visible="COALESCE((SELECT x.excluded FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),0)=0";
+ $totals=one("SELECT COALESCE(SUM(CASE WHEN e.kind='collection' THEN $amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN e.kind='expense' THEN $amount ELSE 0 END),0) expenses,COUNT(*) count,COALESCE(MAX(e.id),0) last_id FROM operator_cash_entries e WHERE e.period_id=? AND $visible",[$period['id']]);
  $totals['balance']=(int)$totals['received']-(int)$totals['expenses'];return $totals;
 }
 function operator_cash_token(int $operator): string {
@@ -134,7 +146,8 @@ function operator_cash_prepaid_service_sql(string $entryAlias='e'): string {
  return "(SELECT COALESCE(SUM(MIN(rl.service_received,b.service_advance)),0) FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=$entryAlias.receipt_id AND rl.service_received>0 AND rl.receipt_id=(SELECT MIN(first_rl.receipt_id) FROM delivery_cash_receipt_lines first_rl WHERE first_rl.delivery_item_id=rl.delivery_item_id AND (first_rl.bilty_received<>0 OR first_rl.service_received<>0)))";
 }
 function operator_cash_effective_amount_sql(string $entryAlias='e'): string {
- return "($entryAlias.amount-CASE WHEN $entryAlias.kind='collection' THEN ".operator_cash_prepaid_service_sql($entryAlias)." ELSE 0 END)";
+ $adjusted="COALESCE((SELECT CASE WHEN x.excluded=1 THEN 0 ELSE x.amount END FROM operator_cash_entry_edits x WHERE x.entry_id=$entryAlias.id ORDER BY x.id DESC LIMIT 1),$entryAlias.amount)";
+ return "($adjusted-CASE WHEN $entryAlias.kind='collection' THEN ".operator_cash_prepaid_service_sql($entryAlias)." ELSE 0 END)";
 }
 function operator_cash_prepaid_service_amount(int $receipt): int {
  return (int)(one("SELECT COALESCE(SUM(MIN(rl.service_received,b.service_advance)),0) amount FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=? AND rl.service_received>0 AND rl.receipt_id=(SELECT MIN(first_rl.receipt_id) FROM delivery_cash_receipt_lines first_rl WHERE first_rl.delivery_item_id=rl.delivery_item_id AND (first_rl.bilty_received<>0 OR first_rl.service_received<>0))",[$receipt])['amount']??0);
@@ -216,17 +229,17 @@ function operator_cash_entries_cte(): string {
   UNION SELECT current_receipt,source_request_key,source_delivery_id FROM batches WHERE current_receipt IS NOT NULL
  ), grouped AS (
   SELECT MAX(e.id) anchor_id,SUM(".operator_cash_effective_amount_sql('e').") group_amount,MAX(m.source_delivery_id) source_delivery_id,MAX(m.source_request_key) source_request_key,COUNT(*) member_count
-  FROM operator_cash_entries e LEFT JOIN receipt_batches m ON m.receipt_id=e.receipt_id WHERE e.period_id=?
+  FROM operator_cash_entries e LEFT JOIN receipt_batches m ON m.receipt_id=e.receipt_id WHERE e.period_id=? AND COALESCE((SELECT x.excluded FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),0)=0
   GROUP BY CASE WHEN m.source_request_key IS NULL THEN 'entry:'||e.id ELSE 'batch:'||m.source_request_key END
  ), entries AS (
-  SELECT e.id,e.period_id,e.operator_id,e.kind,e.dated,e.created_at,g.group_amount amount,
+  SELECT e.id,e.period_id,e.operator_id,e.kind,COALESCE((SELECT x.dated FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),e.dated) dated,e.created_at,g.group_amount amount,
    CASE WHEN g.source_delivery_id IS NOT NULL THEN 'Delivery '||d.reference
     WHEN EXISTS(SELECT 1 FROM wasooli_collections w WHERE w.operator_entry_id=e.id) THEN 'Daily Wasooli · '||COALESCE((SELECT CASE WHEN COUNT(DISTINCT b.account_id)>1 THEN 'Multiple customers' ELSE MAX(a.name) END FROM wasooli_collections w JOIN wasooli_receipts wr ON wr.collection_id=w.id JOIN delivery_cash_receipt_lines l ON l.receipt_id=wr.receipt_id AND (l.bilty_received<>0 OR l.service_received<>0) JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id WHERE w.operator_entry_id=e.id),'Customer')
-    ELSE e.title END title,
-   e.notes,e.cash_account_id,e.expense_account_id,e.receipt_id,e.voucher_id,e.actor_id,e.actor_name,e.request_key,e.request_hash,
+    ELSE COALESCE((SELECT x.title FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),e.title) END title,
+   COALESCE((SELECT x.notes FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),e.notes) notes,COALESCE((SELECT x.cash_account_id FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),e.cash_account_id) cash_account_id,COALESCE((SELECT x.expense_account_id FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),e.expense_account_id) expense_account_id,e.receipt_id,COALESCE((SELECT x.replacement_voucher_id FROM operator_cash_entry_edits x WHERE x.entry_id=e.id ORDER BY x.id DESC LIMIT 1),e.voucher_id) voucher_id,e.actor_id,e.actor_name,u.role actor_role,e.request_key,e.request_hash,
    g.source_delivery_id,g.source_request_key,g.member_count,
    SUM(CASE WHEN e.kind='collection' THEN g.group_amount ELSE -g.group_amount END) OVER(ORDER BY e.id ROWS UNBOUNDED PRECEDING) running_balance
-  FROM grouped g JOIN operator_cash_entries e ON e.id=g.anchor_id LEFT JOIN deliveries d ON d.id=g.source_delivery_id
+  FROM grouped g JOIN operator_cash_entries e ON e.id=g.anchor_id LEFT JOIN deliveries d ON d.id=g.source_delivery_id JOIN users u ON u.id=e.actor_id
  ) ";
 }
 function operator_cash_ledger(array $p,array $user): array {
@@ -239,14 +252,17 @@ function operator_cash_ledger(array $p,array $user): array {
  $result['period_token']=operator_cash_token($operator);$result['period']=$period;$result['totals']=operator_cash_totals($period);$result['version']=$period?operator_cash_version($period):null;
  if($period){$args=[(int)$period['id'],(int)$period['id']];$where=' WHERE 1=1';$where.=rangeWhere('dated',$args);$search=text($p,'search',250);if($search!==''){$where.=" AND (title LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')";$pattern='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%';$args[]=$pattern;$args[]=$pattern;}$kind=text($p,'kind',20);if(in_array($kind,['collection','expense'],true)){$where.=' AND kind=?';$args[]=$kind;}
   $base=operator_cash_entries_cte();$filtered=one($base."SELECT COUNT(*) count,COALESCE(SUM(CASE WHEN kind='collection' THEN amount ELSE 0 END),0) received,COALESCE(SUM(CASE WHEN kind='expense' THEN amount ELSE 0 END),0) expenses FROM entries".$where,$args);$page=max(0,min(max(0,(int)ceil($filtered['count']/30)-1),(int)($p['page']??0)));
-  $result['rows']=query($base.'SELECT entries.*,(SELECT name FROM accounts a WHERE a.id=entries.cash_account_id) cash_account FROM entries'.$where.' ORDER BY id DESC LIMIT 30 OFFSET '.($page*30),$args);$result['total']=(int)$filtered['count'];$result['filtered_totals']=$filtered;$result['page']=$page;
+  $result['rows']=query($base.'SELECT entries.*,(SELECT name FROM accounts a WHERE a.id=entries.cash_account_id) cash_account FROM entries'.$where.' ORDER BY id DESC LIMIT 30 OFFSET '.($page*30),$args);foreach($result['rows'] as &$row){$row['can_edit']=$user['role']==='super_admin'&&$row['kind']==='expense'&&$row['receipt_id']===null&&$row['expense_account_id']!==null&&empty($period['closed_at']);$row['admin_refund']=$row['kind']==='expense'&&$row['receipt_id']!==null&&str_starts_with($row['title'],'Advance refund · ')&&$row['actor_role']==='super_admin';}unset($row);$result['total']=(int)$filtered['count'];$result['filtered_totals']=$filtered;$result['page']=$page;
  }
  $count=(int)one('SELECT COUNT(*) n FROM operator_cash_periods WHERE operator_id=? AND closed_at IS NOT NULL',[$operator])['n'];$hp=max(0,min(max(0,(int)ceil($count/15)-1),(int)($p['history_page']??0)));$result['history']=['rows'=>query('SELECT p.*,u.full_name cleared_by_name,(SELECT COUNT(*) FROM operator_cash_entries e WHERE e.period_id=p.id) entries FROM operator_cash_periods p LEFT JOIN users u ON u.id=p.closed_by WHERE p.operator_id=? AND p.closed_at IS NOT NULL ORDER BY p.id DESC LIMIT 15 OFFSET '.($hp*15),[$operator]),'total'=>$count,'page'=>$hp,'page_size'=>15];
  if(operator_cash_allowed($user)){$result['cash_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%') ORDER BY id");$result['expense_accounts']=query("SELECT id,name FROM accounts WHERE status='A' AND id LIKE '5-%' ORDER BY CASE WHEN id='5-501-OPS' THEN 0 ELSE 1 END,name");}
  return $result;
 }
 function operator_cash_entry(int $id,array $user): array {
- $entry=one('SELECT e.*,a.name cash_account,x.name expense_account,v.reference voucher_reference FROM operator_cash_entries e JOIN accounts a ON a.id=e.cash_account_id LEFT JOIN accounts x ON x.id=e.expense_account_id LEFT JOIN vouchers v ON v.id=e.voucher_id WHERE e.id=?',[$id]);if(!$entry)throw new InvalidArgumentException('Entry not found.');if($user['role']!=='super_admin'&&(int)$entry['operator_id']!==(int)$user['id'])throw new RuntimeException('This entry is not available to your account.',403);
+ $entry=one("SELECT e.*,a.name cash_account,x.name expense_account,v.reference voucher_reference,u.role actor_role,p.closed_at period_closed,(SELECT id FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) correction_id,(SELECT excluded FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) excluded,(SELECT reason FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) correction_reason,(SELECT amount FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_amount,(SELECT dated FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_dated,(SELECT title FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_title,(SELECT notes FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_notes,(SELECT cash_account_id FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_cash_account_id,(SELECT expense_account_id FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_expense_account_id,(SELECT replacement_voucher_id FROM operator_cash_entry_edits ce WHERE ce.entry_id=e.id ORDER BY ce.id DESC LIMIT 1) corrected_voucher_id FROM operator_cash_entries e JOIN accounts a ON a.id=e.cash_account_id LEFT JOIN accounts x ON x.id=e.expense_account_id LEFT JOIN vouchers v ON v.id=e.voucher_id JOIN users u ON u.id=e.actor_id JOIN operator_cash_periods p ON p.id=e.period_id WHERE e.id=?",[$id]);if(!$entry)throw new InvalidArgumentException('Entry not found.');if($user['role']!=='super_admin'&&(int)$entry['operator_id']!==(int)$user['id'])throw new RuntimeException('This entry is not available to your account.',403);
+ if($entry['correction_id']){$entry['amount']=(int)$entry['corrected_amount'];$entry['dated']=$entry['corrected_dated'];$entry['title']=$entry['corrected_title'];$entry['notes']=$entry['corrected_notes'];$entry['cash_account_id']=$entry['corrected_cash_account_id'];$entry['expense_account_id']=$entry['corrected_expense_account_id'];$entry['excluded']=(int)$entry['excluded'];$entry['cash_account']=one('SELECT name FROM accounts WHERE id=?',[$entry['cash_account_id']])['name']??$entry['cash_account'];$entry['expense_account']=one('SELECT name FROM accounts WHERE id=?',[$entry['expense_account_id']])['name']??$entry['expense_account'];$entry['voucher_id']=$entry['corrected_voucher_id']??$entry['voucher_id'];$entry['voucher_reference']=one('SELECT reference FROM vouchers WHERE id=?',[$entry['voucher_id']])['reference']??$entry['voucher_reference'];}
+ $entry['admin_refund']=$entry['kind']==='expense'&&$entry['receipt_id']!==null&&str_starts_with($entry['title'],'Advance refund · ')&&$entry['actor_role']==='super_admin';
+ $entry['can_edit']=$user['role']==='super_admin'&&$entry['kind']==='expense'&&$entry['receipt_id']===null&&$entry['expense_account_id']!==null&&empty($entry['period_closed']);
  $group=one(operator_cash_entries_cte().'SELECT * FROM entries WHERE id=?',[$entry['period_id'],$entry['period_id'],$id]);if($group){$entry['amount']=$group['amount'];$entry['title']=$group['title'];}
  $result=['entry'=>$entry,'items'=>[],'allocations'=>[]];$wasooli=one('SELECT w.*,a.name customer,u.full_name operator_name FROM wasooli_collections w JOIN accounts a ON a.id=w.account_id JOIN users u ON u.id=w.operator_id WHERE w.operator_entry_id=?',[$id]);if($wasooli){$result['allocations']=query('SELECT d.reference delivery_reference,b.bilty,(l.bilty_received+l.service_received) amount,b.account_id,a.name customer FROM wasooli_receipts w JOIN delivery_cash_receipt_lines l ON l.receipt_id=w.receipt_id JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id JOIN delivery_cash_receipts r ON r.id=w.receipt_id JOIN deliveries d ON d.id=r.delivery_id WHERE w.collection_id=? AND (l.bilty_received<>0 OR l.service_received<>0) ORDER BY r.id,l.delivery_item_id',[$wasooli['id']]);$customers=array_values(array_unique(array_column($result['allocations'],'customer')));if($customers)$wasooli['customer']=implode(', ',$customers);$result['wasooli']=$wasooli;}if($entry['receipt_id']){
   $receiptIds=[(int)$entry['receipt_id']];if(!empty($group['source_request_key'])){$receiptIds=array_map('intval',array_column(query("SELECT e.receipt_id FROM operator_cash_entries e WHERE e.period_id=? AND e.receipt_id IN (SELECT receipt_id FROM delivery_customer_collections WHERE source_request_key=? UNION SELECT json_extract(result_json,'$.cash_id') FROM delivery_unified_requests WHERE request_key=?)",[$entry['period_id'],$group['source_request_key'],$group['source_request_key']]),'receipt_id'));}
@@ -254,6 +270,41 @@ function operator_cash_entry(int $id,array $user): array {
   $result['receipt']=one('SELECT r.*,d.reference delivery_reference,d.receiver,d.mobile,d.cnic,d.remarks delivery_remarks FROM delivery_cash_receipts r JOIN deliveries d ON d.id=? WHERE r.id=?',[$group['source_delivery_id']??one('SELECT delivery_id FROM delivery_cash_receipts WHERE id=?',[$entry['receipt_id']])['delivery_id'],$entry['receipt_id']]);
   $result['items']=query("SELECT l.*,b.bilty,b.party_to,b.bilty_amount,b.godown,b.advance,b.bilty_due,b.service_due,a.name customer,di.discount,di.loading_charge,di.suzuki_charge,i.qty,i.detail,s.dated arrival_date,st.name station,d.reference delivery_reference FROM delivery_cash_receipt_lines l JOIN delivery_cash_receipts r ON r.id=l.receipt_id JOIN deliveries d ON d.id=r.delivery_id JOIN delivery_cash_lines b ON b.delivery_item_id=l.delivery_item_id JOIN accounts a ON a.id=b.account_id JOIN delivery_items di ON di.id=b.delivery_item_id JOIN items i ON i.id=di.item_id JOIN shipments s ON s.id=i.shipment_id LEFT JOIN stations st ON st.id=s.station_id WHERE l.receipt_id IN ($marks)".(!empty($group['source_delivery_id'])?" AND (l.bilty_received<>0 OR l.service_received<>0 OR r.delivery_id=".(int)$group['source_delivery_id'].")":"")." ORDER BY r.id,l.delivery_item_id",$receiptIds);
  }return $result;
+}
+function operator_cash_entry_edit(array $p,array $user): array {
+ if($user['role']!=='super_admin')throw new RuntimeException('Only the super admin can correct Munshi expenses.',403);
+ $id=(int)($p['id']??0);$key=text($p,'request_key',100,true);if(!$id||!preg_match('/^[a-zA-Z0-9-]{16,100}$/D',$key))throw new InvalidArgumentException('Invalid expense correction request.');
+ $hash=shipment_version($p);
+ return transaction(function()use($p,$user,$id,$key,$hash){
+  $prior=one('SELECT * FROM operator_cash_entry_edits WHERE request_key=?',[$key]);
+  if($prior){if((int)$prior['actor_id']!==(int)$user['id']||!hash_equals($prior['request_hash'],$hash))throw new RuntimeException('This correction request was already used for different values.',409);return ['id'=>$prior['id'],'replayed'=>true];}
+  $entry=one("SELECT e.*,p.closed_at,u.role actor_role FROM operator_cash_entries e JOIN operator_cash_periods p ON p.id=e.period_id JOIN users u ON u.id=e.actor_id WHERE e.id=?",[$id]);
+  if(!$entry||$entry['kind']!=='expense')throw new InvalidArgumentException('Only Munshi expenses can be corrected.');
+  $latest=one('SELECT * FROM operator_cash_entry_edits WHERE entry_id=? ORDER BY id DESC LIMIT 1',[$id]);
+  $isRefund=$entry['receipt_id']!==null&&str_starts_with($entry['title'],'Advance refund · ')&&$entry['actor_role']==='super_admin';
+  $exclude=filter_var($p['exclude']??false,FILTER_VALIDATE_BOOLEAN);
+  if($exclude){
+   if(!$isRefund)throw new InvalidArgumentException('Only a super-admin-recorded advance refund can be removed from a Munshi ledger.');
+   if($latest&&(int)$latest['excluded']===1)throw new RuntimeException('This refund is already excluded from the Munshi ledger.',409);
+   $old=$latest?:['amount'=>$entry['amount'],'dated'=>$entry['dated'],'title'=>$entry['title'],'notes'=>$entry['notes'],'cash_account_id'=>$entry['cash_account_id'],'expense_account_id'=>$entry['expense_account_id']];
+   $reason=text($p,'reason',1000,true);
+   run('INSERT INTO operator_cash_entry_edits(entry_id,amount,dated,title,notes,cash_account_id,expense_account_id,actor_id,actor_name,reason,excluded,request_key,request_hash) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?)',[$id,$old['amount'],$old['dated'],$old['title'],$old['notes'],$old['cash_account_id'],$old['expense_account_id'],$user['id'],$user['username'],$reason,$key,$hash]);
+   $editId=(int)db()->lastInsertId();audit('removed admin advance refund from Munshi ledger','operator_cash_entry_edit',$editId);return ['id'=>$editId,'replayed'=>false,'excluded'=>true];
+  }
+  if($entry['receipt_id']!==null||!$entry['expense_account_id'])throw new InvalidArgumentException('Only standalone manual expenses can be edited.');
+  if($entry['closed_at'])throw new RuntimeException('Expenses in a cleared period cannot be edited. Correct an open-period expense instead.',409);
+  $amount=money($p,'amount');if(!$amount)throw new InvalidArgumentException('Expense amount must be greater than zero.');
+  $dated=day($p);if($dated>date('Y-m-d'))throw new InvalidArgumentException('Expense date cannot be in the future.');
+  $title=text($p,'title',150,true);$notes=text($p,'notes',1000);$cash=text($p,'cash_account_id',40,true);$expense=text($p,'expense_account_id',40,true);$reason=text($p,'reason',1000,true);
+  if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND (id LIKE '1-101-%' OR id LIKE '1-106-%')",[$cash]))throw new InvalidArgumentException('Choose an active cash or bank account.');
+  if(!one("SELECT id FROM accounts WHERE id=? AND status='A' AND id LIKE '5-%'",[$expense]))throw new InvalidArgumentException('Choose an active expense account.');
+  $old=$latest?:['amount'=>$entry['amount'],'dated'=>$entry['dated'],'title'=>$entry['title'],'notes'=>$entry['notes'],'cash_account_id'=>$entry['cash_account_id'],'expense_account_id'=>$entry['expense_account_id']];
+  $reversalVoucher=delivery_system_voucher('RV',date('Y-m-d'),'Expense correction reversal · '.$entry['actor_name'],[[$old['cash_account_id'],(int)$old['amount'],0],[$old['expense_account_id'],0,(int)$old['amount']]]);
+  $replacementVoucher=delivery_system_voucher('PV',$dated,'Corrected Munshi expense · '.$title,[[$expense,$amount,0],[$cash,0,$amount]]);
+  run('INSERT INTO operator_cash_entry_edits(entry_id,amount,dated,title,notes,cash_account_id,expense_account_id,actor_id,actor_name,reason,reversal_voucher_id,replacement_voucher_id,request_key,request_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[$id,$amount,$dated,$title,$notes,$cash,$expense,$user['id'],$user['username'],$reason,$reversalVoucher,$replacementVoucher,$key,$hash]);
+  $editId=(int)db()->lastInsertId();audit('corrected Munshi expense','operator_cash_entry_edit',$editId);$period=one('SELECT * FROM operator_cash_periods WHERE id=?',[$entry['period_id']]);
+  return ['id'=>$editId,'entry_id'=>$id,'period_id'=>$entry['period_id'],'balance'=>operator_cash_totals($period)['balance'],'replayed'=>false];
+ });
 }
 function daily_labour_expense(array $p): array {
  $date=empty($p['dated'])?date('Y-m-d'):day($p,'dated');
@@ -273,11 +324,12 @@ function operator_cash_routes(string $action,string $method,array $p,array $user
   if($action==='save_labour_payable_reset'&&$method==='POST')response(labour_payable_reset_save($p,$user),201);
   fail('Method not allowed.',405);
  }
- if(!in_array($action,['daily_expense','daily_labour_expense','daily_expense_entry','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;
+ if(!in_array($action,['daily_expense','daily_labour_expense','daily_expense_entry','edit_daily_expense','save_daily_expense','save_daily_cash_received','clear_operator_receivable'],true))return;
  if(!operator_cash_allowed($user))fail('Daily expense is available only to munshis and super admin.',403);
  if($action==='daily_expense'&&$method==='GET')response(operator_cash_ledger($_GET,$user));
  if($action==='daily_labour_expense'&&$method==='GET')response(daily_labour_expense($_GET));
  if($action==='daily_expense_entry'&&$method==='GET')response(operator_cash_entry((int)($_GET['id']??0),$user));
+ if($action==='edit_daily_expense'&&$method==='POST')response(operator_cash_entry_edit($p,$user),201);
  if($action==='save_daily_expense'&&$method==='POST')response(operator_cash_expense($p,$user),201);
  if($action==='save_daily_cash_received'&&$method==='POST')response(operator_cash_manual_receipt($p,$user),201);
  if($action==='clear_operator_receivable'&&$method==='POST')response(operator_cash_clear($p,$user),201);

@@ -117,6 +117,27 @@ def check(base,database,password):
  ops.call('save_unified_delivery',existing(again_advance,'0','0','30'),status=201);settled_advance=admin.call('unified_delivery',params={'id':advance_delivery['id']});assert settled_advance['lines'][0]['service_received']==15000 and settled_advance['lines'][0]['service_outstanding']==0
  assert conn.execute('SELECT SUM(e.amount) FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(advance_delivery['id'],)).fetchone()[0]==3000
  assert ops.call('daily_expense')['totals']['received']==before_ops['totals']['received']+3000;conn.close()
+ # Suzuki advances are recognized at incoming time, not collected again at delivery.
+ suzuki_cash_before=admin.call('ledger',params={'account_id':cash})['closing'];suzuki_ops_before=ops.call('daily_expense')['totals']['received']
+ suzuki_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'SUZUKI-ADVANCE','items':[{'account_id':customer,'bilty':'SUZUKI-ADVANCE','qty':1,'bilty_amount':'1000','loading':'0','suzuki':'37.60','service_advance':'37.60'}]},status=201)
+ suzuki_item=admin.call('shipment',params={'id':suzuki_shipment['id']})['items'][0]['id'];suzuki_payload=payload(suzuki_item,'0','0','0');suzuki_payload['items'][0].update(suzuki='37.60',suzuki_received='37.60')
+ suzuki_delivery=ops.call('save_unified_delivery',suzuki_payload,status=201)['id'];suzuki_doc=admin.call('unified_delivery',params={'id':suzuki_delivery});suzuki_receipt=suzuki_doc['receipts'][0]
+ suzuki_voucher=admin.call('voucher',params={'id':suzuki_receipt['voucher_id']})
+ assert sum(line['debit'] for line in suzuki_voucher['lines'] if line['account_id']==cash)==0
+ assert sum(line['debit'] for line in suzuki_voucher['lines'] if line['account_id']=='SYS-SERVICE-ADVANCE-CLEARING')==3760
+ assert admin.call('ledger',params={'account_id':cash})['closing']==suzuki_cash_before+3760
+ assert ops.call('daily_expense')['totals']['received']==suzuki_ops_before
+ conn=sqlite3.connect(database);conn.execute('UPDATE delivery_cash_lines SET service_advance=0 WHERE delivery_id=?',(suzuki_delivery,));conn.execute("UPDATE meta SET value='6' WHERE key='delivery_unified_version'");conn.commit();conn.close()
+ migrated_doc=admin.call('unified_delivery',params={'id':suzuki_delivery});assert migrated_doc['lines'][0]['service_advance']==3760
+ # Adopting an older delivery must recover its advance from the incoming bilty.
+ adopted_shipment=admin.call('save_shipment',{'kind':'incoming','dated':day,'station_id':station,'truck':'ADOPT-ADVANCE','items':[{'account_id':customer,'bilty':'ADOPT-ADVANCE','qty':1,'bilty_amount':'1000','loading':'0','suzuki':'50','service_advance':'50'}]},status=201)
+ adopted_item=admin.call('shipment',params={'id':adopted_shipment['id']})['items'][0]['id']
+ adopted_delivery=admin.call('save_delivery',{'dated':day,'receiver':'Adoption test','items':[{'id':adopted_item,'discount':'0','bilty_received':'0','service_received':'0'}]},status=201)
+ conn=sqlite3.connect(database);conn.execute('DELETE FROM delivery_cash_lines WHERE delivery_id=?',(adopted_delivery['id'],));conn.execute('DELETE FROM delivery_cash_invoices WHERE delivery_id=?',(adopted_delivery['id'],));conn.execute('UPDATE deliveries SET cash_workflow=0 WHERE id=?',(adopted_delivery['id'],));conn.commit();conn.close()
+ adopted_doc=admin.call('unified_delivery',params={'id':adopted_delivery['id']});assert adopted_doc['lines'][0]['service_advance']==5000
+ adopted_cash={'id':adopted_delivery['id'],'version':adopted_doc['version'],'request_key':str(uuid.uuid4()),'dated':day,'received_date':day,'receiver':'Adoption test','cash_account_id':cash,'items':[{'id':adopted_doc['lines'][0]['delivery_item_id'],'discount':'0','loading':'0','suzuki':'50','bilty_received':'0','service_received':'50'}]}
+ adopted_saved=ops.call('save_unified_delivery',adopted_cash,status=201);adopted_doc=admin.call('unified_delivery',params={'id':adopted_saved['id']});adopted_voucher=admin.call('voucher',params={'id':adopted_doc['receipts'][0]['voucher_id']})
+ assert sum(line['debit'] for line in adopted_voucher['lines'] if line['account_id']==cash)==0
  # A delivery receipt includes previously paid service advance in its recorded
  # total, but only newly received cash belongs in the Munshi ledger.
  cash_before_exact=admin.call('ledger',params={'account_id':cash})['closing']
@@ -131,8 +152,10 @@ def check(base,database,password):
  assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']==cash)==780000
  assert sum(line['debit'] for line in exact_voucher['lines'] if line['account_id']=='SYS-SERVICE-ADVANCE-CLEARING')==24000
  assert admin.call('ledger',params={'account_id':cash})['closing']==cash_before_exact+828000
- conn=sqlite3.connect(database);exact_entry=conn.execute('SELECT e.id,e.period_id,e.amount FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(exact_delivery['id'],)).fetchone();assert exact_entry[2]==780000
+ conn=sqlite3.connect(database);exact_entry=conn.execute('SELECT e.id,e.period_id,e.amount,e.receipt_id FROM operator_cash_entries e JOIN delivery_cash_receipts r ON r.id=e.receipt_id WHERE r.delivery_id=?',(exact_delivery['id'],)).fetchone();assert exact_entry[2]==780000
+ assert ops.call('daily_expense')['totals']['received']==before_ops['totals']['received']+3000+780000
  # Simulate the old saved amount to verify the live ledger also corrects history.
+ conn.execute("UPDATE meta SET value=? WHERE key='operator_cash_receipt_floor'",(str(exact_entry[3]),))
  conn.execute('DROP TRIGGER operator_cash_immutable_update')
  conn.execute('UPDATE operator_cash_entries SET amount=804000 WHERE id=?',(exact_entry[0],))
  conn.execute("CREATE TRIGGER operator_cash_immutable_update BEFORE UPDATE ON operator_cash_entries BEGIN SELECT RAISE(ABORT,'Munshi cash entries cannot be edited.'); END")

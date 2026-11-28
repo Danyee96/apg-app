@@ -143,14 +143,15 @@ function operator_cash_token(int $operator): string {
 }
 function operator_cash_version(array $period): string {return shipment_version([$period,operator_cash_totals($period)]);}
 function operator_cash_prepaid_service_sql(string $entryAlias='e'): string {
- return "(SELECT COALESCE(SUM(MIN(rl.service_received,b.service_advance)),0) FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=$entryAlias.receipt_id AND rl.service_received>0 AND rl.receipt_id=(SELECT MIN(first_rl.receipt_id) FROM delivery_cash_receipt_lines first_rl WHERE first_rl.delivery_item_id=rl.delivery_item_id AND (first_rl.bilty_received<>0 OR first_rl.service_received<>0)))";
+ $prior="COALESCE((SELECT SUM(previous.service_received) FROM delivery_cash_receipt_lines previous WHERE previous.delivery_item_id=rl.delivery_item_id AND previous.receipt_id<rl.receipt_id),0)+COALESCE((SELECT SUM(refund.amount) FROM delivery_service_refunds refund WHERE refund.delivery_item_id=rl.delivery_item_id AND refund.receipt_id<rl.receipt_id),0)";
+ return "(SELECT COALESCE(SUM(MIN(rl.service_received,MAX(0,b.service_advance-($prior)))),0) FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=$entryAlias.receipt_id AND rl.service_received>0 AND rl.receipt_id<=COALESCE(CAST((SELECT value FROM meta WHERE key='operator_cash_receipt_floor') AS INTEGER),0))";
 }
 function operator_cash_effective_amount_sql(string $entryAlias='e'): string {
  $adjusted="COALESCE((SELECT CASE WHEN x.excluded=1 THEN 0 ELSE x.amount END FROM operator_cash_entry_edits x WHERE x.entry_id=$entryAlias.id ORDER BY x.id DESC LIMIT 1),$entryAlias.amount)";
  return "($adjusted-CASE WHEN $entryAlias.kind='collection' THEN ".operator_cash_prepaid_service_sql($entryAlias)." ELSE 0 END)";
 }
 function operator_cash_prepaid_service_amount(int $receipt): int {
- return (int)(one("SELECT COALESCE(SUM(MIN(rl.service_received,b.service_advance)),0) amount FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=? AND rl.service_received>0 AND rl.receipt_id=(SELECT MIN(first_rl.receipt_id) FROM delivery_cash_receipt_lines first_rl WHERE first_rl.delivery_item_id=rl.delivery_item_id AND (first_rl.bilty_received<>0 OR first_rl.service_received<>0))",[$receipt])['amount']??0);
+ return (int)(one("SELECT COALESCE(SUM(MIN(rl.service_received,MAX(0,b.service_advance-COALESCE((SELECT SUM(previous.service_received) FROM delivery_cash_receipt_lines previous WHERE previous.delivery_item_id=rl.delivery_item_id AND previous.receipt_id<rl.receipt_id),0)-COALESCE((SELECT SUM(refund.amount) FROM delivery_service_refunds refund WHERE refund.delivery_item_id=rl.delivery_item_id AND refund.receipt_id<rl.receipt_id),0)))),0) amount FROM delivery_cash_receipt_lines rl JOIN delivery_cash_lines b ON b.delivery_item_id=rl.delivery_item_id WHERE rl.receipt_id=? AND rl.service_received>0",[$receipt])['amount']??0);
 }
 // Called inside the existing delivery receipt transaction; never repost its cash.
 function operator_cash_record_receipt(int $receipt,array $actor): void {
